@@ -61,6 +61,65 @@
   - 没有哪个工具能保证寄存器位域表、引脚复用矩阵、复杂时序图 100% 无需人工修正。
   - 对大模型查阅来说，优先级通常是“阅读顺序正确 + 表格结构尽量保留 + 公式不丢 + 页眉页脚去掉”，而不是视觉像素级还原。
 
+## Docling Deep Dive
+- `Docling` 的核心形态首先是本地 Python 库和 CLI，不是默认依赖云端的 SaaS API。
+- 官方安装入口是 `pip install docling`；文档说明其可运行在 macOS、Linux、Windows，支持 x86_64 和 arm64。
+- 对 CPU-only Linux，官方给出了带 PyTorch CPU wheel 的安装方式；对离线或内网环境，官方支持预下载模型并用 `DOCLING_ARTIFACTS_PATH` 或 `--artifacts-path` 指定模型目录。
+- 它的核心抽象是 `DocumentConverter -> ConversionResult -> DoclingDocument`：
+  - `DocumentConverter` 负责按输入类型选择 backend 和 pipeline；
+  - `ConversionResult` 是一次转换结果；
+  - `DoclingDocument` 是统一文档表示，可再导出为 Markdown / HTML / JSON / Text / DocTags。
+- 这套架构很适合工程化批处理，因为你不必把“PDF 转 Markdown”写死在第一步，可以保留中间结构，后续再做：
+  - Markdown 导出；
+  - 表格单独抽取；
+  - 图片或页面图导出；
+  - chunking / RAG ingestion。
+- 对 PDF 场景，官方强调的能力包括：
+  - page layout；
+  - reading order；
+  - table structure；
+  - OCR；
+  - code / formulas；
+  - picture classification；
+  - 多种导出格式。
+- 批处理能力是内建的，官方示例直接使用 `doc_converter.convert_all(...)`，并支持 `raises_on_error=False` 让整批任务即使有坏文件也继续跑完，再统一汇总错误。
+- 这点很重要：对批处理 PDF 程序而言，`convert_all` 比你自己在外面手写一个最朴素的 `for` 循环更接近官方推荐路径。
+- OCR 方面，官方支持多种引擎：
+  - EasyOCR；
+  - Tesseract / Tesseract CLI；
+  - OcrMac；
+  - RapidOCR；
+  - OnnxTR。
+- 对扫描件，官方示例支持 `force_full_page_ocr=True`，意思是整页强制走 OCR；这适合扫描版手册，但通常会更慢。
+- GPU 方面，官方说明可通过 `ThreadedPdfPipelineOptions` 调整 batch size；已明确提到当前 OCR 里已知可工作的 GPU 方案是 `RapidOCR` 的 torch backend。
+- 远程服务方面，官方态度很明确：
+  - Docling 的主要目标仍是本地运行，不把用户数据发给外部服务；
+  - 但允许你显式 opt-in 使用 remote services；
+  - 远程模式主要出现在 VLM / enrichment 等场景，而不是普通 PDF->Markdown 主流程的必需条件。
+- 官方文档明确要求：若使用远程服务，必须显式启用 `enable_remote_services=True` 或 CLI 的 `--enable-remote-services`。
+- 这意味着对你的 datasheet 批处理项目，默认路线应是：
+  - 先本地标准 pipeline；
+  - 扫描件再加 OCR；
+  - 只有当你后续确实要接远程 VLM 或云 OCR 时，才打开 remote services。
+- 编程语言选择上，最佳选择是 `Python`：
+  - 官方一等公民接口就是 Python API；
+  - CLI 本质上适合手工调用或 shell 编排，但复杂批处理、错误恢复、日志、输出组织、后处理仍然更适合 Python。
+- 如果你要做“批处理 PDF 的程序”，建议技术路线是：
+  - 主程序语言：Python；
+  - 封装层：CLI 可选，但不作为主实现；
+  - 核心调用：`DocumentConverter` + `convert_all()`；
+  - 输出：至少保留 `md` 和 `json` 两份；
+  - 扫描件策略：按目录或参数切换 OCR / full-page OCR；
+  - 失败处理：记录每个文件状态，允许部分失败后继续。
+- 对嵌入式资料项目，一个比较稳的初始版本应当具备：
+  - 输入目录递归扫描 PDF；
+  - 输出 `.md`；
+  - 可选同时输出 `.json`；
+  - `--ocr` 开关；
+  - `--force-full-page-ocr` 开关；
+  - `--num-threads` / `--device` 参数；
+  - 成功/失败汇总报告。
+
 ## Technical Decisions
 | Decision | Rationale |
 |----------|-----------|

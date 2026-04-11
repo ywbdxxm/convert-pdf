@@ -141,3 +141,20 @@
 - Files created/modified:
   - `findings.md` (updated)
   - `progress.md` (updated)
+
+## Session Update: Docling Deep Dive
+- Time: 2026-04-11 22:35 CST
+- Context:
+  - 用户要求详细了解 `Docling` 的使用方式、部署形态、特点，以及是否适合做批处理 PDF 程序。
+- Actions taken:
+  - 复核当前规划文件
+  - 查阅 `Docling` 官方文档和官方仓库说明
+  - 提炼本地部署、远程服务、OCR、批处理和编程语言建议
+- Key findings:
+  - `Docling` 的主形态是本地 Python 库和 CLI，而不是默认依赖云 API
+  - 官方推荐使用 `DocumentConverter`，批处理入口是 `convert_all(...)`
+  - 远程服务是显式 opt-in 能力，不是普通 PDF->Markdown 的必需项
+  - 对批处理 datasheet / app note，最佳实现语言仍是 Python
+- Files created/modified:
+  - `findings.md` (updated)
+  - `progress.md` (updated)
