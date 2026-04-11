@@ -25,6 +25,7 @@ ENV/
 htmlcov/
 
 # Editor and OS files
+.codex
 .vscode/
 .idea/
 *.swp
