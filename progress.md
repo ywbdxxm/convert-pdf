@@ -71,6 +71,19 @@
   - `findings.md` (updated)
   - `progress.md` (updated)
 
+### Phase 7: Repository Docs Refresh
+- **Status:** complete
+- Actions taken:
+  - 按“PDF 处理项目，当前先做 PDF 转 Markdown”的定位重写 README
+  - 重建 `.gitignore`，保留 Python 项目基础忽略项和本地实验产物忽略项
+  - 更新规划文件并准备提交推送
+- Files created/modified:
+  - `README.md` (recreated)
+  - `.gitignore` (recreated)
+  - `task_plan.md` (updated)
+  - `findings.md` (updated)
+  - `progress.md` (updated)
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -90,6 +103,8 @@
 | Fetch GitHub page | `fetch https://github.com/datalab-to/marker` | 成功抓取页面内容 | 成功返回仓库正文 | ✓ |
 | Fetch GitHub raw | `fetch https://raw.githubusercontent.com/datalab-to/marker/master/README.md` | 成功抓取原始文本 | 成功返回 README 内容 | ✓ |
 | Fetch example.com robots | `fetch https://example.com/robots.txt` | 成功抓取 robots.txt 或返回 404 正文 | 失败，`robots.txt` 连接错误 | ✗ |
+| README rewrite | 手工审阅新 README | 与当前项目阶段一致 | 已改为阶段导向结构 | ✓ |
+| .gitignore refresh | 手工审阅新 `.gitignore` | 忽略基础缓存与本地产物 | 已收敛为最小必要集合 | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -97,15 +112,16 @@
 | 2026-04-11 21:05 CST | 无 | 1 | 尚未出现错误 |
 | 2026-04-11 21:xx CST | `fetch` / 沙箱网络请求失败 | 1 | 已调整 Codex 配置，等待新会话验证 |
 | 2026-04-11 21:5x CST | `fetch` 对 `example.com` 仍失败 | 1 | 记录为边缘案例；不影响真实文档站点和 GitHub 的抓取 |
+| 2026-04-11 22:0x CST | 无 | 1 | README / `.gitignore` 改写未出现错误 |
 
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | 所有阶段已完成，验证已完成 |
-| Where am I going? | 等待用户决定是否继续深挖 `example.com` 边缘案例，或直接继续项目实现 |
+| Where am I? | 所有阶段已完成 |
+| Where am I going? | 等待用户决定继续实现哪条 PDF 转 Markdown 管线 |
 | What's the goal? | 完成工具调研，并解决或解释当前 `fetch` 异常 |
-| What have I learned? | 沙箱网络已经正常；`fetch` 对真实目标可用，但 `example.com` 仍有站点级边缘异常 |
-| What have I done? | 完成调研、推送研究记录、诊断并修复配置，然后在新会话完成复测 |
+| What have I learned? | README 需要贴合当前阶段，`.gitignore` 需要收敛而不是泛化 |
+| What have I done? | 完成调研、修复沙箱配置、验证 `fetch`，并整理了仓库文档 |
 
 ---
 *Update after completing each phase or encountering errors*

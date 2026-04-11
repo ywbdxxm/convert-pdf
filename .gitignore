@@ -1,45 +1,43 @@
-# Python
+# Python cache and build artifacts
 __pycache__/
 *.py[cod]
-*$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
+site/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
+pip-wheel-metadata/
 
 # Virtual environments
-.venv
+.venv/
 venv/
+env/
 ENV/
 
-# IDE
+# Test and tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Editor and OS files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Project specific
-*.pdf
-output/
+# Local experiment outputs
+outputs/
+tmp/
 temp/
+artifacts/
+
+# Large or local-only PDF samples
+samples/private/

@@ -46,12 +46,15 @@
 | 把候选工具分为开源本地与云 API 两类 | 实际选型受成本、隐私、吞吐和部署约束影响很大 |
 | 默认推荐 Docling，精度推荐 Marker，复杂扫描推荐 MinerU | 这是基于官方能力声明后的工程化选型推断 |
 | `fetch` 失败的根因优先按“工具运行环境无法访问代理”解释 | 单条 `fetch`、沙箱 `curl`、提权 `curl` 三组证据一致 |
+| README 使用“项目方向 + 当前阶段 + 选型路线”结构 | 比泛泛介绍 PDF 工具更贴近当前仓库状态 |
+| `.gitignore` 保留，但收敛为最小必要集合 | 用户明确不想删掉它，同时仓库还处于早期阶段 |
 
 ## Issues Encountered
 | Issue | Resolution |
 |-------|------------|
 | 当前仓库几乎为空，仅剩 `.git` 与 `.codex` | 先建立规划文件和研究记录，再继续调研 |
 | 当前会话中 `fetch` 工具失败，而用户自有 WSL 终端网络正常 | 正在做环境差异诊断 |
+| 原 README 过于泛化，和当前阶段不匹配 | 重写为“PDF 处理项目，当前先做 PDF 转 Markdown” |
 
 ## Resources
 - Marker GitHub: https://github.com/datalab-to/marker

@@ -43,6 +43,12 @@ Complete
 - [x] 记录仍存在的边缘案例
 - **Status:** complete
 
+### Phase 7: Repository Docs Refresh
+- [x] 重写 README 以匹配当前项目方向
+- [x] 重建更合适的 `.gitignore`
+- [x] 提交并推送文档更新
+- **Status:** complete
+
 ## Key Questions
 1. 当前有哪些主流 PDF→Markdown 工具适合大模型 RAG/查阅场景？
 2. 哪些工具对复杂版面、表格、公式和扫描件表现最好？
@@ -50,6 +56,7 @@ Complete
 4. 这个仓库后续应该优先集成哪几种工具做实验？
 5. 为什么当前会话里的 `fetch` 工具失败，而用户自己的 WSL 终端网络正常？
 6. 配置生效后，沙箱网络和 `fetch` 是否已经达到可用状态？
+7. README 和 `.gitignore` 应该如何反映当前“PDF 处理项目，先做 PDF 转 Markdown”的定位？
 
 ## Decisions Made
 | Decision | Rationale |
@@ -62,18 +69,22 @@ Complete
 | 将 `fetch` 异常按环境问题而非业务逻辑错误处理 | 现有证据显示是运行上下文网络可达性差异 |
 | 采用 A 方案：保留 `workspace-write`，显式开启沙箱网络并给 `fetch` 透传代理环境 | 这是风险最低且最贴近用户现有使用方式的修复路径 |
 | 当前判定为“沙箱网络正常，`fetch` 基本可用但存在个别站点边缘案例” | 实测中真实文档站点正常，`example.com` 仍触发 `robots.txt` 连接异常 |
+| README 采用“PDF 处理项目，当前先做 PDF 转 Markdown”的写法 | 这既保留整体方向，也符合当前仓库阶段 |
+| `.gitignore` 仅忽略 Python/缓存/本地产物和私有样本 | 避免过度忽略真实测试输出或仓库规划文件 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | `fetch` / 沙箱网络请求失败 | 1 | 已定位为沙箱/MCP 与用户 WSL 终端网络上下文不同，并已修改 Codex 配置做修复 |
 | `fetch` 对 `example.com` 仍报 `robots.txt` 连接问题 | 1 | 记录为站点级边缘案例，不影响对文档站点和 GitHub 的正常使用 |
+| 无 | 1 | README / `.gitignore` 重写过程未遇到新错误 |
 
 ## Notes
-- 当前 `git status` 显示 `.gitignore`、`README.md`、`findings.md`、`progress.md`、`task_plan.md` 为删除状态，另有未跟踪 `.codex` 文件；不主动回滚。
+- 当前工作区仍有未跟踪 `.codex` 文件；不主动处理。
 - 调研将优先参考官方文档、官方仓库与项目主页。
 - 结论需要区分：通用最佳、复杂版面最佳、扫描件/OCR 最佳、工程集成最稳妥。
 - 已完成提交并推送：`da395da` 推送到 `origin/main`，后续只剩用户决定先落地哪条解析管线。
 - 当前新增任务是诊断 `fetch` 工具异常；初步证据指向工具运行环境无法访问用户的本地 Clash 代理。
 - 已备份原始配置到 `/home/qcgg/.codex/config.toml.bak-2026-04-11-2135`，并更新 `/home/qcgg/.codex/config.toml`。
 - 新会话实测表明：沙箱 `curl` 已可正常通过代理联网，`fetch` 对 OpenAI 文档、Docling 官网、GitHub 页面和 raw 文本都可用。
+- README 已改为当前阶段导向，避免把未来功能写成既成事实。
