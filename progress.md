@@ -34,10 +34,11 @@
   - `findings.md` (updated)
 
 ### Phase 4: Documentation & Delivery
-- **Status:** in_progress
+- **Status:** complete
 - Actions taken:
   - 回写研究结论到 planning files
-  - 准备提交 git 变更并尝试推送远程
+  - 提交研究记录：`docs: research pdf to markdown tooling`
+  - 推送远程 `origin/main` 成功
 - Files created/modified:
   - `task_plan.md` (updated)
   - `findings.md` (updated)
@@ -48,6 +49,7 @@
 |------|-------|----------|--------|--------|
 | Session catchup | `python3 ~/.codex/skills/planning-with-files/scripts/session-catchup.py "$PWD"` | 输出已有会话上下文或空结果 | 返回空结果，无阻塞 | ✓ |
 | Git status | `git status --short --branch` | 识别当前工作区状态 | 检测到已有删除项和未跟踪 `.codex` | ✓ |
+| Git push | `git push origin main` | 将研究提交推送到 GitHub | 成功推送 `da395da` 到 `origin/main` | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -57,11 +59,11 @@
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 4，准备交付结论并处理 git |
-| Where am I going? | 完成中文结论，然后提交并推送本次研究记录 |
+| Where am I? | 所有阶段已完成 |
+| Where am I going? | 等待用户决定先接入哪种 PDF→Markdown 工具 |
 | What's the goal? | 调研当前 PDF→Markdown 工具并给出适合本仓库的推荐 |
 | What have I learned? | Docling/Marker/MinerU 是最值得先试的开源三强，按场景各有侧重 |
-| What have I done? | 建立规划文件，查阅官方资料，形成候选表和推荐结论 |
+| What have I done? | 建立规划文件，查阅官方资料，形成候选表和推荐结论，并已提交推送远程 |
 
 ---
 *Update after completing each phase or encountering errors*

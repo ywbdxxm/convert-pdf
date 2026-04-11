@@ -4,7 +4,7 @@
 调研当前适合将 PDF 转换为 Markdown 供大模型查阅的工具，给出分场景推荐，并将本次研究记录纳入仓库版本管理。
 
 ## Current Phase
-Phase 4
+Complete
 
 ## Phases
 ### Phase 1: Requirements & Discovery
@@ -27,9 +27,9 @@ Phase 4
 
 ### Phase 4: Documentation & Delivery
 - [x] 更新 findings.md 与 progress.md
-- [ ] 输出中文结论与后续建议
-- [ ] 处理本次 git 提交与远程推送
-- **Status:** in_progress
+- [x] 输出中文结论与后续建议
+- [x] 处理本次 git 提交与远程推送
+- **Status:** complete
 
 ## Key Questions
 1. 当前有哪些主流 PDF→Markdown 工具适合大模型 RAG/查阅场景？
@@ -44,6 +44,7 @@ Phase 4
 | 先做工具调研，再决定仓库实现方向 | 用户当前优先需求是选型，不是立即编码 |
 | 不回滚现有脏工作区中的删除项 | 这些改动可能来自用户，当前只记录并规避误操作 |
 | 以“本地开源默认方案 + 云 API 备选 + 轻量基线”输出结论 | 这样最适合当前仓库逐步实验和后续工程化 |
+| 先只提交三份研究/规划文件，不携带 `.gitignore` 与 `README.md` 删除 | 避免把用户已有未确认删除混入本次提交 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -54,3 +55,4 @@ Phase 4
 - 当前 `git status` 显示 `.gitignore`、`README.md`、`findings.md`、`progress.md`、`task_plan.md` 为删除状态，另有未跟踪 `.codex` 文件；不主动回滚。
 - 调研将优先参考官方文档、官方仓库与项目主页。
 - 结论需要区分：通用最佳、复杂版面最佳、扫描件/OCR 最佳、工程集成最稳妥。
+- 已完成提交并推送：`da395da` 推送到 `origin/main`，后续只剩用户决定先落地哪条解析管线。
