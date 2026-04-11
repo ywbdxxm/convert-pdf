@@ -125,3 +125,19 @@
 
 ---
 *Update after completing each phase or encountering errors*
+
+## Session Update: Embedded Datasheet Recommendation
+- Time: 2026-04-11 22:23 CST
+- Context:
+  - 用户把场景收敛为嵌入式工程文档，重点是芯片 datasheet / app note 转 Markdown。
+- Actions taken:
+  - 恢复上个会话上下文并复核 `task_plan.md` / `findings.md` / `progress.md`
+  - 将通用 PDF→Markdown 结论重新映射到嵌入式资料场景
+  - 在 `findings.md` 中新增面向 datasheet / 应用手册的专门推荐
+- Decision:
+  - 默认首选仍定为 `Docling`
+  - `Marker` 作为高保真复杂表格/公式增强方案
+  - `MinerU` 作为扫描件/中文/多语言/复杂 OCR 备用方案
+- Files created/modified:
+  - `findings.md` (updated)
+  - `progress.md` (updated)
