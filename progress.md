@@ -60,6 +60,17 @@
   - `/home/qcgg/.codex/config.toml` (updated, external)
   - `/home/qcgg/.codex/config.toml.bak-2026-04-11-2135` (created, external)
 
+### Phase 6: Post-Config Validation
+- **Status:** complete
+- Actions taken:
+  - 在当前新会话中复测沙箱 `curl`
+  - 验证 `fetch` 对 OpenAI 文档、Docling 官网、GitHub 页面和 GitHub raw 的抓取结果
+  - 复测 `example.com` 和 `example.com/robots.txt` 的边缘失败
+- Files created/modified:
+  - `task_plan.md` (updated)
+  - `findings.md` (updated)
+  - `progress.md` (updated)
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -72,21 +83,29 @@
 | Host-IP proxy in sandbox | `curl --proxy http://10.255.255.254:7897 -I https://example.com` | 通过宿主代理出网 | 失败，端口不可达 | ✗ |
 | Fetch tool | `fetch https://example.com` | 成功拉取页面 | 失败，`robots.txt` 连接错误 | ✗ |
 | Config syntax | `python3 -c 'tomllib.load(...)'` | TOML 配置有效 | `TOML OK` | ✓ |
+| Sandboxed curl after config | `curl -I https://example.com` | 通过 Clash 代理出网 | 成功返回 `HTTP/1.1 200 Connection established` / `HTTP/2 200` | ✓ |
+| Sandboxed curl to GitHub raw | `curl -I https://raw.githubusercontent.com` | 通过 Clash 代理出网 | 成功返回 `HTTP/1.1 200 Connection established` / `HTTP/2 301` | ✓ |
+| Fetch OpenAI docs | `fetch https://developers.openai.com/codex/concepts/sandboxing` | 成功抓取文档内容 | 成功返回页面正文 | ✓ |
+| Fetch Docling site | `fetch https://www.docling.ai/` | 成功抓取页面内容 | 成功返回页面正文 | ✓ |
+| Fetch GitHub page | `fetch https://github.com/datalab-to/marker` | 成功抓取页面内容 | 成功返回仓库正文 | ✓ |
+| Fetch GitHub raw | `fetch https://raw.githubusercontent.com/datalab-to/marker/master/README.md` | 成功抓取原始文本 | 成功返回 README 内容 | ✓ |
+| Fetch example.com robots | `fetch https://example.com/robots.txt` | 成功抓取 robots.txt 或返回 404 正文 | 失败，`robots.txt` 连接错误 | ✗ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
 | 2026-04-11 21:05 CST | 无 | 1 | 尚未出现错误 |
 | 2026-04-11 21:xx CST | `fetch` / 沙箱网络请求失败 | 1 | 已调整 Codex 配置，等待新会话验证 |
+| 2026-04-11 21:5x CST | `fetch` 对 `example.com` 仍失败 | 1 | 记录为边缘案例；不影响真实文档站点和 GitHub 的抓取 |
 
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | 所有阶段已完成，等待重启会话验证新配置 |
-| Where am I going? | 在新会话里复测 `curl` 和 `fetch` |
+| Where am I? | 所有阶段已完成，验证已完成 |
+| Where am I going? | 等待用户决定是否继续深挖 `example.com` 边缘案例，或直接继续项目实现 |
 | What's the goal? | 完成工具调研，并解决或解释当前 `fetch` 异常 |
-| What have I learned? | `fetch` 与沙箱网络上下文无法访问本地代理，已通过配置补齐网络权限和代理透传 |
-| What have I done? | 完成调研、推送研究记录、诊断 `fetch` 异常并更新 Codex 配置 |
+| What have I learned? | 沙箱网络已经正常；`fetch` 对真实目标可用，但 `example.com` 仍有站点级边缘异常 |
+| What have I done? | 完成调研、推送研究记录、诊断并修复配置，然后在新会话完成复测 |
 
 ---
 *Update after completing each phase or encountering errors*

@@ -89,6 +89,14 @@
   - 设置 `sandbox_workspace_write.network_access = true`
   - 为 `mcp_servers.fetch` 增加 `env_vars = ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"]`
 - 当前改动只会影响后续新启动的 Codex 会话；现有会话里的 `fetch` MCP 进程不会自动热重载。
+- 在新会话中，沙箱内 `curl -I https://example.com` 和 `curl -I https://raw.githubusercontent.com` 都成功，说明沙箱网络已经恢复正常。
+- `fetch` 现已成功抓取以下真实目标：
+  - `https://developers.openai.com/codex/concepts/sandboxing`
+  - `https://www.docling.ai/`
+  - `https://github.com/datalab-to/marker`
+  - `https://raw.githubusercontent.com/datalab-to/marker/master/README.md`
+- `fetch` 仍然会对 `https://example.com` 和 `https://example.com/robots.txt` 报 `Failed to fetch robots.txt ... due to a connection issue`。
+- 当前结论：`fetch` MCP 已达到“日常可用”状态，至少对文档站点、GitHub 页面和 raw 文本可正常使用；但不能视为对所有站点都完全无异常。
 
 ---
 *Update this file after every 2 view/browser/search operations*
