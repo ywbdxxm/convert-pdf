@@ -1,7 +1,7 @@
-# Task Plan: PDF 转 Markdown 工具调研与仓库管理
+# Task Plan: PDF 转 Markdown 工具调研与工具环境诊断
 
 ## Goal
-调研当前适合将 PDF 转换为 Markdown 供大模型查阅的工具，给出分场景推荐，并将本次研究记录纳入仓库版本管理。
+完成 PDF 转 Markdown 工具调研，并诊断当前会话中 `fetch` 工具异常的根因，给出可执行的修复或规避方案。
 
 ## Current Phase
 Complete
@@ -31,11 +31,18 @@ Complete
 - [x] 处理本次 git 提交与远程推送
 - **Status:** complete
 
+### Phase 5: Fetch Tool Diagnosis
+- [x] 复现 `fetch` 失败
+- [x] 对比沙箱与提权环境网络行为
+- [x] 记录根因与修复路径
+- **Status:** complete
+
 ## Key Questions
 1. 当前有哪些主流 PDF→Markdown 工具适合大模型 RAG/查阅场景？
 2. 哪些工具对复杂版面、表格、公式和扫描件表现最好？
 3. 在本地开源、自托管和云 API 三类方案中，分别该如何选型？
 4. 这个仓库后续应该优先集成哪几种工具做实验？
+5. 为什么当前会话里的 `fetch` 工具失败，而用户自己的 WSL 终端网络正常？
 
 ## Decisions Made
 | Decision | Rationale |
@@ -45,14 +52,18 @@ Complete
 | 不回滚现有脏工作区中的删除项 | 这些改动可能来自用户，当前只记录并规避误操作 |
 | 以“本地开源默认方案 + 云 API 备选 + 轻量基线”输出结论 | 这样最适合当前仓库逐步实验和后续工程化 |
 | 先只提交三份研究/规划文件，不携带 `.gitignore` 与 `README.md` 删除 | 避免把用户已有未确认删除混入本次提交 |
+| 将 `fetch` 异常按环境问题而非业务逻辑错误处理 | 现有证据显示是运行上下文网络可达性差异 |
+| 采用 A 方案：保留 `workspace-write`，显式开启沙箱网络并给 `fetch` 透传代理环境 | 这是风险最低且最贴近用户现有使用方式的修复路径 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-| 无 | 1 | 尚未遇到需要处理的错误 |
+| `fetch` / 沙箱网络请求失败 | 1 | 已定位为沙箱/MCP 与用户 WSL 终端网络上下文不同，并已修改 Codex 配置做修复 |
 
 ## Notes
 - 当前 `git status` 显示 `.gitignore`、`README.md`、`findings.md`、`progress.md`、`task_plan.md` 为删除状态，另有未跟踪 `.codex` 文件；不主动回滚。
 - 调研将优先参考官方文档、官方仓库与项目主页。
 - 结论需要区分：通用最佳、复杂版面最佳、扫描件/OCR 最佳、工程集成最稳妥。
 - 已完成提交并推送：`da395da` 推送到 `origin/main`，后续只剩用户决定先落地哪条解析管线。
+- 当前新增任务是诊断 `fetch` 工具异常；初步证据指向工具运行环境无法访问用户的本地 Clash 代理。
+- 已备份原始配置到 `/home/qcgg/.codex/config.toml.bak-2026-04-11-2135`，并更新 `/home/qcgg/.codex/config.toml`。

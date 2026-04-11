@@ -45,11 +45,13 @@
 | 以 LLM/RAG 实用性为核心评估维度 | 用户目标是“供大模型查阅”，不是单纯视觉复刻 |
 | 把候选工具分为开源本地与云 API 两类 | 实际选型受成本、隐私、吞吐和部署约束影响很大 |
 | 默认推荐 Docling，精度推荐 Marker，复杂扫描推荐 MinerU | 这是基于官方能力声明后的工程化选型推断 |
+| `fetch` 失败的根因优先按“工具运行环境无法访问代理”解释 | 单条 `fetch`、沙箱 `curl`、提权 `curl` 三组证据一致 |
 
 ## Issues Encountered
 | Issue | Resolution |
 |-------|------------|
 | 当前仓库几乎为空，仅剩 `.git` 与 `.codex` | 先建立规划文件和研究记录，再继续调研 |
+| 当前会话中 `fetch` 工具失败，而用户自有 WSL 终端网络正常 | 正在做环境差异诊断 |
 
 ## Resources
 - Marker GitHub: https://github.com/datalab-to/marker
@@ -71,6 +73,22 @@
 - Mistral OCR 文档的返回结构里每页直接包含 `markdown` 主输出字段，对“转成 Markdown 给大模型吃”非常直接。
 - Azure 文档说明其 Markdown 输出保留层级和元素语义，这意味着它更偏“结构化企业文档抽取”，而不是纯文本 OCR。
 - LlamaParse 文档示例直接把 `result_type` 设为 `markdown`，说明其默认使用方式就是面向解析后检索/RAG 管线。
+
+## Fetch Tool Diagnosis
+- 单独调用 `fetch` 请求 `https://example.com` 也失败，说明不是某个站点特例。
+- 沙箱内直接执行 `curl -I https://example.com` 失败，并明确报错尝试连接 `127.0.0.1:7897`。
+- 当前环境存在 `HTTP_PROXY`、`HTTPS_PROXY`、`http_proxy`、`https_proxy`，全部指向 `http://127.0.0.1:7897`。
+- 提权后执行同一条 `curl -I https://example.com` 成功，返回 `HTTP/1.1 200 Connection established` 和后续 `HTTP/2 200`。
+- 这说明“普通 WSL/提权环境”能访问你的 Clash 代理，但“我的沙箱环境”不能访问同一个 `127.0.0.1:7897`。
+- 在沙箱内去掉代理后，`curl` 报 `Could not resolve host: example.com`，说明沙箱本身没有直接外网 DNS/网络能力，依赖代理才能出网。
+- 在沙箱内显式把代理改成 `/etc/resolv.conf` 中的 `10.255.255.254:7897` 也无法连通，因此不只是 `localhost` 字面量问题，更像是沙箱与宿主网络命名空间隔离。
+- 对 `fetch` 工具本身再次复现，错误为 `Failed to fetch robots.txt https://example.com/robots.txt due to a connection issue`；这与代理不可达导致首个联网动作失败高度一致。
+- 已按 A 方案修改 `~/.codex/config.toml`：
+  - 设置 `sandbox_mode = "workspace-write"`
+  - 设置 `approval_policy = "on-request"`
+  - 设置 `sandbox_workspace_write.network_access = true`
+  - 为 `mcp_servers.fetch` 增加 `env_vars = ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"]`
+- 当前改动只会影响后续新启动的 Codex 会话；现有会话里的 `fetch` MCP 进程不会自动热重载。
 
 ---
 *Update this file after every 2 view/browser/search operations*
