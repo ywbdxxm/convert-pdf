@@ -120,6 +120,71 @@
   - `--num-threads` / `--device` 参数；
   - 成功/失败汇总报告。
 
+## PDF Reader MCP Assessment
+- `@sylphx/pdf-reader-mcp` 的定位是一个通用 PDF MCP server，面向 AI agent 做：
+  - text extraction；
+  - image extraction；
+  - metadata extraction；
+  - page count；
+  - 指定页/页范围读取；
+  - 本地文件或 URL 两类来源。
+- 它的优势是“直接给 agent 一个现成 PDF 读取工具”，不用先自己写解析脚本。
+- README 明确强调的当前能力是：
+  - 并行处理，主打 5-10x speedup；
+  - Y-coordinate ordering，尽量保持自然阅读顺序；
+  - 图片提取；
+  - 单工具接口 `read_pdf`。
+- 但从嵌入式手册场景看，它当前不是最强主方案，原因也很明确：
+  - README roadmap 里把 `OCR for scanned PDFs` 列为“Next”，说明扫描件 OCR 还不是其当前成熟核心能力；
+  - `Table detection` 也还在 roadmap，说明对寄存器表、参数表、引脚矩阵这类关键结构，它并不以高保真表格理解见长；
+  - 它更像“通用 PDF 读取器”，而不是面向 datasheet/app note 的结构化抽取器。
+- 因此，对你的场景我会这样定位它：
+  - 适合：按页快速查阅、临时问答、抽取页面文本/图片、验证某页原文。
+  - 不适合单独作为：长期批处理 datasheet -> 高质量 Markdown 的主数据管线。
+- 换句话说：
+  - `pdf-reader-mcp` 会让“我直接读某个 PDF”更方便；
+  - 但它不能替代 `Docling` 这类本地批量转换和结构化导出的主流程；
+  - 对复杂手册，最佳实践是“转换管线 + PDF MCP 兜底查证”。
+- 当前本地 Codex 配置里还没有接入 `pdf-reader-mcp`，所以“现在这个会话”并没有现成的专用 PDF MCP 可直接调用。
+
+## Best Practice For Embedded Manual-Driven Development
+- 从“让我依据手册帮你写嵌入式代码”的角度，最佳实践不是只选一种工具，而是分层：
+  - 第 1 层：保留原始 PDF，作为最终权威来源。
+  - 第 2 层：用 `Docling` 批量转出 `Markdown + JSON`，作为日常检索和引用层。
+  - 第 3 层：给我一个 `PDF MCP`，用于遇到可疑表格、图、脚注、页码争议时回查原始 PDF。
+- 如果只能二选一：
+  - 长期开发效率优先：先做 `Docling` 批处理。
+  - 临时查阅体验优先：先装 `pdf-reader-mcp`。
+  - 真正最稳的是两者都要，但职责不同。
+- 具体建议的仓库结构：
+  - `manuals/raw/`：原始 PDF
+  - `manuals/md/`：Docling 导出的 Markdown
+  - `manuals/json/`：Docling 导出的结构化结果
+  - `manuals/index/`：按芯片、外设、章节整理后的索引
+  - `manuals/notes/`：人工修正后的关键结论，例如时钟树、寄存器初始化顺序、flash wait states、boot 流程
+- 对嵌入式开发，最关键的是不要只保留“大段 Markdown 文本”，还应尽量沉淀出结构化资产：
+  - 寄存器地址和位定义；
+  - 中断号和中断源；
+  - 时钟树和分频关系；
+  - GPIO alternate function 表；
+  - 初始化顺序和约束；
+  - 时序/电气限制。
+- 因为真正帮你写代码时，最有价值的不是“整本手册能读”，而是这些高价值约束能被稳定引用。
+- 最稳的工作流是：
+  - 先批量转 Markdown / JSON；
+  - 再把关键章节按芯片和外设切成小文件；
+  - 再把寄存器表、AF 表、时序限制做成结构化摘录；
+  - 代码生成或驱动开发时，我优先查这些摘录，不够再回查原 PDF 页面。
+- 实际协作时，你给我的输入最好是：
+  - 芯片准确型号和手册 revision；
+  - 对应章节或页码；
+  - 已转换的 Markdown 片段；
+  - 若表格/图片可疑，再补原 PDF 页或 PDF MCP 查询结果。
+- 这样我在写代码时能做到：
+  - 先根据结构化摘录做实现；
+  - 再对关键寄存器位、复位值、时序约束做原 PDF 复核；
+  - 最终把驱动实现、初始化顺序、边界条件和注释都和手册对齐。
+
 ## Technical Decisions
 | Decision | Rationale |
 |----------|-----------|

@@ -158,3 +158,19 @@
 - Files created/modified:
   - `findings.md` (updated)
   - `progress.md` (updated)
+
+## Session Update: PDF MCP Workflow Recommendation
+- Time: 2026-04-11 22:42 CST
+- Context:
+  - 用户询问我是否能直接读 PDF，是否应先转 Markdown，以及 `pdf-reader-mcp` 是否会更适合嵌入式手册驱动开发。
+- Actions taken:
+  - 查阅 `SylphxAI/pdf-reader-mcp` 官方仓库说明
+  - 将其能力与 `Docling` 主转换管线做对比
+  - 提炼“转换管线 + PDF 回查”式最佳实践
+- Key findings:
+  - `pdf-reader-mcp` 适合按页查阅、抽图、快速验证原文
+  - 它当前不是面向 datasheet 结构化抽取的最强主方案
+  - 对嵌入式开发，最佳实践是原始 PDF + Docling Markdown/JSON + PDF MCP 回查三层结构
+- Files created/modified:
+  - `findings.md` (updated)
+  - `progress.md` (updated)
