@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
 
 ## Current Phase
-Design Audit
+Verification & Documentation
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -30,16 +30,16 @@ Design Audit
 - [x] 配置 WSL 全局 GPU / Python / 构建环境
 - [x] 清理未完成的重型下载与缓存残留
 - [x] 统一 `conda` / `uv` / `pip` 国内镜像配置
-- [ ] 在新镜像策略下重建共享 `AI base`
-- [ ] 建立项目级隔离环境与验证脚本
-- **Status:** in_progress
+- [x] 在新镜像策略下重建共享 `AI base`
+- [x] 建立项目级隔离环境与验证脚本
+- **Status:** complete
 
 ### Phase 5: Verification & Documentation
-- [ ] 验证 GPU、Python、Docling、后续 OCR/VLM 基础可用
+- [x] 验证 GPU、Python、Docling、后续 OCR/VLM 基础可用
 - [x] 补齐设计审计文档与执行脚本
 - [ ] 更新 README / findings / progress
 - [ ] 提交并推送
-- **Status:** pending
+- **Status:** in_progress
 
 ### Phase 6: Shared AI Base Design
 - [x] 总结当前 CUDA Python 依赖安装瓶颈
@@ -95,6 +95,7 @@ Design Audit
 | `uv` 全局镜像配置写成了无效键 `default-index` | 1 | 已修正为当前 `uv` 版本支持的 `index-url`，并用 `uv pip install --dry-run` 验证 |
 | `micromamba create` 持续下载但环境目录几乎未落盘 | 1 | 已停止进程、清空 `~/.mamba` 相关残留，并改为先 dry-run 验证镜像链路 |
 | 规划文件引用的设计文档路径不存在 | 1 | 已补写新的架构审计与执行文档，并改用真实存在的 `docs/architecture/` 路径 |
+| `uv` 在 overlay venv 中未复用共享 base 的 `torch` | 1 | 已确认 `pip` 能正确识别 `--system-site-packages` 继承依赖，并将 overlay 安装脚本切换为 `pip` |
 
 ## Notes
 - 当前系统为 `Ubuntu 24.04.4 LTS / WSL2`
@@ -104,9 +105,8 @@ Design Audit
 - 当前已完成：`docker`、`nvidia-container-toolkit`、`ninja-build`、`tesseract` 基础包
 - 当前已完成：Docker daemon NVIDIA runtime 配置与代理配置
 - 当前已完成：`docling/` 目录与基础 README / requirements
-- 当前项目级 GPU Python 环境安装已清理回空状态，尚未重建
-- 当前 `.venv` 仍未落入 `torch`，后续动作必须避免简单重复同一条易失败下载链
-- 当前共享重型 `AI base` 已清理回空状态，尚未重新创建
+- 当前共享重型 `AI base` 已创建完成：`/home/qcgg/.mamba/envs/ai-base-cu124-stable`
+- 当前 `docling/.venv` 已创建完成，并成功复用共享 base 中的 `torch`
 - 当前镜像配置文件已落盘：
   - `pip`: `/home/qcgg/.config/pip/pip.conf`
   - `uv`: `/home/qcgg/.config/uv/uv.toml`
@@ -117,6 +117,9 @@ Design Audit
   - `pip` 可通过国内镜像解析包版本
   - `uv` 修正后可通过国内镜像完成 dry-run 解析
   - `micromamba` 可在国内镜像配置下 dry-run 解析 `pytorch-cuda=12.4`
+  - 共享 `AI base` 中 `torch 2.5.1` 可见 GPU
+  - `docling 2.86.0` 可在 `docling/.venv` 中正常导入
+  - `docling/.venv` 中的 `torch` 实际来自共享 base，而不是项目层重复安装
 - 当前已补齐：
   - `docs/architecture/2026-04-12-ai-workstation-design-audit.md`
   - `docs/architecture/2026-04-12-ai-workstation-execution-plan.md`

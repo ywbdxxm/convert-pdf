@@ -619,3 +619,45 @@
   - `task_plan.md` (updated)
   - `findings.md` (updated)
   - `progress.md` (updated)
+
+## Session Update: Shared AI Base Build In Progress
+- Time: 2026-04-12 12:10 CST
+- Context:
+  - 在完成设计审计提交并推送后，开始执行共享重型 `AI base` 的真实创建。
+- Actions taken:
+  - 执行 `./scripts/bootstrap_ai_base.sh`
+  - 确认 `micromamba create -n ai-base-cu124-stable ...` 仍在运行
+  - 检查 `~/.mamba` 当前落盘状态
+- Key findings:
+  - 当前 `~/.mamba/pkgs` 已增长到约 `9.9G`
+  - 当前 `~/.mamba/envs/ai-base-cu124-stable` 仍约 `8K`
+  - 这说明当前仍在重型事务阶段，包缓存已下载/解压很多，但环境本体尚未完成最终落盘
+- Files created/modified:
+  - `findings.md` (updated)
+  - `progress.md` (updated)
+
+## Session Update: Shared AI Base And Docling Overlay Verified
+- Time: 2026-04-12 12:xx CST
+- Context:
+  - 用户要求继续按计划执行，当前主线是共享 `AI base` 完成后继续做 `docling` 项目层和整体验证。
+- Actions taken:
+  - 确认 `micromamba create` 已结束且 `ai-base-cu124-stable` 已真实落盘
+  - 验证共享 `AI base` 中 `torch 2.5.1` 可正常访问 CUDA 与当前 GPU
+  - 初次尝试用 `uv` 给 overlay 安装 `docling`，发现其会重复解析并下载 PyPI 的 `torch + cu13`
+  - 中止该错误路径，读取 `docling` wheel 元数据确认 `torch>=2.2.2,<3.0`
+  - 改用 `pip` 作为 overlay 安装器
+  - 重建 `docling/.venv` 并成功安装 `docling 2.86.0`
+  - 复跑验证脚本，确认 WSL GPU、Docker GPU runtime、共享 `AI base`、`docling` overlay 全部通过
+- Key findings:
+  - `uv` 不适合当前这种依赖共享 site-packages 复用的 overlay 场景
+  - `pip` 可以正确复用共享 base 的 `torch`
+  - 共享 `AI base + overlay venv` 方案已经从设计变成可运行事实
+- Files created/modified:
+  - `task_plan.md` (updated)
+  - `findings.md` (updated)
+  - `progress.md` (updated)
+  - `scripts/bootstrap_docling_env.sh` (updated)
+  - `scripts/verify_ai_stack.sh` (updated)
+  - `docs/architecture/2026-04-12-ai-workstation-design-audit.md` (updated)
+  - `docs/architecture/2026-04-12-ai-workstation-execution-plan.md` (updated)
+  - `docling/README.md` (updated)

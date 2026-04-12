@@ -25,6 +25,8 @@ PY
 
 echo "[4/4] verifying Docling overlay"
 "$DOCLING_VENV/bin/python" - <<'PY'
+from importlib.metadata import version
 import docling
-print("docling", getattr(docling, "__version__", "unknown"))
+print("docling", version("docling"))
+print("docling_module", docling.__file__)
 PY

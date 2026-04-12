@@ -17,4 +17,4 @@ if [[ ! -d "$VENV_DIR" ]]; then
 fi
 
 echo "installing docling project packages into overlay"
-uv pip install --python "$VENV_DIR/bin/python" -r "$DOCLING_DIR/requirements.txt"
+"$VENV_DIR/bin/python" -m pip install -r "$DOCLING_DIR/requirements.txt"

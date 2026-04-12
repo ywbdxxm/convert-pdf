@@ -430,6 +430,49 @@
   - 镜像策略为国内混合镜像
 - 这比“追最新”更适合稳态优先的工作站。
 
+## Micromamba Role In This Workstation
+- 在这套架构里，`micromamba` 不是用来替代所有 Python 工作流的。
+- 它的职责被刻意收敛到一层：
+  - **共享重型 AI base**
+- 这样分工的原因是：
+  - `torch + CUDA` 这类二进制大包更适合走 conda 包生态；
+  - 当前网络条件下，这条链路比 `uv + pypi.nvidia.com` 更稳；
+  - `micromamba` 比完整 `conda` 更轻，适合做一个长期常驻的基础环境管理器。
+- 在当前工作站中，`micromamba` 负责：
+  - 创建 `~/.mamba/envs/ai-base-cu124-stable`
+  - 管理其 Python、PyTorch、CUDA 运行时依赖
+  - 作为后续项目 overlay 的底座 Python
+- 它不负责：
+  - 系统层 Docker / NVIDIA runtime
+  - 每个项目自己的轻量依赖求解
+  - 仓库级脚本和业务逻辑
+- 简单说：
+  - **系统层** 解决“机器能不能跑”
+  - **micromamba** 解决“共享的重型 AI 栈怎么稳定落地”
+  - **项目 overlay** 解决“每个项目怎么隔离自己的 Python 依赖”
+
+## Overlay Installation Finding
+- `docling` 的元数据并不要求一个比当前共享 base 更高的 `torch` 版本：
+  - `torch>=2.2.2,<3.0`
+- 当前共享 base 中的 `torch 2.5.1` 本来就满足这个约束。
+- 真正的问题出在安装器行为：
+  - `uv pip install` 在这次 `venv --system-site-packages` overlay 场景中，没有把继承来的共享 `torch` 视为已满足依赖；
+  - 它因此开始重新解析并下载一整套 PyPI 的 `torch + cu13` 依赖链；
+  - 这与“共享重型 AI base + 项目轻量 overlay”的工作站目标冲突。
+- `pip install` 在同一 overlay 环境中则能正确识别：
+  - 共享 base 的 `torch`
+  - 共享 base 的 `torchvision`
+  - 共享 base 的部分通用依赖
+- 因此当前设计进一步收敛为：
+  - 共享重型 base：`micromamba`
+  - overlay venv 创建：共享 base Python 的 `venv --system-site-packages`
+  - overlay 安装器：`pip`
+  - `uv` 继续保留给不依赖共享 site-packages 复用的轻量项目场景
+- 当前已验证：
+  - `docling 2.86.0` 安装成功
+  - `docling/.venv` 中导入的 `torch` 实际来自 `/home/qcgg/.mamba/envs/ai-base-cu124-stable/...`
+  - 这说明“共享 base + overlay”这条路径现在已经真正打通
+
 ## Technical Decisions
 | Decision | Rationale |
 |----------|-----------|

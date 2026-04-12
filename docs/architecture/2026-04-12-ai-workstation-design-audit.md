@@ -133,7 +133,7 @@ Management approach:
 
 - create a project venv from the shared AI base Python
 - use `--system-site-packages` so the project overlay can see the heavy shared packages
-- install only project-private dependencies into the overlay
+- install only project-private dependencies into the overlay, using `pip` so inherited shared packages are respected during resolution
 
 This keeps the project isolated enough for day-to-day work while avoiding a second heavy torch download.
 

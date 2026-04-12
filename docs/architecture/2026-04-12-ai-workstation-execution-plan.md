@@ -43,7 +43,7 @@ Approach:
 
 - use the shared AI base Python to create the venv
 - enable `--system-site-packages`
-- install only Docling and project-private packages into the overlay
+- install only Docling and project-private packages into the overlay with `pip`
 
 ## Phase 5: Verify
 

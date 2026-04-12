@@ -7,6 +7,7 @@ This directory is the project-level Docling overlay for `convert-pdf`.
 - keep Docling-specific Python dependencies isolated from other projects
 - reuse the shared heavy AI base for `torch + CUDA`
 - avoid reinstalling the heavy GPU stack per project
+- respect inherited shared packages during install, so heavy torch dependencies stay in the shared base
 
 ## Expected Layout
 
