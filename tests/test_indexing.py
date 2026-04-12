@@ -101,3 +101,57 @@ class IndexingTests(unittest.TestCase):
 
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["section_id"], "4.1.3.5 Power Management Unit (PMU)")
+
+    def test_build_chunk_records_filters_feedback_link_noise(self):
+        chunks = [
+            SimpleNamespace(
+                text="[Submit Documentation Feedback](https://example.com)",
+                meta=SimpleNamespace(
+                    headings=["5.2 Recommended Operating Conditions"],
+                    doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=64)], label="text")],
+                ),
+            ),
+            SimpleNamespace(
+                text="Operating voltage range is 3.0 V to 3.6 V.",
+                meta=SimpleNamespace(
+                    headings=["5.2 Recommended Operating Conditions"],
+                    doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=64)], label="text")],
+                ),
+            ),
+        ]
+
+        records = build_chunk_records(
+            doc_id="esp32-s3",
+            chunks=chunks,
+            contextualize=lambda chunk: chunk.text,
+        )
+
+        self.assertEqual(len(records), 1)
+        self.assertIn("Operating voltage range", records[0]["text"])
+
+    def test_build_chunk_records_filters_page_number_only_noise(self):
+        chunks = [
+            SimpleNamespace(
+                text="64",
+                meta=SimpleNamespace(
+                    headings=["5.2 Recommended Operating Conditions"],
+                    doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=64)], label="text")],
+                ),
+            ),
+            SimpleNamespace(
+                text="Power supply voltage VDD3P3_CPU should meet operating conditions.",
+                meta=SimpleNamespace(
+                    headings=["5.2 Recommended Operating Conditions"],
+                    doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=64)], label="text")],
+                ),
+            ),
+        ]
+
+        records = build_chunk_records(
+            doc_id="esp32-s3",
+            chunks=chunks,
+            contextualize=lambda chunk: chunk.text,
+        )
+
+        self.assertEqual(len(records), 1)
+        self.assertIn("Power supply voltage", records[0]["text"])

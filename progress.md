@@ -261,6 +261,18 @@
   - `artifacts/` 目录真实存在
   - 图片与 Markdown 引用闭环已打通
 
+### 2026-04-12: Retrieval-Layer Text Noise Filtering Added
+- 已新增索引层文本噪声过滤：
+  - `Submit Documentation Feedback`
+  - 纯页码文本
+  - 原有目录/续页类噪声 section
+- 当前策略保持为：
+  - `document.md` 尽量完整，不激进清洗
+  - `chunks.jsonl` / `sections.jsonl` 做检索层清洗
+- 重新跑 ESP32-S3 样本后确认：
+  - `document.md` 中页脚文本仍存在
+  - `chunks.jsonl` / `sections.jsonl` 中已无这类噪声
+
 ### 2026-04-12: Docling Feature Usage And GPU Direction Clarified
 - 已补充说明当前实际用到的 Docling API 与未用到的路线
 - 当前统一结论：

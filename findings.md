@@ -697,6 +697,18 @@
 - 不应该保留的是：
   - 页脚版式噪声
 
+## Current Text Noise Strategy
+- 当前已经明确分层：
+  - `document.md`：尽量完整保留原始阅读信息，不做激进文本过滤
+  - `chunks.jsonl` / `sections.jsonl`：做面向检索的文本噪声过滤
+- 当前索引层已过滤的典型噪声包括：
+  - `Submit Documentation Feedback`
+  - 纯页码文本
+  - 目录页 / 表目录 / 图目录 / 续页标题等已知噪声 section
+- 在 ESP32-S3 样本上，当前状态已经变成：
+  - `document.md` 仍保留这类页脚文本
+  - 但 `chunks.jsonl` / `sections.jsonl` 已不再包含这类噪声
+
 ## Current Large-PDF Default Behavior
 - 当前默认配置下：
   - `page_window_size = 250`

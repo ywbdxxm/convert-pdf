@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 
 NOISY_SECTION_IDS = {
     "Contents",
@@ -8,6 +10,10 @@ NOISY_SECTION_IDS = {
     "List of Figures",
     "Cont'd from previous page",
 }
+
+NOISY_TEXT_PATTERNS = [
+    re.compile(r"submit documentation feedback", re.IGNORECASE),
+]
 
 
 def is_table_like_chunk(chunk) -> bool:
@@ -24,6 +30,14 @@ def should_keep_chunk_record(record: dict) -> bool:
     section_id = record["section_id"]
     if section_id in NOISY_SECTION_IDS:
         return False
+    text = (record.get("text") or "").strip()
+    if not text:
+        return False
+    if text.isdigit():
+        return False
+    for pattern in NOISY_TEXT_PATTERNS:
+        if pattern.search(text):
+            return False
     return True
 
 
