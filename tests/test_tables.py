@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from docling_batch.tables import (
     ExportedTable,
+    extract_table_caption,
     build_table_manifest_records,
     export_tables,
     inject_table_sidecars_into_markdown,
@@ -12,6 +13,25 @@ from docling_batch.tables import (
 
 
 class TableExportTests(unittest.TestCase):
+    def test_extract_table_caption_reads_plain_title_line(self):
+        caption = extract_table_caption(
+            "Table 5-1. Absolute Maximum Ratings\n\n| Symbol | Max |",
+            "<table></table>",
+        )
+
+        self.assertEqual(caption, "Table 5-1. Absolute Maximum Ratings")
+
+    def test_extract_table_caption_recovers_title_from_single_cell_html_table(self):
+        caption = extract_table_caption(
+            "| Table 2. STM32H742xI/G and STM32H743xI/G features and peripheral counts |\n|---|",
+            "<table><tbody><tr><th>Table 2. STM32H742xI/G and STM32H743xI/G features and peripheral counts</th></tr></tbody></table>",
+        )
+
+        self.assertEqual(
+            caption,
+            "Table 2. STM32H742xI/G and STM32H743xI/G features and peripheral counts",
+        )
+
     def test_build_table_manifest_records_includes_sidecar_paths(self):
         record = build_table_manifest_records(
             doc_id="esp32-s3-datasheet-en",
@@ -43,7 +63,7 @@ class TableExportTests(unittest.TestCase):
                 return FakeDataFrame()
 
             def export_to_html(self, doc=None):
-                return "<table><tr><td>1</td></tr></table>"
+                return "<table><tr><th>Table 5-1. Absolute Maximum Ratings</th></tr></table>"
 
             def export_to_markdown(self, doc=None):
                 return "Table 5-1. Absolute Maximum Ratings\n\n| Symbol | Max |"

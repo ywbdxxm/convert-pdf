@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
+
+
+TABLE_CAPTION_RE = re.compile(r"Table\s+\d+(?:-\d+)?\.\s+\S")
 
 
 @dataclass(frozen=True)
@@ -46,6 +50,25 @@ def _extract_table_caption(table_markdown: str) -> str:
             return ""
         return stripped
     return ""
+
+
+def _extract_caption_from_html(html: str) -> str:
+    matches = re.findall(r"<(?:th|td)[^>]*>(.*?)</(?:th|td)>", html, flags=re.IGNORECASE | re.DOTALL)
+    for match in matches:
+        text = re.sub(r"<[^>]+>", "", match)
+        text = " ".join(text.split())
+        if TABLE_CAPTION_RE.search(text):
+            caption_match = TABLE_CAPTION_RE.search(text)
+            if caption_match:
+                return text[caption_match.start() :].strip()
+    return ""
+
+
+def extract_table_caption(table_markdown: str, table_html: str) -> str:
+    caption = _extract_table_caption(table_markdown)
+    if caption:
+        return caption
+    return _extract_caption_from_html(table_html)
 
 
 def _format_page_span(page_start: int | None, page_end: int | None) -> str:
@@ -119,7 +142,8 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
 
         dataframe = table.export_to_dataframe(doc=doc)
         dataframe.to_csv(csv_path, index=False)
-        html_path.write_text(table.export_to_html(doc=doc), encoding="utf-8")
+        table_html = table.export_to_html(doc=doc)
+        html_path.write_text(table_html, encoding="utf-8")
         table_markdown = table.export_to_markdown(doc=doc).strip()
 
         pages = [prov.page_no for prov in getattr(table, "prov", []) or [] if getattr(prov, "page_no", None) is not None]
@@ -135,7 +159,7 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
                     csv_path=Path("tables") / csv_name,
                     html_path=Path("tables") / html_name,
                     label=_stringify_label(getattr(table, "label", None)),
-                    caption=_extract_table_caption(table_markdown),
+                    caption=extract_table_caption(table_markdown, table_html),
                 ),
                 markdown=table_markdown,
             )

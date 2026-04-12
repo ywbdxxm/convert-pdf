@@ -1141,6 +1141,17 @@
   - 用 `alerts.json` 显式标记
   - 后续再和其他工具做针对性 A/B，而不是现在无限制优化
 
+### 2026-04-12: Caption Recovery Still Had Deterministic Headroom
+- 对当前两份样本进一步检查后确认：
+  - 空 `caption` 并不总是意味着 Docling 完全没给出表题
+  - 有一部分表题实际上存在于：
+    - `table.export_to_markdown()` 的单列表头行
+    - 或 `table.export_to_html()` 的首个 `<th>/<td>`
+- 这类情况可以做低风险恢复，不需要猜测，也不需要引入 VLM。
+- 因此当前 caption 提取策略已补强为：
+  - 先取 markdown 的纯文本标题行
+  - 若拿不到，再从 HTML 首行中提取符合 `Table N.` 形式的标题
+
 ## Active Open Questions
 - 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
 - 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？
