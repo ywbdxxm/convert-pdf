@@ -2,13 +2,14 @@
 
 ## Current Direction
 
-The project direction is now external-first:
+The project direction is now external-first and agentic-file-retrieval-first:
 
 - Do not build custom PDF/RAG frameworks.
 - Do not continue `manual_eval`.
 - Do not add new features to `docling_batch`.
 - Prefer local/free/self-hosted tools.
 - Avoid paid remote parser/OCR APIs by default.
+- Prefer "PDF -> structured files -> Codex/agent reads the folder" over traditional RAG systems.
 - Use real embedded-manual questions to decide tools.
 
 ## Environment Constraints
@@ -32,7 +33,7 @@ The project direction is now external-first:
 - `OpenDataLoader PDF + LangChain`
   - Official `langchain-opendataloader-pdf` loader exists.
   - LangChain docs describe it as local, deterministic, fast, Markdown/JSON output with bounding boxes.
-  - Should be tested as OpenDataLoader's paired consumer before generic app UIs.
+  - Should be tested as OpenDataLoader's paired consumer, but only after raw file output is inspected.
 
 - `Docling + LlamaIndex`
   - Official Docling integration.
@@ -45,14 +46,14 @@ The project direction is now external-first:
 
 ### Good Local UI Candidates
 
-- `AnythingLLM`
-  - Local/offline-friendly document chat.
-  - Good first app-level smoke test.
-
 - `Dify`
   - Self-hosted Docker Compose platform.
-  - Supports Knowledge/RAG, retrieval testing, metadata, retrieval strategy, local Ollama models and local embeddings.
-  - Heavier than AnythingLLM; best tested after parser output is chosen.
+  - Useful as a knowledge app only after parser output is chosen.
+  - Not the core path; agentic folder reading has priority.
+
+- `AnythingLLM`
+  - Local/offline-friendly document chat.
+  - Lightweight app fallback if folder-based agent workflow is not enough.
 
 - `Kotaemon`
   - Local document QA UI with hybrid RAG, citations, PDF preview, local model support, and Docling parser option.
@@ -108,6 +109,23 @@ Choose the tool that answers real manual questions with the least custom code wh
 - parser uncertainty visibility
 
 The original PDF remains final authority for engineering conclusions.
+
+## Agentic File Retrieval Candidates
+
+Priority combinations for the main workflow:
+
+1. `OpenDataLoader PDF local mode -> folder of Markdown/JSON/HTML -> Codex reads/searches files directly`
+2. `OpenDataLoader PDF local mode -> LangChain OpenDataLoaderPDFLoader -> inspect documents/metadata, not necessarily build RAG`
+3. `Docling native/LlamaIndex -> inspect nodes/metadata as files or printed artifacts`
+4. `Docling native/LangChain DOC_CHUNKS -> inspect chunks/metadata`
+5. `PyMuPDF4LLM -> Markdown/page chunks -> Codex direct file search`
+6. `Marker or MinerU -> exported files -> Codex direct file search`, only if earlier parsers fail
+
+Traditional RAG/UI tools are secondary consumers:
+
+1. `OpenDataLoader/Docling Markdown -> Dify Knowledge`
+2. `OpenDataLoader/Docling Markdown -> AnythingLLM`
+3. `Kotaemon/Open WebUI`, only if a UI becomes important
 
 ## Key References
 

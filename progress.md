@@ -4,7 +4,7 @@
 
 2026-04-13:
 
-- Direction reset to external-first tooling.
+- Direction reset to external-first, agentic-file-retrieval-first tooling.
 - `docling_batch` is frozen as a historical baseline.
 - `manual_eval` custom framework was stopped and removed before commit.
 - Heavy RAGFlow and paid/remote parser routes are deferred or excluded.
@@ -15,7 +15,8 @@
 
 - First parser to test: `OpenDataLoader PDF` local mode.
 - OpenDataLoader's official LangChain loader must be tested as the paired consumer before generic UI tools.
-- First knowledge-app candidate after parser validation: `Dify` consuming OpenDataLoader/Docling Markdown with local models.
+- First priority after parser validation: determine whether Codex direct folder inspection is enough.
+- First knowledge-app candidate only if folder inspection is insufficient: `Dify` consuming OpenDataLoader/Docling Markdown with local models.
 - First lightweight chat fallback: `AnythingLLM`.
 - Docling should be tested through mature integrations such as LlamaIndex and LangChain, not through more custom wrapper code.
 
@@ -36,6 +37,7 @@ Check:
 - HTML/table rendering
 - official LangChain loader metadata preservation
 - ability to map evidence back to the original PDF page
+- whether direct Codex folder inspection is sufficient before testing Dify/AnythingLLM
 
 ## Verification
 

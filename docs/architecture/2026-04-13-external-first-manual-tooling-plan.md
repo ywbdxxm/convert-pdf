@@ -6,6 +6,14 @@ Date: 2026-04-13
 
 This project is no longer about building our own PDF/RAG framework.
 
+The primary workflow is agentic file retrieval:
+
+```text
+PDF -> existing parser/converter -> structured files -> Codex/agent searches and reads the folder -> original PDF verification
+```
+
+Traditional RAG tools are optional consumers, not the core architecture.
+
 The priority is:
 
 1. Use mature existing tools first.
@@ -29,6 +37,7 @@ Current machine context:
 - Do not start with RAGFlow. It is too heavy for the current exploration need.
 - Do not test paid/remote-first parsing such as paid Unstructured paths.
 - Do not assume `manuals/processed/<doc_id>` is the universal output shape.
+- Do not make traditional RAG the default workflow when an agent can read structured files directly.
 
 ## Evaluation Principle
 
@@ -43,6 +52,34 @@ For embedded manuals, the winning tool must help answer questions while preservi
 - low setup and maintenance burden
 
 The original PDF remains final authority for register bits, pin mappings, timing limits, and electrical characteristics.
+
+## Architecture Preference
+
+Preferred:
+
+```text
+OpenDataLoader/Docling/other parser output
+  -> Markdown / JSON / HTML / images / tables
+  -> Codex reads files directly with grep/open/table inspection
+  -> original PDF page check for critical facts
+```
+
+Secondary:
+
+```text
+Parser output
+  -> LangChain/LlamaIndex loader
+  -> inspect documents/nodes/chunks and metadata
+  -> optionally feed a UI or RAG app
+```
+
+Not preferred as default:
+
+```text
+Raw PDF
+  -> black-box RAG app
+  -> answer without transparent file artifacts
+```
 
 ## Candidate Shortlist
 
@@ -74,7 +111,7 @@ First test:
 
 ### 2. OpenDataLoader PDF + LangChain
 
-Priority: highest consumer candidate for OpenDataLoader output.
+Priority: highest consumer/library candidate for OpenDataLoader output.
 
 Why:
 
@@ -82,6 +119,7 @@ Why:
 - LangChain's OpenDataLoader PDF docs describe local, deterministic, fast PDF parsing with Markdown/JSON output and bounding boxes.
 - OpenDataLoader's own RAG guide documents integration-oriented usage instead of only standalone conversion.
 - This is the direct paired consumer path and should be tested before generic app UIs.
+- For this project, the first goal is metadata inspection, not building a vector index.
 
 Risks:
 
@@ -94,10 +132,11 @@ First test:
 - Use `OpenDataLoaderPDFLoader` on the ESP32-S3 datasheet.
 - Inspect returned LangChain documents and metadata for `Table 2-9`.
 - Verify whether page number, bbox, and source path survive loader conversion.
+ - Save or print representative documents/chunks so Codex can inspect them as files.
 
 ### 3. OpenDataLoader PDF + Dify
 
-Priority: app/workflow candidate after parser output is verified.
+Priority: app/workflow candidate after agentic folder workflow is verified.
 
 Why:
 
@@ -135,7 +174,7 @@ First test:
 
 ### 5. AnythingLLM
 
-Priority: first lightweight UI/document-chat candidate.
+Priority: lightweight UI/document-chat fallback.
 
 Why:
 
@@ -147,7 +186,7 @@ Why:
 Risks:
 
 - May not preserve strict PDF page/table evidence well enough.
-- Might be a good UI, not a strong parser.
+- Might be a good UI, not a strong parser or evidence workflow.
 
 First test:
 
@@ -304,12 +343,12 @@ Use existing processed outputs only as a reference baseline:
 
 ### Round 1: Parser Smoke Tests
 
-Goal: decide whether a better parser exists before worrying about RAG UI.
+Goal: decide whether a better parser/file artifact generator exists before worrying about RAG UI.
 
 Order:
 
 1. OpenDataLoader PDF local mode
-2. OpenDataLoader PDF + LangChain loader
+2. OpenDataLoader PDF + LangChain loader for metadata inspection
 3. Docling native LlamaIndex/LangChain integration
 4. PyMuPDF4LLM lightweight baseline
 5. Marker if needed
@@ -325,7 +364,7 @@ Test questions:
 
 ### Round 2: Local UI / Knowledge App Tests
 
-Goal: decide whether a ready-made app can replace custom RAG work.
+Goal: decide whether a ready-made app adds value after the agentic file workflow is proven.
 
 Order:
 
@@ -341,6 +380,7 @@ Test questions:
 - Does retrieval find the correct manual section/table?
 - Can it run locally without paid APIs?
 - Is setup acceptable on this WSL laptop?
+- Does it preserve more evidence than direct folder inspection, or only add UI convenience?
 
 ### Round 3: Expanded Manual Test
 
@@ -381,6 +421,8 @@ Score dimensions:
 
 The winner is not the tool with the most features. The winner is the tool that answers real chip manual questions with the least custom code.
 
+For this project, a file-output parser can beat a RAG app if Codex can inspect its folder reliably.
+
 ## Near-Term Recommendation
 
 Next concrete task:
@@ -390,7 +432,8 @@ Next concrete task:
 3. Run one ESP32-S3 datasheet conversion.
 4. Inspect JSON/Markdown/HTML around `Table 2-9`.
 5. Test the official OpenDataLoader LangChain loader on the same PDF/output.
-6. Decide whether Dify should consume OpenDataLoader Markdown next.
+6. Decide whether direct Codex folder inspection is already enough.
+7. Only then decide whether Dify should consume OpenDataLoader Markdown next.
 
 Do not write project framework code before this.
 

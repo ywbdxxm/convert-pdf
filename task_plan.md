@@ -157,6 +157,12 @@ Local-Free Tooling Plan Cleanup
 - [x] 优化 `README.md`
 - **Status:** complete
 
+### Phase 24: Agentic File Retrieval Reframe
+- [x] 确认核心方向是 PDF 转结构化文件后让 Codex/agent 直接检索，而非默认传统 RAG
+- [x] 将 OpenDataLoader/Docling/LangChain/LlamaIndex 组合定位为文件资产和 metadata 验证路径
+- [x] 将 Dify/AnythingLLM/Kotaemon/Open WebUI 降级为文件检索不足时的消费者/UI 候选
+- **Status:** complete
+
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
 2. 对嵌入式 datasheet / app note，什么场景本地方案更优，什么场景云端/远程增强更优？
