@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
 
 ## Current Phase
-Docling OpenDataLoader Mainline Planning
+Docling Batch Optimization Documentation
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -179,6 +179,12 @@ Docling OpenDataLoader Mainline Planning
 - [x] 将下一轮范围收敛到 `docling_batch` baseline、Docling native、OpenDataLoader local、OpenDataLoader hybrid
 - [x] 仅保留 OpenDataLoader LangChain 与 Docling LlamaIndex/LangChain 作为 metadata spot-check，其它 parser、consumer、UI/RAG app 全部暂缓
 - [x] 明确比较重点是文件资产质量、metadata、页码、bbox、表格和原 PDF 回溯能力
+- **Status:** complete
+
+### Phase 28: Docling Batch Optimization Documentation
+- [x] 记录 `docling_batch` 相对 Docling 原生输出的额外包装层
+- [x] 记录允许解冻后可做的薄优化方向
+- [x] 记录禁止继续做的方向，防止再次回到 NIH / 自研 RAG 路线
 - **Status:** complete
 
 ## Key Questions

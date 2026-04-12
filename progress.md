@@ -8,6 +8,7 @@
 - `OpenDataLoader` hybrid mode is included because it may improve hard table pages while staying local.
 - `OpenDataLoader + LangChain` and `Docling + LlamaIndex/LangChain` are kept only as metadata spot-checks.
 - All other parser/UI/RAG tools are deferred.
+- Added a dedicated architecture note for `docling_batch` future optimization boundaries.
 
 ## Next Action
 
