@@ -4,51 +4,24 @@
 
 2026-04-13:
 
-- Direction reset to external-first, agentic-file-retrieval-first tooling.
-- `docling_batch` is frozen as a historical baseline.
-- `manual_eval` custom framework was stopped and removed before commit.
-- Heavy RAGFlow and paid/remote parser routes are deferred or excluded.
-- New local/free plan is documented in `docs/architecture/2026-04-13-external-first-manual-tooling-plan.md`.
-- `findings.md` and `README.md` were compressed to current decisions and next steps.
-
-## Recent Decisions
-
-- First parser to test: `OpenDataLoader PDF` local mode.
-- OpenDataLoader hybrid mode with local `docling-fast` backend is now included as the immediate follow-up if local mode table quality is insufficient.
-- OpenDataLoader's official LangChain loader must be tested as the paired consumer before generic UI tools.
-- `OpenDataLoader + LlamaIndex` is deferred because we have not found an equally official/no-glue integration path.
-- Current `docling_batch` outputs are the frozen comparison baseline.
-- If `docling_batch` is ever unfrozen, only thin agentic-file improvements are acceptable: page slices, folder index, quality summary, optional hard-page images, native chunk comparison.
-- `LiteParse` remains in the candidate pool because it is local, bbox-oriented, and screenshot-friendly, but it is deferred from the immediate next round.
-- First priority after parser validation: determine whether Codex direct folder inspection is enough.
-- First knowledge-app candidate only if folder inspection is insufficient: `Dify` consuming OpenDataLoader/Docling Markdown with local models.
-- First lightweight chat fallback: `AnythingLLM`.
-- Docling should be tested through mature integrations such as LlamaIndex and LangChain, not through more custom wrapper code.
-- Next active comparison scope is intentionally narrower: `docling_batch`, OpenDataLoader local mode, OpenDataLoader hybrid mode, OpenDataLoader LangChain loader, Docling + LlamaIndex, and Docling + LangChain.
+- Mainline comparison reduced to `docling_batch`, `Docling` native output, and `OpenDataLoader PDF`.
+- `OpenDataLoader` hybrid mode is included because it may improve hard table pages while staying local.
+- `OpenDataLoader + LangChain` and `Docling + LlamaIndex/LangChain` are kept only as metadata spot-checks.
+- All other parser/UI/RAG tools are deferred.
 
 ## Next Action
 
-Run a small, local OpenDataLoader PDF smoke test on:
+1. Use existing `docling_batch` output as baseline.
+2. Generate `Docling` native output for the ESP32-S3 datasheet.
+3. Run `OpenDataLoader PDF` local mode on the same file.
+4. If local mode table quality is weak, run `OpenDataLoader PDF` hybrid mode with local `docling-fast`.
+5. Inspect metadata using the official LangChain/OpenDataLoader path and the official Docling consumer paths.
 
-```text
-manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf
-```
-
-Check:
+## Verification Focus
 
 - `Table 2-9. Peripheral Pin Assignment`
-- JSON page numbers
+- page numbers
 - bounding boxes
-- Markdown readability
-- HTML/table rendering
-- hybrid mode table improvement vs local mode
-- official LangChain loader metadata preservation
-- comparison against current `docling_batch` processed folder
-- ability to map evidence back to the original PDF page
-- whether direct Codex folder inspection is sufficient before testing Dify/AnythingLLM
-
-## Verification
-
-- Planning files are intentionally concise after cleanup.
-- Runtime code was not changed.
-- `docling_batch` remains untouched.
+- Markdown / JSON / HTML usefulness
+- ability to return to the original PDF
+- whether Codex direct folder inspection is already sufficient
