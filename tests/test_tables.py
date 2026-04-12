@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from docling_batch.tables import (
     ExportedTable,
+    backfill_table_captions_from_markdown,
     extract_table_caption,
     build_table_manifest_records,
     export_tables,
@@ -142,3 +143,30 @@ class TableExportTests(unittest.TestCase):
             "- p.13 `esp32:table:0007` Table 1-1. ESP32-S3 Series Comparison [HTML](tables/table_0007.html) [CSV](tables/table_0007.csv)",
             updated,
         )
+
+    def test_backfill_table_captions_from_markdown_recovers_caption_from_context(self):
+        markdown = (
+            "Table 4. DFSDM implementation\n\n"
+            "| Feature | Value |\n"
+            "|---------|-------|\n"
+            "| A       | 1     |\n\n"
+            "Table sidecars: [HTML](tables/table_0019.html) | [CSV](tables/table_0019.csv) | `stm32:table:0019`\n"
+        )
+        exported_tables = [
+            ExportedTable(
+                record={
+                    "table_id": "stm32:table:0019",
+                    "page_start": 40,
+                    "page_end": 40,
+                    "csv_path": "tables/table_0019.csv",
+                    "html_path": "tables/table_0019.html",
+                    "label": "table",
+                    "caption": "",
+                },
+                markdown="| Feature | Value |\n|---------|-------|",
+            )
+        ]
+
+        backfill_table_captions_from_markdown(markdown, exported_tables)
+
+        self.assertEqual(exported_tables[0].record["caption"], "Table 4. DFSDM implementation")

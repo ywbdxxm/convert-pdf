@@ -1164,6 +1164,16 @@
     - 局部重跑
     - 更稳的长任务执行
 
+### 2026-04-12: Caption Backfill From Markdown Context Landed
+- 继续深挖空 `caption` 后确认：
+  - 有不少表的标题不在 table 自身导出内容里
+  - 但它们在 `document.md` 中、而且和 `Table sidecars` 的位置关系是稳定的
+- 因此当前新增一层保守回填：
+  - 对 `caption == ''` 的表
+  - 依据 `Table sidecars` 的实际落点
+  - 向上回溯最近合法的 `Table N.` 标题
+- 这一步不需要猜测，不依赖 VLM，也不改变 `document.md` 原文，只补强 manifest/table metadata。
+
 ## Active Open Questions
 - 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
 - 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？

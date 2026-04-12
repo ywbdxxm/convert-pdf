@@ -88,6 +88,54 @@ def _build_table_sidecars_line(record: dict) -> str:
     )
 
 
+def _extract_context_caption(lines: list[str], sidecar_index: int) -> str:
+    cursor = sidecar_index - 1
+    changed = True
+    while cursor >= 0 and changed:
+        changed = False
+        while cursor >= 0 and not lines[cursor].strip():
+            cursor -= 1
+            changed = True
+        while cursor >= 0 and (
+            lines[cursor].strip().startswith("|")
+            or lines[cursor].strip() == "<!-- page_break -->"
+            or lines[cursor].strip().startswith("![Image](")
+        ):
+            cursor -= 1
+            changed = True
+
+    if cursor < 0:
+        return ""
+
+    text = lines[cursor].strip()
+    while text.startswith("#"):
+        text = text[1:].strip()
+
+    if TABLE_CAPTION_RE.match(text):
+        return text
+    return ""
+
+
+def backfill_table_captions_from_markdown(markdown: str, exported_tables: list[ExportedTable]) -> None:
+    if not exported_tables:
+        return
+
+    table_map = {table.record["table_id"]: table for table in exported_tables if not (table.record.get("caption") or "").strip()}
+    if not table_map:
+        return
+
+    for index, line in enumerate(markdown.splitlines()):
+        if not line.startswith("Table sidecars:"):
+            continue
+        for table_id, exported_table in table_map.items():
+            if f"`{table_id}`" not in line:
+                continue
+            caption = _extract_context_caption(markdown.splitlines(), index)
+            if caption:
+                exported_table.record["caption"] = caption
+            break
+
+
 def inject_table_sidecars_into_markdown(markdown: str, exported_tables: list[ExportedTable]) -> str:
     if not exported_tables:
         return markdown.rstrip() + "\n"
@@ -128,7 +176,9 @@ def inject_table_sidecars_into_markdown(markdown: str, exported_tables: list[Exp
             )
         updated = f"{updated}\n\n" + "\n".join(appendix_lines)
 
-    return updated.rstrip() + "\n"
+    updated = updated.rstrip() + "\n"
+    backfill_table_captions_from_markdown(updated, exported_tables)
+    return updated
 
 
 def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[ExportedTable]:
