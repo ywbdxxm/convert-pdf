@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
 
 ## Current Phase
-Local-Free Tooling Plan Cleanup
+OpenDataLoader Docling Comparison Planning
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -173,6 +173,12 @@ Local-Free Tooling Plan Cleanup
 - [x] 分析如果不冻结 `docling_batch`，哪些优化仍符合 Agentic 文件检索方向
 - [x] 明确只允许 page slices、folder index、quality summary、hard-page images、native chunk comparison 等薄改动
 - [x] 明确禁止继续在 `docling_batch` 中构建 RAG/search/table 修复/VLM/多工具框架
+- **Status:** complete
+
+### Phase 27: OpenDataLoader Docling Comparison Planning
+- [x] 将下一轮范围收敛到 `docling_batch` baseline、OpenDataLoader PDF、OpenDataLoader LangChain consumer、Docling + LlamaIndex、Docling + LangChain
+- [x] 暂缓 LiteParse、MarkItDown、PaperFlow、PaddleOCR-VL、Marker、MinerU 以及所有 UI/RAG app
+- [x] 明确比较重点是文件资产质量、metadata、页码、bbox、表格和原 PDF 回溯能力
 - **Status:** complete
 
 ## Key Questions

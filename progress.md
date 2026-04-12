@@ -17,11 +17,12 @@
 - OpenDataLoader's official LangChain loader must be tested as the paired consumer before generic UI tools.
 - Current `docling_batch` outputs are the frozen comparison baseline.
 - If `docling_batch` is ever unfrozen, only thin agentic-file improvements are acceptable: page slices, folder index, quality summary, optional hard-page images, native chunk comparison.
-- `LiteParse` is added as a high-priority agentic parser candidate because it is local, bbox-oriented, and screenshot-friendly.
+- `LiteParse` remains in the candidate pool because it is local, bbox-oriented, and screenshot-friendly, but it is deferred from the immediate next round.
 - First priority after parser validation: determine whether Codex direct folder inspection is enough.
 - First knowledge-app candidate only if folder inspection is insufficient: `Dify` consuming OpenDataLoader/Docling Markdown with local models.
 - First lightweight chat fallback: `AnythingLLM`.
 - Docling should be tested through mature integrations such as LlamaIndex and LangChain, not through more custom wrapper code.
+- Next active comparison scope is intentionally narrower: `docling_batch`, OpenDataLoader local mode, OpenDataLoader LangChain loader, Docling + LlamaIndex, and Docling + LangChain.
 
 ## Next Action
 
@@ -40,7 +41,6 @@ Check:
 - HTML/table rendering
 - official LangChain loader metadata preservation
 - comparison against current `docling_batch` processed folder
-- LiteParse spatial text/bbox/screenshot viability
 - ability to map evidence back to the original PDF page
 - whether direct Codex folder inspection is sufficient before testing Dify/AnythingLLM
 

@@ -179,6 +179,38 @@ Traditional RAG/UI tools are secondary consumers:
 2. `OpenDataLoader/Docling Markdown -> AnythingLLM`
 3. `Kotaemon/Open WebUI`, only if a UI becomes important
 
+## Immediate Next-Round Scope
+
+The next round is intentionally narrow. Test only:
+
+1. `docling_batch` existing output as frozen baseline
+2. `OpenDataLoader PDF` local mode
+3. `OpenDataLoader PDF + LangChain` loader
+4. `Docling + LlamaIndex`
+5. `Docling + LangChain`
+
+Temporarily defer:
+
+- `LiteParse`
+- `MarkItDown`
+- `PaperFlow`
+- `PaddleOCR-VL / PP-StructureV3`
+- `Marker`
+- `MinerU`
+- `Dify`
+- `AnythingLLM`
+- `Kotaemon`
+- `Open WebUI`
+
+Comparison focus:
+
+- page citation
+- source path
+- bounding boxes or equivalent spatial metadata
+- table visibility and inspectability
+- raw file readability by Codex
+- ability to return to the original PDF page
+
 ## Key References
 
 - OpenDataLoader PDF: https://github.com/opendataloader-project/opendataloader-pdf
