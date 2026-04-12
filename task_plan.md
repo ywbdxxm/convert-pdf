@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
 
 ## Current Phase
-Docling Batch Program Implementation Verification
+Docling Batch Program Large-PDF Resilience & Reading-Layer Table References
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -59,6 +59,13 @@ Docling Batch Program Implementation Verification
 - [x] 明确哪些信息应保留为原文、哪些应做结构化摘录
 - **Status:** complete
 
+### Phase 9: Table References And Large PDF Resilience
+- [x] 将表格 sidecar 更直接地挂回 `document.md`
+- [x] 为表格 manifest 增加 `label/caption` 元数据
+- [x] 为大 PDF 增加窗口级缓存和恢复
+- [x] 用真实样本验证缓存复跑与表格引用
+- **Status:** complete
+
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
 2. 对嵌入式 datasheet / app note，什么场景本地方案更优，什么场景云端/远程增强更优？
@@ -86,6 +93,8 @@ Docling Batch Program Implementation Verification
 | 批处理程序第一版先做 `Markdown + JSON + manifest + 章节/页码级索引` | 用户已明确优先做适合 AI 查阅和可引用回溯的 A 路线，暂不提前做寄存器等深结构化抽取 |
 | `Docling JSON` 作为批处理程序的 canonical source，`Markdown` 作为阅读副产物，RAG 主索引来自 Docling 原生 chunking | 这是基于 Docling 官方 chunking / serialization / RAG examples 收敛出的最稳妥路线 |
 | 对超大 PDF 优先采用程序内部分页窗口处理，而不是要求用户手工拆 PDF | 这样可以保留统一文档身份、绝对页码和全局引用链，同时降低单次处理风险 |
+| `document.md` 中的表格不再只保留内联 Markdown，本轮开始在每张表后追加 `HTML/CSV sidecar` 链接 | 阅读层现在能直接跳转到更适合核对宽表/矩阵表的 sidecar 文件 |
+| 大 PDF 优化优先做“窗口级缓存/恢复”，而不是先继续激进调 batch size | 对 5000+ 页手册，抗中断和避免整本重跑的收益高于小幅吞吐提升 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -130,3 +139,7 @@ Docling Batch Program Implementation Verification
   - `scripts/bootstrap_ai_base.sh`
   - `scripts/bootstrap_docling_env.sh`
   - `scripts/verify_ai_stack.sh`
+- 当前已新增：
+  - `document.md` 表格后置 `Table sidecars` 引用
+  - `manifest.json` 的表格 `label/caption`
+  - 每份文档 `_windows/` 窗口缓存，可复跑恢复

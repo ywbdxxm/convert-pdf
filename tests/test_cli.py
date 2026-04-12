@@ -36,3 +36,4 @@ class BuildParserTests(unittest.TestCase):
         self.assertEqual(args.page_window_size, 250)
         self.assertEqual(args.image_scale, 2.0)
         self.assertEqual(args.image_filter, "off")
+        self.assertFalse(args.no_resume_windows)

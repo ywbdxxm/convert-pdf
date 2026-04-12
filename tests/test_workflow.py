@@ -2,17 +2,22 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from docling.datamodel.base_models import ConversionStatus
+from docling_core.types.doc import DoclingDocument
 
 from docling_batch.converter import (
     aggregate_conversion_statuses,
     compute_page_windows,
+    convert_pdf_in_windows,
     discover_pdf_paths,
     format_window_progress,
+    load_cached_window_result,
     make_doc_id,
     relax_hf_tokenizer_limit,
     select_page_windows,
+    store_window_result,
 )
 
 
@@ -87,3 +92,111 @@ class WorkflowHelpersTests(unittest.TestCase):
         updated = relax_hf_tokenizer_limit(tokenizer, max_tokens=384)
 
         self.assertGreaterEqual(updated.tokenizer.model_max_length, 32768)
+
+    def test_store_and_load_cached_window_result_roundtrip(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cache_dir = Path(tmp_dir) / "_windows"
+            result = SimpleNamespace(
+                status=ConversionStatus.SUCCESS,
+                document=DoclingDocument(name="window-1"),
+                errors=[],
+                input=SimpleNamespace(page_count=501),
+            )
+
+            store_window_result(
+                cache_dir=cache_dir,
+                window_index=1,
+                page_start=1,
+                page_end=250,
+                source_pdf_sha256="abc123",
+                result=result,
+            )
+
+            cached = load_cached_window_result(
+                cache_dir=cache_dir,
+                window_index=1,
+                page_start=1,
+                page_end=250,
+                source_pdf_sha256="abc123",
+                input_page_count=501,
+            )
+
+            self.assertIsNotNone(cached)
+            self.assertEqual(cached.status, ConversionStatus.SUCCESS)
+            self.assertEqual(cached.document.name, "window-1")
+            self.assertEqual(cached.input.page_count, 501)
+
+    def test_load_cached_window_result_rejects_stale_source_hash(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cache_dir = Path(tmp_dir) / "_windows"
+            result = SimpleNamespace(
+                status=ConversionStatus.SUCCESS,
+                document=DoclingDocument(name="window-1"),
+                errors=[],
+                input=SimpleNamespace(page_count=501),
+            )
+
+            store_window_result(
+                cache_dir=cache_dir,
+                window_index=1,
+                page_start=1,
+                page_end=250,
+                source_pdf_sha256="old-hash",
+                result=result,
+            )
+
+            cached = load_cached_window_result(
+                cache_dir=cache_dir,
+                window_index=1,
+                page_start=1,
+                page_end=250,
+                source_pdf_sha256="new-hash",
+                input_page_count=501,
+            )
+
+            self.assertIsNone(cached)
+
+    def test_convert_pdf_in_windows_reuses_cached_windows_before_calling_converter(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            source_path = root / "large.pdf"
+            source_path.write_bytes(b"%PDF-1.4\nplaceholder\n")
+            cache_dir = root / "_windows"
+
+            for window_index, page_start, page_end in [
+                (1, 1, 250),
+                (2, 251, 500),
+                (3, 501, 501),
+            ]:
+                store_window_result(
+                    cache_dir=cache_dir,
+                    window_index=window_index,
+                    page_start=page_start,
+                    page_end=page_end,
+                    source_pdf_sha256="cached-hash",
+                    result=SimpleNamespace(
+                        status=ConversionStatus.SUCCESS,
+                        document=DoclingDocument(name=f"window-{window_index}"),
+                        errors=[],
+                        input=SimpleNamespace(page_count=501),
+                    ),
+                )
+
+            class FailingConverter:
+                def convert_all(self, *args, **kwargs):
+                    raise AssertionError("converter should not run when every window is cached")
+
+            with patch("docling_batch.converter.get_pdf_page_count", return_value=501), patch(
+                "docling_batch.converter.sha256_file", return_value="cached-hash"
+            ):
+                results = convert_pdf_in_windows(
+                    source_path=source_path,
+                    converter=FailingConverter(),
+                    page_window_size=250,
+                    page_window_min_pages=500,
+                    window_cache_dir=cache_dir,
+                    resume_windows=True,
+                )
+
+            self.assertEqual(len(results), 3)
+            self.assertEqual([result.document.name for result in results], ["window-1", "window-2", "window-3"])

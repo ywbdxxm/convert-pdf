@@ -957,6 +957,46 @@
 | 大模型与缓存位置 | 尽量放仓库外 |
 | 全局工作站长文档 | `/home/qcgg/.codex/docs/ai-workstation-architecture.md` |
 
+## New Implementation Findings
+### Reading layer now links table sidecars directly
+- `document.md` 不再只保留表格内联 Markdown。
+- 当前实现会在每张成功匹配回原文位置的表格后追加：
+  - `Table sidecars: [HTML](...) | [CSV](...) | table_id`
+- 这意味着阅读层、manifest、sections/chunks 三层现在都能引用到同一张表。
+- 匹配策略不是按页码盲插，而是按 `TableItem.export_to_markdown(doc=doc)` 的顺序去原始 `document.md` 中精确定位。
+- 若未来某张表无法精确回插，逻辑会退化到 `Table Sidecars Appendix`，而不是静默丢失链接。
+
+### Table manifest now carries table semantics
+- `manifest.json` 的每个表格记录新增：
+  - `label`
+  - `caption`
+- 对真实样本，这已经能区分：
+  - `document_index`
+  - 正常业务表格 `table`
+- 像 `Table 1-1. ESP32-S3 Series Comparison` 这类表题，现在已在 manifest 中可直接访问。
+
+### Large-PDF window processing is now resumable
+- 每份文档目录下新增 `_windows/` 缓存目录。
+- 每个页窗会落两个文件：
+  - `window_XXXX_p000001-000250.document.json`
+  - `window_XXXX_p000001-000250.meta.json`
+- cache meta 会记录：
+  - 页窗范围
+  - 源 PDF `sha256`
+  - 转换状态
+  - 错误列表
+  - 对应页窗 `DoclingDocument JSON`
+- 当源 PDF hash 不变时，后续复跑会直接复用窗口缓存，不再重跑该页窗。
+
+### ESP32-S3 sample re-check after these changes
+- 输入：`manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf`
+- 输出：`manuals/processed/esp32-s3-datasheet-en`
+- 已确认：
+  - `document.md` 中 `Table 1-1`、`Table 5-1` 等表后存在 sidecar 链接
+  - 当前样本没有触发 `Table Sidecars Appendix`
+  - `_windows/window_0001_p000001-000087.*` 已落盘
+  - 第二次复跑明确打印 `reuse cached window 1/1 pages 1-87`
+
 ## Active Open Questions
 - 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
 - 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？

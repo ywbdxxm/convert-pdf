@@ -67,6 +67,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--force-full-page-ocr",
         action="store_true",
     )
+    convert.add_argument(
+        "--no-resume-windows",
+        action="store_true",
+    )
 
     return parser
 
@@ -88,6 +92,7 @@ def build_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         generate_page_images=args.generate_page_images,
         image_scale=args.image_scale,
         image_filter=args.image_filter,
+        resume_windows=not args.no_resume_windows,
     )
 
 

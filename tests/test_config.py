@@ -44,7 +44,9 @@ class ConfigTests(unittest.TestCase):
                 image_filter="off",
                 no_ocr=True,
                 force_full_page_ocr=False,
+                no_resume_windows=False,
             )
         )
 
         self.assertEqual(config.image_filter, "off")
+        self.assertTrue(config.resume_windows)

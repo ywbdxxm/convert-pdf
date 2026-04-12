@@ -5,6 +5,7 @@ import json
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
+from types import SimpleNamespace
 
 from docling.chunking import HybridChunker
 from docling.datamodel.base_models import ConversionStatus, InputFormat
@@ -21,7 +22,7 @@ from docling_batch.images import filter_markdown_image_refs, picture_keep_flags,
 from docling_batch.indexing import attach_table_references, build_chunk_records, build_section_records
 from docling_batch.models import RuntimeConfig
 from docling_batch.paths import build_document_paths
-from docling_batch.tables import export_tables
+from docling_batch.tables import export_tables, inject_table_sidecars_into_markdown
 
 
 def make_doc_id(path: Path) -> str:
@@ -133,6 +134,84 @@ def write_jsonl(path: Path, rows: list[dict]) -> None:
             handle.write("\n")
 
 
+def build_window_cache_paths(cache_dir: Path, window_index: int, page_start: int, page_end: int) -> tuple[Path, Path]:
+    stem = f"window_{window_index:04d}_p{page_start:06d}-{page_end:06d}"
+    return cache_dir / f"{stem}.document.json", cache_dir / f"{stem}.meta.json"
+
+
+def store_window_result(
+    cache_dir: Path,
+    window_index: int,
+    page_start: int,
+    page_end: int,
+    source_pdf_sha256: str,
+    result,
+) -> None:
+    if result.status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} or result.document is None:
+        return
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    document_path, meta_path = build_window_cache_paths(cache_dir, window_index, page_start, page_end)
+    result.document.save_as_json(document_path)
+    write_json(
+        meta_path,
+        {
+            "status": result.status.value if hasattr(result.status, "value") else str(result.status),
+            "page_start": page_start,
+            "page_end": page_end,
+            "source_pdf_sha256": source_pdf_sha256,
+            "errors": normalize_errors(getattr(result, "errors", None)),
+            "input_page_count": getattr(getattr(result, "input", None), "page_count", None),
+            "document_json": document_path.name,
+        },
+    )
+
+
+def load_cached_window_result(
+    cache_dir: Path,
+    window_index: int,
+    page_start: int,
+    page_end: int,
+    source_pdf_sha256: str,
+    input_page_count: int | None,
+):
+    document_path, meta_path = build_window_cache_paths(cache_dir, window_index, page_start, page_end)
+    if not document_path.exists() or not meta_path.exists():
+        return None
+
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    if meta.get("source_pdf_sha256") != source_pdf_sha256:
+        return None
+    if meta.get("page_start") != page_start or meta.get("page_end") != page_end:
+        return None
+
+    status_text = meta.get("status")
+    try:
+        status = ConversionStatus(status_text)
+    except ValueError:
+        return None
+
+    if status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS}:
+        return None
+
+    try:
+        document = DoclingDocument.model_validate_json(document_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+    cached_page_count = input_page_count if input_page_count is not None else meta.get("input_page_count")
+    return SimpleNamespace(
+        status=status,
+        document=document,
+        errors=meta.get("errors", []),
+        input=SimpleNamespace(page_count=cached_page_count),
+    )
+
+
 def build_converter(config: RuntimeConfig) -> DocumentConverter:
     pipeline_options = build_pdf_pipeline_options(
         device=config.device,
@@ -182,6 +261,8 @@ def convert_pdf_in_windows(
     converter: DocumentConverter,
     page_window_size: int | None,
     page_window_min_pages: int,
+    window_cache_dir: Path | None = None,
+    resume_windows: bool = True,
 ):
     total_pages = get_pdf_page_count(source_path)
     windows = select_page_windows(
@@ -192,6 +273,7 @@ def convert_pdf_in_windows(
     results = []
     doc_id = make_doc_id(source_path)
     window_count = len(windows)
+    source_pdf_sha256 = sha256_file(source_path) if window_cache_dir is not None else ""
     for window_index, (page_start, page_end) in enumerate(windows, start=1):
         print(
             format_window_progress(
@@ -203,13 +285,41 @@ def convert_pdf_in_windows(
             ),
             flush=True,
         )
-        results.extend(
+        if window_cache_dir is not None and resume_windows:
+            cached_result = load_cached_window_result(
+                cache_dir=window_cache_dir,
+                window_index=window_index,
+                page_start=page_start,
+                page_end=page_end,
+                source_pdf_sha256=source_pdf_sha256,
+                input_page_count=total_pages,
+            )
+            if cached_result is not None:
+                print(
+                    f"[{doc_id}] reuse cached window {window_index}/{window_count} pages {page_start}-{page_end}",
+                    flush=True,
+                )
+                results.append(cached_result)
+                continue
+
+        window_results = list(
             converter.convert_all(
                 [source_path],
                 raises_on_error=False,
                 page_range=(page_start, page_end),
             )
         )
+        if window_cache_dir is not None:
+            for result in window_results:
+                store_window_result(
+                    cache_dir=window_cache_dir,
+                    window_index=window_index,
+                    page_start=page_start,
+                    page_end=page_end,
+                    source_pdf_sha256=source_pdf_sha256,
+                    result=result,
+                )
+        results.extend(window_results)
 
     return results
 
@@ -219,9 +329,10 @@ def export_document_bundle(
     results,
     config: RuntimeConfig,
     chunker: HybridChunker,
+    paths=None,
 ) -> dict:
     doc_id = make_doc_id(source_path)
-    paths = build_document_paths(config.output_root, doc_id)
+    paths = paths or build_document_paths(config.output_root, doc_id)
     paths.doc_dir.mkdir(parents=True, exist_ok=True)
 
     statuses = [result.status for result in results]
@@ -294,12 +405,6 @@ def export_document_bundle(
         page_break_placeholder="<!-- page_break -->",
         image_placeholder="<!-- image -->",
     )
-    if config.image_filter == "heuristic":
-        filtered_markdown = filter_markdown_image_refs(
-            paths.document_markdown.read_text(encoding="utf-8"),
-            picture_keep_flags(combined_doc),
-        )
-        paths.document_markdown.write_text(filtered_markdown, encoding="utf-8")
 
     chunks = list(chunker.chunk(combined_doc))
     chunk_records = build_chunk_records(
@@ -309,10 +414,20 @@ def export_document_bundle(
     )
     section_records = build_section_records(doc_id=doc_id, chunk_records=chunk_records)
     tables = [item for item, _level in combined_doc.iterate_items() if isinstance(item, TableItem)]
-    table_records = export_tables(doc_id=doc_id, tables=tables, tables_dir=paths.tables_dir, doc=combined_doc)
+    exported_tables = export_tables(doc_id=doc_id, tables=tables, tables_dir=paths.tables_dir, doc=combined_doc)
+    table_records = [table.record for table in exported_tables]
     attach_table_references(chunk_records, section_records, table_records)
     manifest["table_count"] = len(table_records)
     manifest["tables"] = table_records
+
+    markdown_text = paths.document_markdown.read_text(encoding="utf-8")
+    if config.image_filter == "heuristic":
+        markdown_text = filter_markdown_image_refs(
+            markdown_text,
+            picture_keep_flags(combined_doc),
+        )
+    markdown_text = inject_table_sidecars_into_markdown(markdown_text, exported_tables)
+    paths.document_markdown.write_text(markdown_text, encoding="utf-8")
 
     write_jsonl(paths.chunks, chunk_records)
     write_jsonl(paths.sections, section_records)
@@ -350,12 +465,15 @@ def run_batch(config: RuntimeConfig) -> dict:
     manifests: list[dict] = []
 
     for source_path in pdf_paths:
+        paths = build_document_paths(config.output_root, make_doc_id(source_path))
         results = convert_pdf_in_windows(
             source_path=source_path,
             converter=converter,
             page_window_size=config.page_window_size,
             page_window_min_pages=config.page_window_min_pages,
+            window_cache_dir=paths.windows_dir,
+            resume_windows=config.resume_windows,
         )
-        manifests.append(export_document_bundle(source_path, results, config, chunker))
+        manifests.append(export_document_bundle(source_path, results, config, chunker, paths=paths))
 
     return build_run_summary(manifests, config.output_root)

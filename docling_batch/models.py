@@ -21,3 +21,4 @@ class RuntimeConfig:
     generate_page_images: bool
     image_scale: float
     image_filter: str
+    resume_windows: bool
