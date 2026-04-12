@@ -8,6 +8,7 @@ class DocumentPaths:
     document_json: Path
     document_markdown: Path
     document_html: Path
+    alerts: Path
     manifest: Path
     sections: Path
     chunks: Path
@@ -22,6 +23,7 @@ def build_document_paths(output_root: Path, doc_id: str) -> DocumentPaths:
         document_json=doc_dir / "document.json",
         document_markdown=doc_dir / "document.md",
         document_html=doc_dir / "document.html",
+        alerts=doc_dir / "alerts.json",
         manifest=doc_dir / "manifest.json",
         sections=doc_dir / "sections.jsonl",
         chunks=doc_dir / "chunks.jsonl",

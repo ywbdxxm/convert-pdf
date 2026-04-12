@@ -1094,6 +1094,18 @@
   - 不额外改写 HTML 内容
   - `manifest.json` 中记录 `document_html` 路径
 
+### 2026-04-12: Image-Fallback Table Alert Landed
+- 当前新增 `alerts.json`。
+- 首个告警规则是：
+  - 如果 `document.md` 中出现 `Table ...` 表题
+  - 后面直接跟 `![Image](...)`
+  - 且没有结构化 Markdown 表格或 `Table sidecars`
+  - 则记录 `table_caption_followed_by_image_without_sidecar`
+- 这个规则专门服务于 `Table 2-9. Peripheral Pin Assignment` 这种情况。
+- 这不是尝试“修复” Docling，而是承认并显式标注标准管线的局限：
+  - 后续可用这些 alert 去做人工回查
+  - 或者用于和 `Marker` / `MinerU` 等其他工具做 A/B 对比
+
 ## Active Open Questions
 - 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
 - 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？

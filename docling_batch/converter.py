@@ -17,6 +17,7 @@ from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTok
 import pypdfium2 as pdfium
 from docling.pipeline.threaded_standard_pdf_pipeline import ThreadedStandardPdfPipeline
 
+from docling_batch.alerts import detect_markdown_alerts
 from docling_batch.config import build_pdf_pipeline_options
 from docling_batch.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
 from docling_batch.indexing import attach_table_references, build_chunk_records, build_section_records
@@ -412,6 +413,7 @@ def export_document_bundle(
         "document_json": str(paths.document_json),
         "document_markdown": str(paths.document_markdown),
         "document_html": str(paths.document_html),
+        "alerts_path": str(paths.alerts),
         "sections_index": str(paths.sections),
         "chunks_index": str(paths.chunks),
         "tables_dir": str(paths.tables_dir),
@@ -459,6 +461,10 @@ def export_document_bundle(
         )
     markdown_text = inject_table_sidecars_into_markdown(markdown_text, exported_tables)
     paths.document_markdown.write_text(markdown_text, encoding="utf-8")
+    alerts = detect_markdown_alerts(markdown_text)
+    manifest["alert_count"] = len(alerts)
+    manifest["alerts"] = alerts
+    write_json(paths.alerts, alerts)
 
     write_jsonl(paths.chunks, chunk_records)
     write_jsonl(paths.sections, section_records)

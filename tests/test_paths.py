@@ -12,6 +12,7 @@ class BuildDocumentPathsTests(unittest.TestCase):
         self.assertEqual(paths.document_json, Path("manuals/processed/stm32f4-rm0090/document.json"))
         self.assertEqual(paths.document_markdown, Path("manuals/processed/stm32f4-rm0090/document.md"))
         self.assertEqual(paths.document_html, Path("manuals/processed/stm32f4-rm0090/document.html"))
+        self.assertEqual(paths.alerts, Path("manuals/processed/stm32f4-rm0090/alerts.json"))
         self.assertEqual(paths.manifest, Path("manuals/processed/stm32f4-rm0090/manifest.json"))
         self.assertEqual(paths.sections, Path("manuals/processed/stm32f4-rm0090/sections.jsonl"))
         self.assertEqual(paths.chunks, Path("manuals/processed/stm32f4-rm0090/chunks.jsonl"))

@@ -405,3 +405,4 @@
 2026-04-12 已完成架构缺口复盘：重新对照 Docling 官方 chunking / batch / table / figure / visual grounding / OCR 文档，确认主线不变，但需要补 conversion signature cache、page images / visual grounding、figure metadata 和疑难页二级补救。
 2026-04-12 开始实现 conversion signature cache：缓存现在会区分解析参数，避免配置变化时误复用窗口结果。
 2026-04-12 已接入 document.html 导出，并把路径写入 manifest，作为更适合人工核对宽表/图片的阅读副产物。
+2026-04-12 已增加 markdown 告警检测：对“表题后跟图片且无结构化 sidecar”的情况输出 alerts.json，显式标注标准 Docling 管线的局限。
