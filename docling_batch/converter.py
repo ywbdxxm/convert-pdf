@@ -13,6 +13,7 @@ from docling_core.types.doc import DoclingDocument
 from docling_core.types.doc.base import ImageRefMode
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 import pypdfium2 as pdfium
+from docling.pipeline.threaded_standard_pdf_pipeline import ThreadedStandardPdfPipeline
 
 from docling_batch.config import build_pdf_pipeline_options
 from docling_batch.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
@@ -124,7 +125,10 @@ def build_converter(config: RuntimeConfig) -> DocumentConverter:
     )
     return DocumentConverter(
         format_options={
-            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_options=pipeline_options,
+                pipeline_cls=ThreadedStandardPdfPipeline,
+            ),
         }
     )
 

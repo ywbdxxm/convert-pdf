@@ -4,6 +4,7 @@ from argparse import Namespace
 
 from docling_batch.cli import build_runtime_config
 from docling_batch.config import build_pdf_pipeline_options
+from docling.datamodel.pipeline_options import ThreadedPdfPipelineOptions
 
 
 class ConfigTests(unittest.TestCase):
@@ -23,6 +24,8 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.ocr_options.backend, "torch")
         self.assertTrue(options.generate_picture_images)
         self.assertFalse(options.generate_page_images)
+        self.assertIsInstance(options, ThreadedPdfPipelineOptions)
+        self.assertEqual(options.layout_batch_size, 32)
 
     def test_runtime_config_defaults_to_image_filter_off(self):
         config = build_runtime_config(

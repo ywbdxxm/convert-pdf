@@ -260,6 +260,23 @@
   - `document.md` 中图片引用为相对路径
   - `artifacts/` 目录真实存在
   - 图片与 Markdown 引用闭环已打通
+
+### 2026-04-12: Docling Feature Usage And GPU Direction Clarified
+- 已补充说明当前实际用到的 Docling API 与未用到的路线
+- 当前统一结论：
+  - 标准主线当前用的是 `DocumentConverter + standard PDF pipeline + HybridChunker`
+  - 下一步更适合优先尝试官方 `gpu_standard_pipeline` 路线
+  - 官方 `gpu_vlm_pipeline` 更像 VLM 页面理解路线，不是当前最该优先上的性能优化
+
+### 2026-04-12: GPU Standard Pipeline Adopted
+- 当前实现已切到官方 `gpu_standard_pipeline` 对应路线：
+  - `ThreadedStandardPdfPipeline`
+  - `ThreadedPdfPipelineOptions`
+- 默认 GPU batch 配置当前为：
+  - `layout_batch_size = 32`
+  - `ocr_batch_size = 4`
+  - `table_batch_size = 4`
+- 这样当前主线已经不只是“开 CUDA”，而是开始利用官方推荐的 threaded standard pipeline 做吞吐优化
 - 新发现：
   - `Submit Documentation Feedback` 这一类内容当前仍会出现在 `document.md`
   - 但它是文本/链接噪声，不是图片过滤失效

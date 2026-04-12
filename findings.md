@@ -282,6 +282,66 @@
   - 合并后的 `DoclingDocument JSON`
 - Markdown、sections、chunks 都是从这个 canonical source 派生出来的。
 
+## What Docling Features We Are Using Right Now
+- 当前代码里实际用到的 Docling 核心能力包括：
+  - `DocumentConverter`
+  - `PdfFormatOption`
+  - `ThreadedStandardPdfPipeline`
+  - `ThreadedPdfPipelineOptions`
+  - `convert_all(..., raises_on_error=False, page_range=...)`
+  - `DoclingDocument.concatenate(...)`
+  - `save_as_json(...)`
+  - `save_as_markdown(...)`
+  - `HybridChunker`
+  - `chunker.contextualize(chunk)`
+  - `PdfPipelineOptions`
+  - `AcceleratorOptions`
+  - `RapidOcrOptions` / `TesseractCliOcrOptions`
+- 当前真正还没有用到的 Docling 路线包括：
+  - `VlmPipeline`
+  - `VlmConvertOptions`
+  - `VlmPipelineOptions`
+  - 远程 VLM / vLLM API runtime
+
+## GPU Optimization Judgement
+- 结合官方文档，当前更适合我们的 GPU 优化路线是：
+  - `ThreadedStandardPdfPipeline + ThreadedPdfPipelineOptions`
+- 这是官方 `gpu_standard_pipeline` 示例的路线。
+- 它适合：
+  - 标准 PDF 解析主线
+  - 本地 GPU
+  - 强调吞吐和稳态
+- 这比当前直接考虑 `gpu_vlm_pipeline` 更适合作为下一步优化。
+- 当前实现已经切换到这条路线：
+  - GPU 下默认使用 `ThreadedPdfPipelineOptions`
+  - 默认 GPU batch 配置为：
+    - `layout_batch_size = 32`
+    - `ocr_batch_size = 4`
+    - `table_batch_size = 4`
+- 这意味着当前真正可用的 GPU 优化点包括：
+  - `AcceleratorOptions(device="cuda")`
+  - `RapidOCR(backend="torch")` 在 OCR 路径上的 GPU 加速
+  - `ThreadedStandardPdfPipeline` 在标准 PDF 解析主线上的吞吐优化
+
+## What gpu_vlm_pipeline Is For
+- 官方 `gpu_vlm_pipeline` 示例并不是“把当前标准流水线换成更快版本”那么简单。
+- 它做的是：
+  - 使用 `VlmPipeline`
+  - 使用 `VlmConvertOptions.from_preset("granite_docling", ...)`
+  - 通过 vLLM API runtime 跑远程/本地 VLM 推理
+- 这条路线更像：
+  - 用 VLM 做页面理解和转换
+  - 适合视觉理解更复杂、需要 VLM 参与的场景
+- 它可能带来的提升主要是：
+  - 某些复杂视觉页面的理解上限
+  - VLM 推理吞吐（前提是 vLLM / 远程服务配置得好）
+- 但它也带来明显代价：
+  - 依赖 `vllm`
+  - 依赖远程 API 或额外模型服务
+  - 复杂度显著上升
+  - 稳态和可控性不如先把标准流水线打磨好
+- 对我们当前这条“芯片手册标准主线”，它不是第一优先优化项。
+
 ## How I Actually Use The Final Artifacts
 - 对后续嵌入式开发，我不会把所有产物等权看待。
 - 当前最合理的使用优先级是：

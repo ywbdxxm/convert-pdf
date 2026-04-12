@@ -3,9 +3,9 @@
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
     AcceleratorOptions,
-    PdfPipelineOptions,
     RapidOcrOptions,
     TesseractCliOcrOptions,
+    ThreadedPdfPipelineOptions,
 )
 
 
@@ -18,12 +18,16 @@ def build_pdf_pipeline_options(
     generate_page_images,
     image_scale,
 ):
-    options = PdfPipelineOptions()
+    options = ThreadedPdfPipelineOptions()
     options.accelerator_options = AcceleratorOptions(device=AcceleratorDevice(device))
     options.do_ocr = enable_ocr
     options.generate_picture_images = generate_picture_images
     options.generate_page_images = generate_page_images
     options.images_scale = image_scale
+    if device == "cuda":
+        options.layout_batch_size = 32
+        options.ocr_batch_size = 4
+        options.table_batch_size = 4
 
     if ocr_engine == "rapidocr":
         options.ocr_options = RapidOcrOptions(
