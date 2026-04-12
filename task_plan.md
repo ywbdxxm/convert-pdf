@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
 
 ## Current Phase
-Verification & Documentation
+Docling Batch Program Design
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -37,9 +37,9 @@ Verification & Documentation
 ### Phase 5: Verification & Documentation
 - [x] 验证 GPU、Python、Docling、后续 OCR/VLM 基础可用
 - [x] 补齐设计审计文档与执行脚本
-- [ ] 更新 README / findings / progress
-- [ ] 提交并推送
-- **Status:** in_progress
+- [x] 更新 README / findings / progress
+- [x] 提交并推送
+- **Status:** complete
 
 ### Phase 6: Shared AI Base Design
 - [x] 总结当前 CUDA Python 依赖安装瓶颈
@@ -57,7 +57,7 @@ Verification & Documentation
 - [ ] 明确“给 AI/我自己查阅嵌入式手册”的最优产物形态
 - [ ] 设计多 PDF 批处理、文档索引和后续检索结构
 - [ ] 明确哪些信息应保留为原文、哪些应做结构化摘录
-- **Status:** pending
+- **Status:** in_progress
 
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
