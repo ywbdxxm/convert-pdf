@@ -675,3 +675,22 @@
 - Files created/modified:
   - `task_plan.md` (updated)
   - `progress.md` (updated)
+
+## Session Update: Global Workstation Reference Added
+- Time: 2026-04-12 12:xx CST
+- Context:
+  - 用户要求把当前工作站设计架构和经验沉淀成一份以后在其它项目也能复用的文档。
+- Actions taken:
+  - 采用“全局 AGENTS 入口 + 全局长文档”的方案
+  - 新建 `/home/qcgg/.codex/docs/ai-workstation-architecture.md`
+  - 更新 `/home/qcgg/.codex/AGENTS.md`，加入该文档的入口说明
+  - 在仓库内新增 `docs/architecture/global-workstation-reference.md` 作为短指针
+- Key findings:
+  - 这份全局文档比单纯把规则堆进 AGENTS 更适合长期维护
+  - 以后别的项目会话只要读到全局 AGENTS，就能顺着定位到完整工作站架构与坑点
+- Files created/modified:
+  - `/home/qcgg/.codex/AGENTS.md` (updated, external)
+  - `/home/qcgg/.codex/docs/ai-workstation-architecture.md` (created, external)
+  - `docs/architecture/global-workstation-reference.md` (created)
+  - `findings.md` (updated)
+  - `progress.md` (updated)

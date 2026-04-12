@@ -473,6 +473,22 @@
   - `docling/.venv` 中导入的 `torch` 实际来自 `/home/qcgg/.mamba/envs/ai-base-cu124-stable/...`
   - 这说明“共享 base + overlay”这条路径现在已经真正打通
 
+## Global Workstation Reference Doc
+- 已新增全局长文档：
+  - `/home/qcgg/.codex/docs/ai-workstation-architecture.md`
+- 这份文档的目标不是记录单个仓库，而是给未来其它项目里的会话恢复以下信息：
+  - 这台机器的分层架构
+  - `micromamba`、`pip`、`uv`、系统层各自负责什么
+  - 当前稳定基线是什么
+  - 哪些坑已经踩过，不要再重复踩
+- 已同步更新全局入口：
+  - `/home/qcgg/.codex/AGENTS.md`
+- 当前仓库里也补了一个短指针文档：
+  - `docs/architecture/global-workstation-reference.md`
+- 后续原则是：
+  - 全局长文档记录跨项目通用规则和坑点
+  - 仓库文档只记录项目特有偏差，不重复抄整份工作站文档
+
 ## Technical Decisions
 | Decision | Rationale |
 |----------|-----------|
