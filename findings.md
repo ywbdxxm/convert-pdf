@@ -997,6 +997,76 @@
   - `_windows/window_0001_p000001-000087.*` 已落盘
   - 第二次复跑明确打印 `reuse cached window 1/1 pages 1-87`
 
+## Architecture Gap Review
+### Current cache mechanism is useful but not yet complete
+- 当前缓存是“页窗级 canonical cache”：
+  - 每个窗口保存 `DoclingDocument JSON`
+  - meta 中保存窗口范围、状态、错误和 `source_pdf_sha256`
+- 这已经足够避免大 PDF 因中断而整本重跑。
+- 但现在仍有一个重要缺口：
+  - 缓存 key 只看源 PDF hash 和页窗范围
+  - 还没有纳入 `docling version / OCR flags / image settings / pipeline signature`
+- 这意味着：
+  - 如果后续你改变了解析参数，当前缓存仍可能被误复用
+  - 从工程严谨性上，这一层还应该升级为“conversion signature cache”
+
+### Best-practice mainline still matches our current direction
+- 结合 Docling 官方 `chunking`、`batch convert`、`table export`、`figure export`、`visual grounding`、`full page OCR` 示例，当前主线仍然应该是：
+  - 原始 PDF 保留
+  - `DoclingDocument JSON` 作为 canonical source
+  - `document.md` 作为阅读层
+  - 原生 `HybridChunker` 作为检索层
+  - 表格 sidecar 作为高价值补强层
+- 这条主线没有问题，不需要推翻重来。
+
+### The highest-value missing layer is visual grounding, not generic RAG software
+- 第一性原理看，你真正缺的不是“再套一层成熟 RAG 软件”。
+- 真正缺的是：
+  - 关键图/表/页的稳定回查能力
+  - 当文本解析失败时，能迅速退回页图/框图/时序图原貌
+- Docling 官方 `visual grounding` 与 `figure export` 路线正好对应这个需求。
+- 因此当前架构里最值得补的不是换框架，而是补：
+  - `generate_page_images`
+  - page / bbox / artifact 对应索引
+  - `figures.jsonl` 或 picture manifest
+
+### Current outputs are still weak on hard visual/table pages
+- 当前 ESP32-S3 样本里，`Table 2-9. Peripheral Pin Assignment` 已出现典型问题：
+  - 表题保住了
+  - 但表本体退化成图片占位
+  - 这类宽矩阵表没有变成结构化表格 sidecar
+- 这说明：
+  - 当前标准主线对“超宽 GPIO/AF/Peripheral matrix 表”仍不够稳
+  - 未来需要一条“疑难页二级补救”路线
+- 最合理的形态不是整本都走 VLM，而是：
+  - 主线继续走标准 Docling
+  - 自动识别失败页/可疑页
+  - 对这些页再走 VLM 或第二解析器补救
+
+### Reading layer still has fidelity annoyances
+- `document.md` 当前仍存在：
+  - `Submit Documentation Feedback` 这类页脚噪声
+  - `Table 5-9 - cont'd from previous page` 这类续页噪声
+  - `T able` / `As- sign` 这类断词和断行问题
+- 在 ESP32-S3 样本里，当前统计到：
+  - `submit documentation feedback` 仍有 `1` 处
+  - `T able` 断词有 `26` 处
+  - `71` 张表里有 `17` 张 caption 为空，其中 `11` 张不是目录表
+- 这些不会推翻当前架构，但说明：
+  - `document.md` 更适合作为“完整阅读副本”
+  - 而不是“唯一高质量阅读层”
+- 一个更稳的后续方向是：
+  - 保留当前完整 `document.md`
+  - 额外生成一个轻清洗的 `document.clean.md` 或 `document.html`
+
+### Practical next improvements
+- 为窗口缓存补 `conversion signature`
+- 增加 `document.html` 导出，方便人工核对宽表和图片
+- 增加 `page_images/` 与 visual-grounding 元数据
+- 增加 `figures.jsonl` / picture manifest
+- 为“表题存在但表体退化为图片”的页建立自动告警
+- 对疑难页做二级补救，而不是整本文档切到 VLM
+
 ## Active Open Questions
 - 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
 - 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？
