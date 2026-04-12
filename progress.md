@@ -433,3 +433,6 @@
 2026-04-13 完成输出结构现实性复盘：当前核心解析/导出/chunking 多数使用 Docling 原生 API，但 manifest、alerts、sidecar 注入、JSONL 索引、缓存和目录布局是自定义包装；`manuals/processed/<doc_id>` 只能作为 Docling baseline，不应强制所有工具输出同构目录，A/B 应保留各工具 raw 输出并只做最小 evidence 归一化。
 2026-04-13 开始评估框架设计：先定义 Docling native CLI/API baseline、多工具 raw output、最小 evidence 归一化和 scorecard，不改 runtime，不安装重工具，等设计确认后再写实现计划。
 2026-04-13 完成评估框架设计 spec：新增 `docs/superpowers/specs/2026-04-13-manual-evaluation-framework-design.md`，明确 Docling CLI/API/debug/current 四种 baseline、多工具 raw output、minimal evidence schema、scorecard、初始样本问题和第一阶段非目标。
+2026-04-13 纠偏：用户明确要求不要重复造轮子、不要 NIH、优先查找互联网已有工具软件和最佳实践。已停止 worktree 中未提交的 `manual_eval` 自研框架实现，后续先做外部工具和成熟框架调研，不继续写自研框架代码。
+2026-04-13 完成外部优先工具调研规划：新增 `docs/architecture/2026-04-13-external-first-manual-tooling-plan.md`，确定先试 LlamaIndex/LangChain/Haystack 的 Docling 集成，再试 Kotaemon/RAGFlow/Open WebUI 等应用，最后用 Marker/MinerU/Unstructured/PyMuPDF4LLM 做解析器 A/B。
+2026-04-13 按用户要求删除此前 `manual_eval` 自研实现 worktree 和 `feat/manual-eval-framework` 临时分支；后续不再推进该自研框架，`docling_batch` 冻结不动，重新从外部工具/最佳实践试用开始。

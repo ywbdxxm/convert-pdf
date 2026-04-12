@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
 
 ## Current Phase
-Evaluation Framework Design
+External-First Tooling Research
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -140,6 +140,13 @@ Evaluation Framework Design
 - [x] 设计多工具 raw output + minimal evidence normalization 框架
 - [x] 明确哪些现成软件先接入，哪些暂缓
 - [x] 等用户确认设计后再写实现计划
+- **Status:** complete
+
+### Phase 22: External-First Tooling Research
+- [x] 暂停并记录 `manual_eval` 自研框架方向，不继续实现
+- [x] 调研 Docling 官方/生态中已有的 RAG 和文档问答集成最佳实践
+- [x] 调研成熟 PDF/RAG 工具软件，优先寻找可直接使用的方案
+- [x] 形成外部工具优先的试用顺序和验收标准
 - **Status:** complete
 
 ## Key Questions

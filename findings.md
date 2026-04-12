@@ -1639,6 +1639,70 @@
   - score runtime, disk cost, setup cost, and maintenance complexity
 - A schema is "better" only if it improves those scores or reduces code while preserving scores.
 
+## External-First Tooling Research
+### 2026-04-13: Reset after NIH correction
+- User explicitly reset the direction:
+  - do not repeat existing ecosystem work
+  - do not build custom frameworks before trying existing tools
+  - search for internet-visible tools, software, integrations, and best practices first
+  - use other people's experience before writing code
+- Current uncommitted `manual_eval` worktree implementation is stopped and should not be continued unless explicitly revived.
+- New priority:
+  - first: mature Docling integrations and RAG/document-chat software
+  - second: mature PDF parsers/converters
+  - third: only thin adapters if an external tool fails a concrete embedded-manual requirement
+
+### 2026-04-13: Initial external facts
+- LlamaIndex:
+  - Docling is an official LlamaIndex extension.
+  - `DoclingReader` reads files and populates LlamaIndex `Document` objects with Docling data, either lossless serialized Docling data or lossy Markdown.
+  - `DoclingNodeParser` parses Docling-format LlamaIndex documents into LlamaIndex `Node` objects for downstream embedding/RAG.
+- LangChain:
+  - `langchain-docling` provides `DoclingLoader`.
+  - `DoclingLoader` supports `ExportType.DOC_CHUNKS` and `ExportType.MARKDOWN`.
+  - The integration exists specifically to use Docling's rich document representation for document-native grounding in RAG workflows.
+- Open WebUI:
+  - Has a Docling document extraction integration path using `docling-serve`.
+  - Supports CPU/GPU Docling Serve containers.
+  - Practical deployment notes include `UVICORN_WORKERS=1`, remote-services enablement for picture descriptions, and larger sync wait for large documents.
+- RAGFlow:
+  - Parser component supports multiple file types and has PDF parser choices.
+  - PDF parser choices include DeepDoc, Naive, MinerU, Docling, and third-party vision models.
+  - Parser component outputs `markdown`, `text`, `html`, and `json` variables.
+  - MinerU integration is via remote MinerU API service.
+
+### 2026-04-13: External tools to prioritize
+- Docling ecosystem integrations:
+  - LlamaIndex `DoclingReader` + `DoclingNodeParser`: first code-level RAG trial because it preserves Docling JSON and exposes nodes with grounding metadata.
+  - LangChain `DoclingLoader`: second code-level RAG trial because it supports `DOC_CHUNKS` and `MARKDOWN`, with `dl_meta` containing page and bounding-box provenance.
+  - Haystack `DoclingConverter`: third code-level RAG trial for enterprise-style pipelines.
+- UI / application-level RAG:
+  - Kotaemon: first UI trial because it is a document QA UI with DoclingReader, hybrid RAG, citations, PDF preview, tables/figures support.
+  - RAGFlow: second UI/platform trial because it includes parser selection with DeepDoc/Naive/MinerU/Docling, chunk visualization, citations, multi-recall and reranking.
+  - Open WebUI + Docling Serve: trial only after smaller integrations, because it is convenient but Docling Serve container and large-doc performance/config can be heavy.
+  - Dify / AnythingLLM: lower priority for chip-manual fidelity; useful for generic document workflows, but likely weaker for page/table/visual evidence discipline.
+- Converter/parser alternatives:
+  - Marker: first parser A/B candidate against Docling for Markdown/JSON/chunks/HTML/images/table handling.
+  - MinerU: second parser A/B candidate for complex layouts, formulas, tables, long documents, and WebUI/API route.
+  - Unstructured: metadata-rich ingestion baseline, especially for page metadata, table HTML, coordinates, and element categories.
+  - PyMuPDF4LLM: lightweight digital-PDF baseline for speed and simple datasheets.
+
+### 2026-04-13: Practical implications
+- Do not continue `manual_eval` framework code.
+- Do not build custom RAG/search/index layers.
+- Do not normalize all tool outputs before trying them.
+- First working experiments should be tiny notebooks/scripts that directly use mature integrations:
+  - LlamaIndex + Docling on one ESP32-S3 datasheet question
+  - LangChain + Docling on one ESP32-S3 datasheet question
+  - Kotaemon or RAGFlow UI on the same PDF and question
+- Evaluation should inspect source metadata directly:
+  - page number
+  - bounding box if available
+  - table/image visibility
+  - original source filename/path
+  - citation behavior
+- Only after these smoke tests should the project decide whether any local adapter is needed.
+
 ## Evaluation Framework Design Notes
 ### 2026-04-13: Docling native baseline should use more first-party capabilities
 - Current Docling CLI/docs support:
