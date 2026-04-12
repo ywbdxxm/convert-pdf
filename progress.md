@@ -236,6 +236,33 @@
   - `window_count = 1`
   - 第一页二维码已被移除
   - 功能框图仍保留
+- 进一步检查发现：
+  - 当前 `document.md` 中仍写有图片引用
+  - 但本次实际输出目录未见对应 `artifacts/`
+  - 说明当前图片过滤逻辑主要控制的是 Markdown 引用，不是最终 sidecar 文件全集
+
+### 2026-04-12: Image Strategy Reconsidered
+- 用户指出 `document.md` 对后续查阅非常重要，希望不要激进删图
+- 当前结论已经改为：
+  - 默认保留 Docling 识别到的全部图片进 `document.md`
+  - 重点改为修复图片引用路径和提升清晰度
+  - 图片过滤若要继续做，应转移到更高层消费/UI，而不是当前源生成阶段
+
+### 2026-04-12: Image Path Strategy Implemented
+- 已将默认图片策略改为：
+  - `image_filter = off`
+  - `image_scale = 2.0`
+  - `document.md` 默认保留 Docling 识别到的图片引用
+- 已修复图片路径：
+  - Markdown 中的图片现在引用 `artifacts/<filename>`
+  - sidecar 图片真实落在 `manuals/processed/<doc_id>/artifacts/`
+- 已重新跑 ESP32-S3 样本验证：
+  - `document.md` 中图片引用为相对路径
+  - `artifacts/` 目录真实存在
+  - 图片与 Markdown 引用闭环已打通
+- 新发现：
+  - `Submit Documentation Feedback` 这一类内容当前仍会出现在 `document.md`
+  - 但它是文本/链接噪声，不是图片过滤失效
 
 ## Verification Summary
 | Area | Result | Status |

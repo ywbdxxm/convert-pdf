@@ -56,7 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert.add_argument(
         "--image-filter",
-        default="heuristic",
+        default="off",
         choices=["off", "heuristic"],
     )
     convert.add_argument(

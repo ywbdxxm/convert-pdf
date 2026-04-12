@@ -582,6 +582,60 @@
   - 无 caption 且面积很小的图会被直接丢弃
   - 页脚/页眉附近的小图也更容易被过滤
 - 在 ESP32-S3 样本上，第一页二维码已被成功移除，而功能框图仍被保留
+- 但用户这次指出了一个很重要的细节：
+  - 二维码这类图片噪声，当前已经不再作为图片出现在 `document.md`
+  - 但 `Submit Documentation Feedback` 这类页脚噪声，当前往往不是图片残留，而是被 Docling 当成普通文本/链接抽取进了正文
+- 这意味着后续噪声治理需要分成两类：
+  - 图片噪声过滤
+  - 页脚/页眉文本噪声过滤
+- 还发现了一个实现问题：
+  - 当前版本在 `document.md` 中写入了图片引用路径
+  - 但本次实际输出目录里没有对应 `artifacts/` 目录
+  - 这说明当前“Markdown 图片引用”和“sidecar 图片真正落盘”之间还不够一致
+  - 后续需要把“保留哪些图片”和“最终真正写哪些图片文件”统一起来，而不是只改 Markdown 引用
+- 基于用户这次反馈，当前图片策略需要进一步收敛：
+  - 对“让我后续更准确查阅参考手册”这个目标来说，**误删重要图片的代价高于保留一些噪声图的代价**
+  - 因此 `document.md` 作为重要阅读副本时，更合理的默认策略应是：
+    - **Docling 识别到的图片默认全部保留到 Markdown**
+    - 使用更清晰的引用式 sidecar 图片
+    - 不在源生成阶段做激进图片过滤
+  - 图片过滤若要做，应放到后续更高层的阅读 UI / 下游消费层，而不是先动 canonical reading artifact
+- 同时有一个必须修复的工程问题：
+  - 当前 Markdown 里的图片引用路径写成了相对 `document.md` 的嵌套路径
+  - 这导致 `artifacts/` 被写在 `manuals/processed/<doc_id>/manuals/processed/<doc_id>/artifacts/`
+  - 后续必须改成真正相对 `document.md` 的短路径，例如 `artifacts/<filename>`
+
+## Current Image / Markdown Best Practice
+- 针对你当前目标，重新收敛后的最佳实践是：
+  - `document.md` 继续保留图片引用
+  - 默认保留 Docling 识别出的全部图片
+  - 图片使用 sidecar 引用，不内嵌 base64
+  - 提高清晰度，例如 `image_scale=2.0` 或更高
+  - 不把页码装饰图、二维码这类对象在源生成阶段硬删掉，除非后续有非常可靠的语义级过滤
+- 原因：
+  - `document.md` 对我后续查阅确实很重要
+  - 图像漏掉一张关键框图/时序图，损失比多留一张二维码更大
+  - 图片噪声虽然烦，但原始阅读副本更应偏完整，而不是偏激进清洗
+- 当前实现已经与这个方向对齐：
+  - 默认 `image_filter = off`
+  - `document.md` 中默认保留 Docling 识别到的图片引用
+  - sidecar 图片路径已修正为真正相对 `document.md` 的 `artifacts/<filename>`
+  - 实际输出目录现在是：
+    - `manuals/processed/<doc_id>/artifacts/`
+    - 而不再是之前错误的嵌套路径
+
+## Page Number Clarification
+- 页码本身不是无用信息。
+- 需要区分两件事：
+  - **页码元数据 / citation / page_start-page_end**
+    - 非常重要
+  - **页脚里被抽成正文噪声的页码文本**
+    - 基本无价值
+- 所以应该保留的是：
+  - 页码语义
+  - 页码元数据
+- 不应该保留的是：
+  - 页脚版式噪声
 
 ## Current Large-PDF Default Behavior
 - 当前默认配置下：

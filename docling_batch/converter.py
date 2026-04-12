@@ -15,7 +15,7 @@ from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTok
 import pypdfium2 as pdfium
 
 from docling_batch.config import build_pdf_pipeline_options
-from docling_batch.images import filter_markdown_image_refs, picture_keep_flags
+from docling_batch.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
 from docling_batch.indexing import build_chunk_records, build_section_records
 from docling_batch.models import RuntimeConfig
 from docling_batch.paths import build_document_paths
@@ -246,7 +246,7 @@ def export_document_bundle(
         write_json(paths.manifest, manifest)
         return manifest
 
-    artifacts_dir = paths.doc_dir / "artifacts"
+    artifacts_dir = resolve_artifacts_dir(paths.document_markdown)
 
     combined_doc.save_as_json(paths.document_json, artifacts_dir=artifacts_dir)
     combined_doc.save_as_markdown(

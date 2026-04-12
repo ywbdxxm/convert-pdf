@@ -35,4 +35,4 @@ class BuildParserTests(unittest.TestCase):
         self.assertEqual(args.page_window_min_pages, 500)
         self.assertEqual(args.page_window_size, 250)
         self.assertEqual(args.image_scale, 2.0)
-        self.assertEqual(args.image_filter, "heuristic")
+        self.assertEqual(args.image_filter, "off")
