@@ -1164,6 +1164,19 @@
     - 局部重跑
     - 更稳的长任务执行
 
+### 2026-04-12: Cache Is Now Explicitly Opt-In
+- 根据你的真实使用方式重新收敛后，当前结论变成：
+  - 缓存不是默认主线
+  - 缓存只是可选容错功能
+- 当前 CLI 语义已调整为：
+  - 默认：整本处理，不启用缓存
+  - `--enable-window-cache`：显式开启缓存
+  - `--cache-window-size N`：指定缓存页窗大小
+- 这比“默认分窗 + 默认缓存”更符合当前项目目标：
+  - 大多数 datasheet / manual 只处理一次
+  - 首轮速度和简单性更重要
+  - 只有在超大文档、易中断任务、或者反复调试时，缓存才真正有价值
+
 ### 2026-04-12: Caption Backfill From Markdown Context Landed
 - 继续深挖空 `caption` 后确认：
   - 有不少表的标题不在 table 自身导出内容里

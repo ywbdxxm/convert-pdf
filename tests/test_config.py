@@ -32,8 +32,8 @@ class ConfigTests(unittest.TestCase):
             Namespace(
                 input=["manuals/raw"],
                 output="manuals/processed",
-                page_window_size=250,
-                page_window_min_pages=300,
+                enable_window_cache=False,
+                cache_window_size=250,
                 device="cuda",
                 ocr_engine="rapidocr",
                 tokenizer="sentence-transformers/all-MiniLM-L6-v2",
@@ -44,9 +44,33 @@ class ConfigTests(unittest.TestCase):
                 image_filter="off",
                 no_ocr=True,
                 force_full_page_ocr=False,
-                no_resume_windows=False,
             )
         )
 
         self.assertEqual(config.image_filter, "off")
+        self.assertFalse(config.resume_windows)
+        self.assertIsNone(config.page_window_size)
+
+    def test_runtime_config_enables_window_cache_with_explicit_size(self):
+        config = build_runtime_config(
+            Namespace(
+                input=["manuals/raw"],
+                output="manuals/processed",
+                enable_window_cache=True,
+                cache_window_size=128,
+                device="cuda",
+                ocr_engine="rapidocr",
+                tokenizer="sentence-transformers/all-MiniLM-L6-v2",
+                max_chunk_tokens=384,
+                image_mode="referenced",
+                generate_page_images=False,
+                image_scale=2.0,
+                image_filter="off",
+                no_ocr=True,
+                force_full_page_ocr=False,
+            )
+        )
+
         self.assertTrue(config.resume_windows)
+        self.assertEqual(config.page_window_size, 128)
+        self.assertEqual(config.page_window_min_pages, 0)

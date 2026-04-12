@@ -54,20 +54,20 @@ class WorkflowHelpersTests(unittest.TestCase):
 
     def test_select_page_windows_keeps_small_documents_whole(self):
         self.assertEqual(
-            select_page_windows(total_pages=87, page_window_size=250, page_window_min_pages=300),
+            select_page_windows(total_pages=87, page_window_size=250, page_window_min_pages=1000),
             [(1, 87)],
         )
 
-    def test_select_page_windows_splits_only_when_above_threshold(self):
+    def test_select_page_windows_keeps_mid_sized_manuals_whole_below_1000_pages(self):
         self.assertEqual(
-            select_page_windows(total_pages=501, page_window_size=250, page_window_min_pages=300),
-            [(1, 250), (251, 500), (501, 501)],
+            select_page_windows(total_pages=357, page_window_size=250, page_window_min_pages=1000),
+            [(1, 357)],
         )
 
-    def test_select_page_windows_splits_mid_sized_manuals_once_above_300_pages(self):
+    def test_select_page_windows_splits_only_when_above_1000_pages(self):
         self.assertEqual(
-            select_page_windows(total_pages=357, page_window_size=250, page_window_min_pages=300),
-            [(1, 250), (251, 357)],
+            select_page_windows(total_pages=1001, page_window_size=250, page_window_min_pages=1000),
+            [(1, 250), (251, 500), (501, 750), (751, 1000), (1001, 1001)],
         )
 
     def test_aggregate_conversion_statuses_returns_partial_when_any_window_fails(self):
@@ -134,7 +134,7 @@ class WorkflowHelpersTests(unittest.TestCase):
                 status=ConversionStatus.SUCCESS,
                 document=DoclingDocument(name="window-1"),
                 errors=[],
-                input=SimpleNamespace(page_count=501),
+                input=SimpleNamespace(page_count=1001),
             )
 
             store_window_result(
@@ -154,13 +154,13 @@ class WorkflowHelpersTests(unittest.TestCase):
                 page_end=250,
                 source_pdf_sha256="abc123",
                 conversion_signature="sig-v1",
-                input_page_count=501,
+                input_page_count=1001,
             )
 
             self.assertIsNotNone(cached)
             self.assertEqual(cached.status, ConversionStatus.SUCCESS)
             self.assertEqual(cached.document.name, "window-1")
-            self.assertEqual(cached.input.page_count, 501)
+            self.assertEqual(cached.input.page_count, 1001)
 
     def test_load_cached_window_result_rejects_stale_source_hash(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -246,7 +246,9 @@ class WorkflowHelpersTests(unittest.TestCase):
             for window_index, page_start, page_end in [
                 (1, 1, 250),
                 (2, 251, 500),
-                (3, 501, 501),
+                (3, 501, 750),
+                (4, 751, 1000),
+                (5, 1001, 1001),
             ]:
                 store_window_result(
                     cache_dir=cache_dir,
@@ -259,7 +261,7 @@ class WorkflowHelpersTests(unittest.TestCase):
                         status=ConversionStatus.SUCCESS,
                         document=DoclingDocument(name=f"window-{window_index}"),
                         errors=[],
-                        input=SimpleNamespace(page_count=501),
+                        input=SimpleNamespace(page_count=1001),
                     ),
                 )
 
@@ -267,18 +269,21 @@ class WorkflowHelpersTests(unittest.TestCase):
                 def convert_all(self, *args, **kwargs):
                     raise AssertionError("converter should not run when every window is cached")
 
-            with patch("docling_batch.converter.get_pdf_page_count", return_value=501), patch(
+            with patch("docling_batch.converter.get_pdf_page_count", return_value=1001), patch(
                 "docling_batch.converter.sha256_file", return_value="cached-hash"
             ), patch("docling_batch.converter.version", return_value=version("docling")):
                 results = convert_pdf_in_windows(
                     source_path=source_path,
                     converter=FailingConverter(),
                     page_window_size=250,
-                    page_window_min_pages=300,
+                    page_window_min_pages=1000,
                     window_cache_dir=cache_dir,
                     resume_windows=True,
                     config=config,
                 )
 
-            self.assertEqual(len(results), 3)
-            self.assertEqual([result.document.name for result in results], ["window-1", "window-2", "window-3"])
+            self.assertEqual(len(results), 5)
+            self.assertEqual(
+                [result.document.name for result in results],
+                ["window-1", "window-2", "window-3", "window-4", "window-5"],
+            )

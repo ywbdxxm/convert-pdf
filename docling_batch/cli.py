@@ -12,14 +12,13 @@ def build_parser() -> argparse.ArgumentParser:
     convert.add_argument("--input", action="append", required=True)
     convert.add_argument("--output", required=True)
     convert.add_argument(
-        "--page-window-size",
-        type=int,
-        default=250,
+        "--enable-window-cache",
+        action="store_true",
     )
     convert.add_argument(
-        "--page-window-min-pages",
+        "--cache-window-size",
         type=int,
-        default=300,
+        default=250,
     )
     convert.add_argument(
         "--device",
@@ -67,20 +66,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--force-full-page-ocr",
         action="store_true",
     )
-    convert.add_argument(
-        "--no-resume-windows",
-        action="store_true",
-    )
 
     return parser
 
 
 def build_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
+    page_window_size = args.cache_window_size if args.enable_window_cache and args.cache_window_size > 0 else None
     return RuntimeConfig(
         input_paths=[Path(item) for item in args.input],
         output_root=Path(args.output),
-        page_window_size=args.page_window_size if args.page_window_size and args.page_window_size > 0 else None,
-        page_window_min_pages=max(0, args.page_window_min_pages),
+        page_window_size=page_window_size,
+        page_window_min_pages=0,
         device=args.device,
         enable_ocr=not args.no_ocr,
         ocr_engine=args.ocr_engine,
@@ -92,7 +88,7 @@ def build_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         generate_page_images=args.generate_page_images,
         image_scale=args.image_scale,
         image_filter=args.image_filter,
-        resume_windows=not args.no_resume_windows,
+        resume_windows=args.enable_window_cache,
     )
 
 

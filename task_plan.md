@@ -110,6 +110,7 @@ Docling Batch Program Incremental Hardening
 | 大 PDF 优化优先做“窗口级缓存/恢复”，而不是先继续激进调 batch size | 对 5000+ 页手册，抗中断和避免整本重跑的收益高于小幅吞吐提升 |
 | 当前主线继续以 `Docling JSON + Markdown + native chunking + table sidecars` 为核心，不切到全量 VLM 管线 | 这是准确性、可复现性、吞吐和工程复杂度之间最稳的主线 |
 | 下一阶段最高价值增强不是更换主解析器，而是补 `visual grounding / page images / figure metadata` 和“疑难页二级补救” | 这更直接解决嵌入式手册中的时序图、框图、宽矩阵表问题 |
+| 缓存机制默认关闭，仅作为显式可选的容错功能 | 这更符合“多数手册只处理一次”的真实工作流，避免普通单次转换承担额外复杂度和时间成本 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
