@@ -35,6 +35,10 @@
 
 ### 第一优先：解析器对比
 
+0. `docling_batch`
+   - 冻结为历史 baseline。
+   - 用现有输出和新工具对比，不再新增功能。
+
 1. `OpenDataLoader PDF`
    - 本地优先，输出 Markdown / JSON / HTML。
    - JSON 包含 page number / bounding box，适合做源定位验证。
@@ -50,11 +54,24 @@
    - 优先试 `LlamaIndex + DoclingReader/DoclingNodeParser`。
    - 再试 `LangChain + DoclingLoader`。
 
-4. `PyMuPDF4LLM`
+4. `LiteParse`
+   - 本地、无云依赖，面向 coding agents。
+   - 输出空间文本、bbox、页面截图，适合 Agentic 文件检索。
+
+5. `PyMuPDF4LLM`
    - 作为快速数字 PDF baseline。
 
-5. `Marker` / `MinerU`
+6. `MarkItDown`
+   - Microsoft Markdown baseline，便宜快速，但可能弱于复杂表格。
+
+7. `PaperFlow`
+   - PDF-to-Markdown 后处理/本地 UI，可接 PyMuPDF、PaddleOCR-VL 等上游。
+
+8. `Marker` / `MinerU`
    - 在 OpenDataLoader 与 Docling 集成不足时再试。
+
+9. `PaddleOCR-VL` / `HURIDOCS`
+   - 面向扫描、复杂公式/图表或需要可视化服务时再试。
 
 ### 第二优先：本地文档问答应用
 
@@ -129,3 +146,5 @@ OpenDataLoader PDF local mode
 -> 先判断 Codex 直接读输出文件夹是否足够
 -> 再决定是否让 Dify 消费 OpenDataLoader Markdown
 ```
+
+同时把当前 `docling_batch` 输出文件夹作为 baseline 对照。

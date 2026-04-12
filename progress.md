@@ -15,6 +15,8 @@
 
 - First parser to test: `OpenDataLoader PDF` local mode.
 - OpenDataLoader's official LangChain loader must be tested as the paired consumer before generic UI tools.
+- Current `docling_batch` outputs are the frozen comparison baseline.
+- `LiteParse` is added as a high-priority agentic parser candidate because it is local, bbox-oriented, and screenshot-friendly.
 - First priority after parser validation: determine whether Codex direct folder inspection is enough.
 - First knowledge-app candidate only if folder inspection is insufficient: `Dify` consuming OpenDataLoader/Docling Markdown with local models.
 - First lightweight chat fallback: `AnythingLLM`.
@@ -36,6 +38,8 @@ Check:
 - Markdown readability
 - HTML/table rendering
 - official LangChain loader metadata preservation
+- comparison against current `docling_batch` processed folder
+- LiteParse spatial text/bbox/screenshot viability
 - ability to map evidence back to the original PDF page
 - whether direct Codex folder inspection is sufficient before testing Dify/AnythingLLM
 

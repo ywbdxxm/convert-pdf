@@ -83,6 +83,28 @@ Raw PDF
 
 ## Candidate Shortlist
 
+### 0. `docling_batch` Existing Output
+
+Priority: frozen baseline.
+
+Why:
+
+- It already produced useful local file assets: Markdown, JSON, HTML, chunks, sections, tables, alerts.
+- It represents the current custom approach.
+- It lets us measure whether external tools actually improve quality or reduce code.
+
+Rules:
+
+- Do not add features.
+- Do not fix heuristics unless a later decision explicitly keeps this path.
+- Compare against it using existing outputs only.
+
+First test:
+
+- Use existing ESP32-S3 datasheet output.
+- Ask Codex to locate `Table 2-9` from the folder.
+- Record where it succeeds and where it requires PDF fallback.
+
 ### 1. OpenDataLoader PDF
 
 Priority: highest parser candidate.
@@ -172,7 +194,31 @@ First test:
 - Query or inspect chunks around `Table 2-9`.
 - Verify metadata: page, source, heading, table or bounding-box provenance.
 
-### 5. AnythingLLM
+### 5. LiteParse
+
+Priority: high agentic-file-retrieval candidate.
+
+Why:
+
+- Local-first parser from the LlamaIndex ecosystem.
+- Designed for coding agents and local workflows.
+- Parses PDFs with spatial layout and bounding boxes.
+- Can generate page screenshots for LLM/agent workflows.
+- No cloud dependencies, LLMs, or API keys.
+
+Risks:
+
+- May produce lower-level spatial text rather than polished Markdown.
+- Table reconstruction may require the agent to reason from layout/screenshots.
+- Node.js/npm dependency may be new for this workstation.
+
+First test:
+
+- Parse ESP32-S3 datasheet with LiteParse.
+- Generate a screenshot for page 27.
+- Check whether text/bbox output plus screenshot lets Codex locate `Table 2-9`.
+
+### 6. AnythingLLM
 
 Priority: lightweight UI/document-chat fallback.
 
@@ -194,7 +240,7 @@ First test:
 - Use local Ollama model and local embedding.
 - Check whether answers show useful source citations.
 
-### 6. Dify
+### 7. Dify
 
 Priority: workflow/app platform candidate, not first parser candidate.
 
@@ -217,7 +263,7 @@ First test:
 - Use Ollama/local embeddings to avoid paid APIs.
 - Evaluate retrieval testing and citation behavior.
 
-### 7. Kotaemon
+### 8. Kotaemon
 
 Priority: optional UI/RAG candidate after AnythingLLM.
 
@@ -239,7 +285,7 @@ First test:
 - Test Docling loader on ESP32-S3 datasheet.
 - Check citation/PDF-preview quality.
 
-### 8. Open WebUI + Docling Serve
+### 9. Open WebUI + Docling Serve
 
 Priority: optional later UI integration.
 
@@ -254,7 +300,66 @@ Risks:
 - Requires Docling Serve container/service.
 - More configuration than a parser smoke test.
 
-### 9. Marker
+### 10. PyMuPDF4LLM
+
+Priority: lightweight digital-PDF baseline.
+
+Why:
+
+- Fast and simple.
+- Useful to determine whether simpler digital datasheets need heavy parsers at all.
+
+Risk:
+
+- Likely weak for complex tables and diagrams.
+
+### 11. MarkItDown
+
+Priority: lightweight Markdown baseline.
+
+Why:
+
+- Microsoft-maintained local converter.
+- Converts PDFs and many other document types to Markdown.
+- Very easy to run and useful as a cheap baseline.
+
+Risks:
+
+- Intended for text analysis pipelines, not high-fidelity technical document conversion.
+- Likely weak for table/page/bbox evidence.
+
+### 12. PaperFlow
+
+Priority: parser-output post-processing candidate.
+
+Why:
+
+- Local Web UI and API.
+- Parser-agnostic post-processing layer.
+- Can use PyMuPDF for fast digital PDFs or PaddleOCR-VL for scans/formulas/complex layouts.
+- Produces structured Markdown with footnotes, figure links, and metadata.
+
+Risks:
+
+- It is a post-processing layer, not necessarily a primary parser.
+- May introduce another layer of abstraction before parser quality is understood.
+
+### 13. PaddleOCR-VL / PP-StructureV3
+
+Priority: hard-page OCR/layout candidate.
+
+Why:
+
+- Local document parsing/OCR path for text, layout, tables, formulas, and Markdown output.
+- PaddleOCR documentation includes MCP server integration for large-model applications.
+- More relevant for scanned/image-heavy or formula-heavy pages.
+
+Risks:
+
+- Heavier model/dependency setup.
+- Digital datasheets may not need it.
+
+### 14. Marker
 
 Priority: parser A/B candidate after OpenDataLoader and Docling native paths.
 
@@ -269,7 +374,7 @@ Risks:
 - May be slower/heavier.
 - Need to verify local GPU requirements and exact output on our manuals.
 
-### 10. MinerU
+### 15. MinerU
 
 Priority: parser A/B candidate after OpenDataLoader/Marker if needed.
 
@@ -284,18 +389,34 @@ Risks:
 - Heavier dependency footprint.
 - We already suspect OpenDataLoader may cover the same need with less GPU dependence.
 
-### 11. PyMuPDF4LLM
+### 16. HURIDOCS PDF Document Layout Analysis
 
-Priority: lightweight digital-PDF baseline.
+Priority: local service candidate.
 
 Why:
 
-- Fast and simple.
-- Useful to determine whether simpler digital datasheets need heavy parsers at all.
+- Docker-powered PDF layout analysis service with Gradio UI and REST API.
+- Supports OCR, segmentation/classification, reading order, Markdown/HTML conversion, and visual overlays.
+- Can be useful if page visualization becomes important.
 
-Risk:
+Risks:
 
-- Likely weak for complex tables and diagrams.
+- Heavier service-style setup than CLI parsers.
+- Not first-round unless CLI/local parser outputs are insufficient.
+
+### 17. Markdrop / pdfmd
+
+Priority: fallback community tools.
+
+Why:
+
+- Focused on PDF-to-Markdown, images, tables, GUI/preview workflows.
+- Markdrop specifically targets table/image preservation.
+
+Risks:
+
+- Lower confidence and maturity than the main candidates.
+- Keep as fallback only.
 
 ## Excluded Or Deferred
 
@@ -347,12 +468,17 @@ Goal: decide whether a better parser/file artifact generator exists before worry
 
 Order:
 
+0. Current `docling_batch` output as frozen baseline
 1. OpenDataLoader PDF local mode
 2. OpenDataLoader PDF + LangChain loader for metadata inspection
-3. Docling native LlamaIndex/LangChain integration
-4. PyMuPDF4LLM lightweight baseline
-5. Marker if needed
-6. MinerU if needed
+3. LiteParse local parser + screenshot workflow
+4. Docling native LlamaIndex/LangChain integration
+5. PyMuPDF4LLM lightweight baseline
+6. MarkItDown lightweight Markdown baseline
+7. PaperFlow with PyMuPDF upstream, if Markdown post-processing looks useful
+8. Marker if needed
+9. MinerU if needed
+10. PaddleOCR-VL / HURIDOCS only for hard pages or scanned/image-heavy cases
 
 Test questions:
 
@@ -435,6 +561,11 @@ Next concrete task:
 6. Decide whether direct Codex folder inspection is already enough.
 7. Only then decide whether Dify should consume OpenDataLoader Markdown next.
 
+Parallel low-cost check:
+
+- Run or inspect LiteParse setup because it is explicitly designed for agentic workflows.
+- Keep `docling_batch` output open as the baseline comparison folder.
+
 Do not write project framework code before this.
 
 ## References
@@ -443,6 +574,12 @@ Do not write project framework code before this.
 - OpenDataLoader site: https://opendataloader.org/
 - OpenDataLoader PDF LangChain integration: https://docs.langchain.com/oss/python/integrations/document_loaders/opendataloader_pdf
 - OpenDataLoader RAG integration guide: https://opendataloader.org/docs/rag-integration
+- LiteParse docs: https://developers.llamaindex.ai/liteparse/
+- Microsoft MarkItDown: https://github.com/microsoft/markitdown
+- PaperFlow: https://www.paperflowing.com/
+- PaddleOCR MCP server: https://www.paddleocr.ai/main/en/version3.x/deployment/mcp_server.html
+- HURIDOCS PDF Document Layout Analysis: https://github.com/huridocs/pdf-document-layout-analysis
+- Markdrop: https://github.com/shoryasethia/markdrop
 - Dify Knowledge: https://docs.dify.ai/en/use-dify/knowledge/readme
 - Dify self-host Docker Compose: https://docs.dify.ai/en/self-host/quick-start/docker-compose
 - Dify model providers: https://docs.dify.ai/en/use-dify/workspace/model-providers

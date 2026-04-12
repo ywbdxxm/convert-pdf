@@ -23,6 +23,11 @@ The project direction is now external-first and agentic-file-retrieval-first:
 
 ### Highest Priority
 
+- `docling_batch`
+  - Existing local baseline with Markdown/JSON/HTML/chunks/sections/tables/alerts.
+  - Do not extend it.
+  - Use it to compare whether external tools reduce custom code while preserving evidence quality.
+
 - `OpenDataLoader PDF`
   - Local parser with Markdown/JSON/HTML outputs.
   - Claims JSON with page numbers and bounding boxes.
@@ -44,6 +49,11 @@ The project direction is now external-first and agentic-file-retrieval-first:
   - `DoclingLoader` supports `DOC_CHUNKS` and `MARKDOWN`.
   - Useful to inspect chunk metadata without our wrapper.
 
+- `LiteParse`
+  - Local LlamaIndex parser designed for coding agents/local workflows.
+  - Provides spatial text extraction, bounding boxes, screenshots, CLI/library usage, and no cloud/API-key requirement.
+  - Worth testing because screenshots + spatial text match agentic file inspection better than black-box RAG.
+
 ### Good Local UI Candidates
 
 - `Dify`
@@ -63,11 +73,32 @@ The project direction is now external-first and agentic-file-retrieval-first:
 - `PyMuPDF4LLM`
   - Fast lightweight digital-PDF baseline.
 
+- `MarkItDown`
+  - Microsoft local Markdown converter for many file types.
+  - Good cheap baseline for Markdown quality, but likely weak for complex table evidence.
+
+- `PaperFlow`
+  - Local PDF-to-Markdown post-processing layer with local Web UI.
+  - Can use PyMuPDF or PaddleOCR-VL as upstream parser and normalize/enrich Markdown for agents.
+
+- `PaddleOCR-VL / PP-StructureV3`
+  - Local document parsing/OCR family for text, layout, formulas, tables, and Markdown output.
+  - More relevant for scanned/image-heavy or formula-heavy pages than digital datasheet first pass.
+
 - `Marker`
   - Strong parser candidate for Markdown/JSON/HTML/images/tables; potentially heavier.
 
 - `MinerU`
   - Strong parser candidate for tables/formulas/images; potentially heavier.
+
+- `HURIDOCS PDF Document Layout Analysis`
+  - Docker service with web UI and REST API.
+  - Performs OCR/layout analysis, reading order, Markdown/HTML conversion, and visual overlays.
+  - Candidate if we want a local service with visualization, but heavier than CLI tools.
+
+- `Markdrop` / `pdfmd`
+  - Smaller community tools focused on Markdown, images, tables, GUI/preview.
+  - Lower confidence than OpenDataLoader/Docling/LiteParse/Marker/MinerU; keep as fallback ideas.
 
 ## Deferred / Excluded
 
@@ -114,12 +145,15 @@ The original PDF remains final authority for engineering conclusions.
 
 Priority combinations for the main workflow:
 
-1. `OpenDataLoader PDF local mode -> folder of Markdown/JSON/HTML -> Codex reads/searches files directly`
-2. `OpenDataLoader PDF local mode -> LangChain OpenDataLoaderPDFLoader -> inspect documents/metadata, not necessarily build RAG`
-3. `Docling native/LlamaIndex -> inspect nodes/metadata as files or printed artifacts`
-4. `Docling native/LangChain DOC_CHUNKS -> inspect chunks/metadata`
-5. `PyMuPDF4LLM -> Markdown/page chunks -> Codex direct file search`
-6. `Marker or MinerU -> exported files -> Codex direct file search`, only if earlier parsers fail
+1. `docling_batch existing output -> Codex direct file search` as frozen baseline
+2. `OpenDataLoader PDF local mode -> folder of Markdown/JSON/HTML -> Codex reads/searches files directly`
+3. `OpenDataLoader PDF local mode -> LangChain OpenDataLoaderPDFLoader -> inspect documents/metadata, not necessarily build RAG`
+4. `LiteParse -> text/JSON/screenshots/bounding boxes -> Codex direct file search`
+5. `Docling native/LlamaIndex -> inspect nodes/metadata as files or printed artifacts`
+6. `Docling native/LangChain DOC_CHUNKS -> inspect chunks/metadata`
+7. `PyMuPDF4LLM or MarkItDown -> Markdown/page chunks -> Codex direct file search`
+8. `PaperFlow -> normalized structured Markdown -> Codex direct file search`
+9. `PaddleOCR-VL / Marker / MinerU -> exported files -> Codex direct file search`, only if earlier parsers fail on hard pages
 
 Traditional RAG/UI tools are secondary consumers:
 
@@ -132,6 +166,12 @@ Traditional RAG/UI tools are secondary consumers:
 - OpenDataLoader PDF: https://github.com/opendataloader-project/opendataloader-pdf
 - OpenDataLoader PDF LangChain integration: https://docs.langchain.com/oss/python/integrations/document_loaders/opendataloader_pdf
 - OpenDataLoader RAG integration guide: https://opendataloader.org/docs/rag-integration
+- LiteParse docs: https://developers.llamaindex.ai/liteparse/
+- Microsoft MarkItDown: https://github.com/microsoft/markitdown
+- PaperFlow: https://www.paperflowing.com/
+- PaddleOCR MCP server: https://www.paddleocr.ai/main/en/version3.x/deployment/mcp_server.html
+- HURIDOCS PDF Document Layout Analysis: https://github.com/huridocs/pdf-document-layout-analysis
+- Markdrop: https://github.com/shoryasethia/markdrop
 - Dify Knowledge: https://docs.dify.ai/en/use-dify/knowledge/readme
 - Dify self-host Docker Compose: https://docs.dify.ai/en/self-host/quick-start/docker-compose
 - AnythingLLM: https://anythingllm.com/

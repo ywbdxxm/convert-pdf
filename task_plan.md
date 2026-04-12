@@ -163,6 +163,12 @@ Local-Free Tooling Plan Cleanup
 - [x] 将 Dify/AnythingLLM/Kotaemon/Open WebUI 降级为文件检索不足时的消费者/UI 候选
 - **Status:** complete
 
+### Phase 25: Agentic Tool Candidate Expansion
+- [x] 继续探索适合 Agentic 文件检索的本地/免费 PDF 转换器和文件资产生成工具
+- [x] 纳入 LiteParse、MarkItDown、PaperFlow、PaddleOCR-VL、HURIDOCS、Markdrop/pdfmd 等候选
+- [x] 将当前 `docling_batch` 明确纳入冻结 baseline 对比
+- **Status:** complete
+
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
 2. 对嵌入式 datasheet / app note，什么场景本地方案更优，什么场景云端/远程增强更优？
