@@ -40,6 +40,8 @@ tmp/
 temp/
 artifacts/
 *.pdf
+manuals/processed/*
+!manuals/processed/.gitkeep
 
 # Large or local-only PDF samples
 samples/private/

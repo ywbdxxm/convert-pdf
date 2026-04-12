@@ -152,6 +152,27 @@
   - 目录页、表目录、续页标题等噪声仍进入索引，属于下一轮优化项
   - 当前 tokenizer 还出现过一次超长 warning，后续应加默认 `max_chunk_tokens`
 
+### 2026-04-12: Large-PDF Windowing Started
+- 已新增 `--page-window-size` 参数，默认值为 `250`
+- 当前实现支持：
+  - 对单个 PDF 计算页窗范围
+  - 分页窗调用 Docling `convert_all(..., page_range=...)`
+  - 将窗口级 `DoclingDocument` 用 `DoclingDocument.concatenate(...)` 合并
+  - 在 `manifest.json` 中记录 `page_window_size`、`window_count` 和各窗口状态
+- 已完成相关单元测试：
+  - 页窗切分
+  - 窗口状态聚合
+  - CLI 默认值
+- 真实样本上的强制多窗口 smoke 已开始尝试，但当前阶段仍偏慢；这一点需要在下一轮继续量化与优化
+- 同时已将 `manuals/processed/` 调整为仅保留 `.gitkeep`，不再跟踪真实生成产物，避免大文档处理结果污染 git 历史
+
+### 2026-04-12: Image Noise Issue Confirmed
+- 用户指出二维码、页脚反馈条这类图片进入 Markdown 没有价值
+- 已从 ESP32-S3 样本的 Docling 图片元数据确认这类噪声存在
+- 当前判断：
+  - “引用式图片 sidecar”方向仍然正确
+  - 但必须增加图片过滤，不能无差别保留所有图片
+
 ## Verification Summary
 | Area | Result | Status |
 |------|--------|--------|

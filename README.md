@@ -143,6 +143,19 @@ docling/.venv/bin/python -m docling_batch convert \
   --no-ocr
 ```
 
+若文档页数很大，优先使用程序内部分窗，而不是手工拆 PDF：
+
+```sh
+docling/.venv/bin/python -m docling_batch convert \
+  --input /path/to/manuals \
+  --output /path/to/output \
+  --device cuda \
+  --no-ocr \
+  --page-window-size 250
+```
+
+这会让程序按页窗分段调用 Docling，再把窗口结果合并回同一个逻辑文档的索引和导出物，适合以后处理 5000+ 页 PDF。
+
 若是扫描件或图片化 PDF，再启用 OCR，默认走 `RapidOCR`：
 
 ```sh
@@ -180,6 +193,7 @@ docling/.venv/bin/python -m docling_batch convert \
   - 原生 `HybridChunker` 产出的检索级片段，带 `contextualized_text` 和页码引用
 - `manifest.json`
   - 文档元数据、处理参数和输出路径
+  - 若启用了页窗处理，还会记录 `page_window_size`、`window_count` 和各窗口页段状态
 
 ## 当前结论
 
@@ -191,3 +205,4 @@ docling/.venv/bin/python -m docling_batch convert \
 - 阅读副本：`Markdown`
 - GPU：优先 `--device cuda`
 - OCR：按需启用，而不是默认总开
+- 超大文档：优先 `--page-window-size` 内部分窗，而不是手工按书签拆 PDF

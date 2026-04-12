@@ -8,6 +8,7 @@ from pathlib import Path
 class RuntimeConfig:
     input_paths: list[Path]
     output_root: Path
+    page_window_size: int | None
     device: str
     enable_ocr: bool
     ocr_engine: str

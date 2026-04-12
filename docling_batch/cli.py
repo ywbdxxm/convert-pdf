@@ -12,6 +12,11 @@ def build_parser() -> argparse.ArgumentParser:
     convert.add_argument("--input", action="append", required=True)
     convert.add_argument("--output", required=True)
     convert.add_argument(
+        "--page-window-size",
+        type=int,
+        default=250,
+    )
+    convert.add_argument(
         "--device",
         default="cuda",
         choices=["auto", "cpu", "cuda", "mps", "xpu"],
@@ -60,6 +65,7 @@ def build_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
     return RuntimeConfig(
         input_paths=[Path(item) for item in args.input],
         output_root=Path(args.output),
+        page_window_size=args.page_window_size if args.page_window_size and args.page_window_size > 0 else None,
         device=args.device,
         enable_ocr=not args.no_ocr,
         ocr_engine=args.ocr_engine,

@@ -9,6 +9,7 @@ from pathlib import Path
 from docling.chunking import HybridChunker
 from docling.datamodel.base_models import ConversionStatus, InputFormat
 from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling_core.types.doc import DoclingDocument
 from docling_core.types.doc.base import ImageRefMode
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 
@@ -39,6 +40,31 @@ def discover_pdf_paths(inputs: list[Path]) -> list[Path]:
         {path.resolve() for path in pdfs},
         key=lambda path: (path.name.lower(), str(path)),
     )
+
+
+def compute_page_windows(total_pages: int, page_window_size: int | None) -> list[tuple[int, int]]:
+    if total_pages <= 0:
+        return []
+    if not page_window_size:
+        return [(1, total_pages)]
+
+    windows: list[tuple[int, int]] = []
+    start = 1
+    while start <= total_pages:
+        end = min(total_pages, start + page_window_size - 1)
+        windows.append((start, end))
+        start = end + 1
+    return windows
+
+
+def aggregate_conversion_statuses(statuses: list[ConversionStatus]) -> ConversionStatus:
+    if not statuses:
+        return ConversionStatus.FAILURE
+    if all(status == ConversionStatus.SUCCESS for status in statuses):
+        return ConversionStatus.SUCCESS
+    if all(status == ConversionStatus.FAILURE for status in statuses):
+        return ConversionStatus.FAILURE
+    return ConversionStatus.PARTIAL_SUCCESS
 
 
 def sha256_file(path: Path) -> str:
@@ -94,9 +120,52 @@ def normalize_errors(errors) -> list[str]:
     return normalized
 
 
+def concatenate_documents(docs: list[DoclingDocument]) -> DoclingDocument | None:
+    if not docs:
+        return None
+    if len(docs) == 1:
+        return docs[0]
+    return DoclingDocument.concatenate(docs)
+
+
+def convert_pdf_in_windows(
+    source_path: Path,
+    converter: DocumentConverter,
+    page_window_size: int | None,
+):
+    if not page_window_size:
+        return list(converter.convert_all([source_path], raises_on_error=False))
+
+    first_window_end = page_window_size
+    results = list(
+        converter.convert_all(
+            [source_path],
+            raises_on_error=False,
+            page_range=(1, first_window_end),
+        )
+    )
+    if not results:
+        return results
+
+    total_pages = getattr(results[0].input, "page_count", None)
+    if not total_pages or total_pages <= first_window_end:
+        return results
+
+    for page_start, page_end in compute_page_windows(total_pages, page_window_size)[1:]:
+        results.extend(
+            converter.convert_all(
+                [source_path],
+                raises_on_error=False,
+                page_range=(page_start, page_end),
+            )
+        )
+
+    return results
+
+
 def export_document_bundle(
     source_path: Path,
-    result,
+    results,
     config: RuntimeConfig,
     chunker: HybridChunker,
 ) -> dict:
@@ -104,16 +173,42 @@ def export_document_bundle(
     paths = build_document_paths(config.output_root, doc_id)
     paths.doc_dir.mkdir(parents=True, exist_ok=True)
 
-    status = result.status.value if hasattr(result.status, "value") else str(result.status)
+    statuses = [result.status for result in results]
+    aggregate_status = aggregate_conversion_statuses(statuses)
+    successful_docs = [
+        result.document
+        for result in results
+        if result.status in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} and result.document is not None
+    ]
+    combined_doc = concatenate_documents(successful_docs)
+    first_result = results[0]
+    windows = []
+    all_errors: list[str] = []
+    for result in results:
+        all_errors.extend(normalize_errors(getattr(result, "errors", None)))
+        window_pages = sorted(result.document.pages.keys()) if result.document is not None else []
+        windows.append(
+            {
+                "status": result.status.value if hasattr(result.status, "value") else str(result.status),
+                "page_start": window_pages[0] if window_pages else None,
+                "page_end": window_pages[-1] if window_pages else None,
+                "error_count": len(getattr(result, "errors", None) or []),
+            }
+        )
+
+    status = aggregate_status.value if hasattr(aggregate_status, "value") else str(aggregate_status)
     manifest = {
         "doc_id": doc_id,
         "title": source_path.stem,
         "source_pdf_path": str(source_path),
         "source_pdf_sha256": sha256_file(source_path),
         "source_filename": source_path.name,
-        "page_count": getattr(result.input, "page_count", None),
+        "page_count": getattr(first_result.input, "page_count", None),
         "docling_version": version("docling"),
         "status": status,
+        "page_window_size": config.page_window_size,
+        "window_count": len(results),
+        "windows": windows,
         "ocr_enabled": config.enable_ocr,
         "ocr_engine": config.ocr_engine,
         "force_full_page_ocr": config.force_full_page_ocr,
@@ -125,21 +220,21 @@ def export_document_bundle(
         "generate_picture_images": config.generate_picture_images,
         "generate_page_images": config.generate_page_images,
         "image_scale": config.image_scale,
-        "errors": normalize_errors(getattr(result, "errors", None)),
+        "errors": all_errors,
         "document_json": str(paths.document_json),
         "document_markdown": str(paths.document_markdown),
         "sections_index": str(paths.sections),
         "chunks_index": str(paths.chunks),
     }
 
-    if result.status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} or result.document is None:
+    if aggregate_status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} or combined_doc is None:
         write_json(paths.manifest, manifest)
         return manifest
 
     artifacts_dir = paths.doc_dir / "artifacts"
 
-    result.document.save_as_json(paths.document_json, artifacts_dir=artifacts_dir)
-    result.document.save_as_markdown(
+    combined_doc.save_as_json(paths.document_json, artifacts_dir=artifacts_dir)
+    combined_doc.save_as_markdown(
         paths.document_markdown,
         artifacts_dir=artifacts_dir,
         image_mode=ImageRefMode(config.image_mode),
@@ -147,7 +242,7 @@ def export_document_bundle(
         image_placeholder="<!-- image -->",
     )
 
-    chunks = list(chunker.chunk(result.document))
+    chunks = list(chunker.chunk(combined_doc))
     chunk_records = build_chunk_records(
         doc_id=doc_id,
         chunks=chunks,
@@ -190,8 +285,12 @@ def run_batch(config: RuntimeConfig) -> dict:
     chunker = build_chunker(config)
     manifests: list[dict] = []
 
-    for result in converter.convert_all(pdf_paths, raises_on_error=False):
-        source_path = Path(result.input.file)
-        manifests.append(export_document_bundle(source_path, result, config, chunker))
+    for source_path in pdf_paths:
+        results = convert_pdf_in_windows(
+            source_path=source_path,
+            converter=converter,
+            page_window_size=config.page_window_size,
+        )
+        manifests.append(export_document_bundle(source_path, results, config, chunker))
 
     return build_run_summary(manifests, config.output_root)

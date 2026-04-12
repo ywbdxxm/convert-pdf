@@ -85,6 +85,7 @@ Docling Batch Program Implementation Verification
 | 重建前必须先停掉未完成安装并清空残留缓存 | 避免“半完成环境 + 旧缓存”污染后续判断与重试 |
 | 批处理程序第一版先做 `Markdown + JSON + manifest + 章节/页码级索引` | 用户已明确优先做适合 AI 查阅和可引用回溯的 A 路线，暂不提前做寄存器等深结构化抽取 |
 | `Docling JSON` 作为批处理程序的 canonical source，`Markdown` 作为阅读副产物，RAG 主索引来自 Docling 原生 chunking | 这是基于 Docling 官方 chunking / serialization / RAG examples 收敛出的最稳妥路线 |
+| 对超大 PDF 优先采用程序内部分页窗口处理，而不是要求用户手工拆 PDF | 这样可以保留统一文档身份、绝对页码和全局引用链，同时降低单次处理风险 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
