@@ -176,7 +176,7 @@ OpenDataLoader Docling Comparison Planning
 - **Status:** complete
 
 ### Phase 27: OpenDataLoader Docling Comparison Planning
-- [x] 将下一轮范围收敛到 `docling_batch` baseline、OpenDataLoader PDF、OpenDataLoader LangChain consumer、Docling + LlamaIndex、Docling + LangChain
+- [x] 将下一轮范围收敛到 `docling_batch` baseline、OpenDataLoader local、OpenDataLoader hybrid、OpenDataLoader LangChain consumer、Docling + LlamaIndex、Docling + LangChain
 - [x] 暂缓 LiteParse、MarkItDown、PaperFlow、PaddleOCR-VL、Marker、MinerU 以及所有 UI/RAG app
 - [x] 明确比较重点是文件资产质量、metadata、页码、bbox、表格和原 PDF 回溯能力
 - **Status:** complete

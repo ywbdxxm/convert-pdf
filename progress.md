@@ -14,7 +14,9 @@
 ## Recent Decisions
 
 - First parser to test: `OpenDataLoader PDF` local mode.
+- OpenDataLoader hybrid mode with local `docling-fast` backend is now included as the immediate follow-up if local mode table quality is insufficient.
 - OpenDataLoader's official LangChain loader must be tested as the paired consumer before generic UI tools.
+- `OpenDataLoader + LlamaIndex` is deferred because we have not found an equally official/no-glue integration path.
 - Current `docling_batch` outputs are the frozen comparison baseline.
 - If `docling_batch` is ever unfrozen, only thin agentic-file improvements are acceptable: page slices, folder index, quality summary, optional hard-page images, native chunk comparison.
 - `LiteParse` remains in the candidate pool because it is local, bbox-oriented, and screenshot-friendly, but it is deferred from the immediate next round.
@@ -22,7 +24,7 @@
 - First knowledge-app candidate only if folder inspection is insufficient: `Dify` consuming OpenDataLoader/Docling Markdown with local models.
 - First lightweight chat fallback: `AnythingLLM`.
 - Docling should be tested through mature integrations such as LlamaIndex and LangChain, not through more custom wrapper code.
-- Next active comparison scope is intentionally narrower: `docling_batch`, OpenDataLoader local mode, OpenDataLoader LangChain loader, Docling + LlamaIndex, and Docling + LangChain.
+- Next active comparison scope is intentionally narrower: `docling_batch`, OpenDataLoader local mode, OpenDataLoader hybrid mode, OpenDataLoader LangChain loader, Docling + LlamaIndex, and Docling + LangChain.
 
 ## Next Action
 
@@ -39,6 +41,7 @@ Check:
 - bounding boxes
 - Markdown readability
 - HTML/table rendering
+- hybrid mode table improvement vs local mode
 - official LangChain loader metadata preservation
 - comparison against current `docling_batch` processed folder
 - ability to map evidence back to the original PDF page

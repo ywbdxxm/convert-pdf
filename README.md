@@ -43,7 +43,7 @@
 1. `OpenDataLoader PDF`
    - 本地优先，输出 Markdown / JSON / HTML。
    - JSON 包含 page number / bounding box，适合做源定位验证。
-   - 先测 local mode，再考虑 hybrid mode。
+   - 先测 local mode，再测 local `docling-fast` hybrid mode。
 
 2. `OpenDataLoader PDF + LangChain`
    - OpenDataLoader 官方配套 consumer。
@@ -54,6 +54,10 @@
    - 不再以 `docling_batch` 为唯一用法。
    - 优先试 `LlamaIndex + DoclingReader/DoclingNodeParser`。
    - 再试 `LangChain + DoclingLoader`。
+
+说明：
+
+- 当前没有把 `OpenDataLoader + LlamaIndex` 放进第一轮，因为目前没查到与 LangChain 同级的官方现成集成；如果要接，大概率要自己写桥接，这不符合当前“先不造轮子”的原则。
 
 4. `LiteParse`
    - 本地、无云依赖，面向 coding agents。
@@ -143,6 +147,7 @@ manuals/raw/st/stm32h7/stm32h743vi.pdf
 OpenDataLoader PDF local mode
 -> ESP32-S3 datasheet
 -> 检查 Table 2-9 的 JSON/Markdown/HTML 输出
+-> 如表格不够好，测 local docling-fast hybrid mode
 -> 测 OpenDataLoader 官方 LangChain loader 是否保留 page/bbox/source metadata
 -> 先判断 Codex 直接读输出文件夹是否足够
 -> 再决定是否让 Dify 消费 OpenDataLoader Markdown

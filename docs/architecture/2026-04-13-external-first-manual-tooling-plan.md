@@ -146,6 +146,31 @@ First test:
 - Run local non-hybrid mode on ESP32-S3 datasheet.
 - Inspect JSON for `Table 2-9`, page number, bounding boxes, and table structure.
 - Compare against current Docling baseline and original PDF page.
+- If local mode is promising but table quality is still weak, run hybrid mode with local `docling-fast` backend before moving on.
+
+### 1b. OpenDataLoader PDF Hybrid Mode
+
+Priority: immediate follow-up to local mode for hard tables/pages.
+
+Why:
+
+- Official docs describe hybrid mode as routing only complex pages to AI backends while keeping simple pages local.
+- The available backend `docling-fast` is local/on-prem by default, not cloud-only.
+- Official docs report large table accuracy gains and recommend hybrid mode for complex tables and OCR-heavy pages.
+- This fits the project because it tests a stronger OpenDataLoader path without jumping to a heavyweight RAG platform.
+
+Risks:
+
+- Slower than Java-only local mode.
+- Requires backend server and extra dependencies.
+- Still needs verification on our real chip manuals.
+
+First test:
+
+- Start local hybrid backend with `docling-fast`.
+- Re-run the ESP32-S3 datasheet.
+- Check whether `Table 2-9` structure improves.
+- Compare disk/runtime/setup cost against local mode.
 
 ### 2. OpenDataLoader PDF + LangChain
 
@@ -170,7 +195,17 @@ First test:
 - Use `OpenDataLoaderPDFLoader` on the ESP32-S3 datasheet.
 - Inspect returned LangChain documents and metadata for `Table 2-9`.
 - Verify whether page number, bbox, and source path survive loader conversion.
- - Save or print representative documents/chunks so Codex can inspect them as files.
+- Save or print representative documents/chunks so Codex can inspect them as files.
+
+### 2b. OpenDataLoader PDF + LlamaIndex
+
+Priority: deferred.
+
+Reason for deferral:
+
+- We did not find an official first-class OpenDataLoader + LlamaIndex integration comparable to the official LangChain loader.
+- OpenDataLoader's official RAG guide shows generic JSON chunking and an official LangChain path, but not an equivalent LlamaIndex package/path.
+- Since the project is currently avoiding custom glue, this combination should not be prioritized until the official/local/no-code-ish paths are evaluated.
 
 ### 3. OpenDataLoader PDF + Dify
 
@@ -486,15 +521,16 @@ Order:
 
 0. Current `docling_batch` output as frozen baseline
 1. OpenDataLoader PDF local mode
-2. OpenDataLoader PDF + LangChain loader for metadata inspection
-3. LiteParse local parser + screenshot workflow
+2. OpenDataLoader PDF hybrid mode with local `docling-fast` backend
+3. OpenDataLoader PDF + LangChain loader for metadata inspection
 4. Docling native LlamaIndex/LangChain integration
-5. PyMuPDF4LLM lightweight baseline
-6. MarkItDown lightweight Markdown baseline
-7. PaperFlow with PyMuPDF upstream, if Markdown post-processing looks useful
-8. Marker if needed
-9. MinerU if needed
-10. PaddleOCR-VL / HURIDOCS only for hard pages or scanned/image-heavy cases
+5. LiteParse local parser + screenshot workflow
+6. PyMuPDF4LLM lightweight baseline
+7. MarkItDown lightweight Markdown baseline
+8. PaperFlow with PyMuPDF upstream, if Markdown post-processing looks useful
+9. Marker if needed
+10. MinerU if needed
+11. PaddleOCR-VL / HURIDOCS only for hard pages or scanned/image-heavy cases
 
 Test questions:
 
@@ -573,9 +609,10 @@ Next concrete task:
 2. Install/test OpenDataLoader local mode only if environment impact is acceptable.
 3. Run one ESP32-S3 datasheet conversion.
 4. Inspect JSON/Markdown/HTML around `Table 2-9`.
-5. Test the official OpenDataLoader LangChain loader on the same PDF/output.
-6. Decide whether direct Codex folder inspection is already enough.
-7. Only then decide whether Dify should consume OpenDataLoader Markdown next.
+5. If table quality is insufficient, test OpenDataLoader hybrid mode with local `docling-fast`.
+6. Test the official OpenDataLoader LangChain loader on the same PDF/output.
+7. Decide whether direct Codex folder inspection is already enough.
+8. Only then decide whether Dify should consume OpenDataLoader Markdown next.
 
 Parallel low-cost check:
 
@@ -590,6 +627,7 @@ Do not write project framework code before this.
 - OpenDataLoader site: https://opendataloader.org/
 - OpenDataLoader PDF LangChain integration: https://docs.langchain.com/oss/python/integrations/document_loaders/opendataloader_pdf
 - OpenDataLoader RAG integration guide: https://opendataloader.org/docs/rag-integration
+- OpenDataLoader Hybrid Mode: https://opendataloader.org/docs/hybrid-mode
 - LiteParse docs: https://developers.llamaindex.ai/liteparse/
 - Microsoft MarkItDown: https://github.com/microsoft/markitdown
 - PaperFlow: https://www.paperflowing.com/

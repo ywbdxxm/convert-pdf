@@ -34,11 +34,17 @@ The project direction is now external-first and agentic-file-retrieval-first:
   - Claims no GPU required in local mode.
   - Has LangChain integration.
   - Must be verified on our real chip manuals; benchmark claims are project-provided.
+  - Hybrid mode is worth testing after local mode because official docs claim major table-accuracy gains while still supporting fully local `docling-fast` backend.
 
 - `OpenDataLoader PDF + LangChain`
   - Official `langchain-opendataloader-pdf` loader exists.
   - LangChain docs describe it as local, deterministic, fast, Markdown/JSON output with bounding boxes.
   - Should be tested as OpenDataLoader's paired consumer, but only after raw file output is inspected.
+
+- `OpenDataLoader PDF + LlamaIndex`
+  - Not currently a first-class official integration in the docs we checked.
+  - OpenDataLoader's official RAG docs show generic JSON chunking and official LangChain integration, but not an equivalent official LlamaIndex package/path.
+  - That means a LlamaIndex path would likely require custom glue, so it is deferred until after local mode, hybrid mode, and LangChain are evaluated.
 
 - `Docling + LlamaIndex`
   - Official Docling integration.
@@ -185,12 +191,14 @@ The next round is intentionally narrow. Test only:
 
 1. `docling_batch` existing output as frozen baseline
 2. `OpenDataLoader PDF` local mode
-3. `OpenDataLoader PDF + LangChain` loader
-4. `Docling + LlamaIndex`
-5. `Docling + LangChain`
+3. `OpenDataLoader PDF` hybrid mode with local `docling-fast` backend
+4. `OpenDataLoader PDF + LangChain` loader
+5. `Docling + LlamaIndex`
+6. `Docling + LangChain`
 
 Temporarily defer:
 
+- `OpenDataLoader + LlamaIndex`
 - `LiteParse`
 - `MarkItDown`
 - `PaperFlow`
