@@ -72,7 +72,46 @@ First test:
 - Inspect JSON for `Table 2-9`, page number, bounding boxes, and table structure.
 - Compare against current Docling baseline and original PDF page.
 
-### 2. Docling Native Integrations
+### 2. OpenDataLoader PDF + LangChain
+
+Priority: highest consumer candidate for OpenDataLoader output.
+
+Why:
+
+- OpenDataLoader has an official LangChain package: `langchain-opendataloader-pdf`.
+- LangChain's OpenDataLoader PDF docs describe local, deterministic, fast PDF parsing with Markdown/JSON output and bounding boxes.
+- OpenDataLoader's own RAG guide documents integration-oriented usage instead of only standalone conversion.
+- This is the direct paired consumer path and should be tested before generic app UIs.
+
+Risks:
+
+- LangChain adds framework overhead.
+- The loader may expose documents/chunks in a way that is convenient for RAG but less transparent than raw JSON.
+- We must inspect metadata directly before judging answer quality.
+
+First test:
+
+- Use `OpenDataLoaderPDFLoader` on the ESP32-S3 datasheet.
+- Inspect returned LangChain documents and metadata for `Table 2-9`.
+- Verify whether page number, bbox, and source path survive loader conversion.
+
+### 3. OpenDataLoader PDF + Dify
+
+Priority: app/workflow candidate after parser output is verified.
+
+Why:
+
+- Dify is self-hostable and can use local model providers such as Ollama.
+- Dify Knowledge can ingest parser-produced Markdown rather than relying on Dify's own PDF extraction.
+- If OpenDataLoader produces strong Markdown, Dify can be tested as the knowledge-base/UI layer.
+
+First test:
+
+- Feed OpenDataLoader Markdown into Dify Knowledge.
+- Use local Ollama/local embeddings.
+- Evaluate retrieval testing and source display behavior.
+
+### 4. Docling Native Integrations
 
 Priority: high, but not via custom `docling_batch`.
 
@@ -94,7 +133,7 @@ First test:
 - Query or inspect chunks around `Table 2-9`.
 - Verify metadata: page, source, heading, table or bounding-box provenance.
 
-### 3. AnythingLLM
+### 5. AnythingLLM
 
 Priority: first lightweight UI/document-chat candidate.
 
@@ -116,7 +155,7 @@ First test:
 - Use local Ollama model and local embedding.
 - Check whether answers show useful source citations.
 
-### 4. Dify
+### 6. Dify
 
 Priority: workflow/app platform candidate, not first parser candidate.
 
@@ -135,12 +174,11 @@ Risks:
 
 First test:
 
-- Do not start with raw PDF upload.
-- First test Dify Knowledge using Markdown output from the best parser candidate.
+- Prefer OpenDataLoader or Docling-generated Markdown.
 - Use Ollama/local embeddings to avoid paid APIs.
 - Evaluate retrieval testing and citation behavior.
 
-### 5. Kotaemon
+### 7. Kotaemon
 
 Priority: optional UI/RAG candidate after AnythingLLM.
 
@@ -162,7 +200,7 @@ First test:
 - Test Docling loader on ESP32-S3 datasheet.
 - Check citation/PDF-preview quality.
 
-### 6. Open WebUI + Docling Serve
+### 8. Open WebUI + Docling Serve
 
 Priority: optional later UI integration.
 
@@ -177,7 +215,7 @@ Risks:
 - Requires Docling Serve container/service.
 - More configuration than a parser smoke test.
 
-### 7. Marker
+### 9. Marker
 
 Priority: parser A/B candidate after OpenDataLoader and Docling native paths.
 
@@ -192,7 +230,7 @@ Risks:
 - May be slower/heavier.
 - Need to verify local GPU requirements and exact output on our manuals.
 
-### 8. MinerU
+### 10. MinerU
 
 Priority: parser A/B candidate after OpenDataLoader/Marker if needed.
 
@@ -207,7 +245,7 @@ Risks:
 - Heavier dependency footprint.
 - We already suspect OpenDataLoader may cover the same need with less GPU dependence.
 
-### 9. PyMuPDF4LLM
+### 11. PyMuPDF4LLM
 
 Priority: lightweight digital-PDF baseline.
 
@@ -271,10 +309,11 @@ Goal: decide whether a better parser exists before worrying about RAG UI.
 Order:
 
 1. OpenDataLoader PDF local mode
-2. Docling native LlamaIndex/LangChain integration
-3. PyMuPDF4LLM lightweight baseline
-4. Marker if needed
-5. MinerU if needed
+2. OpenDataLoader PDF + LangChain loader
+3. Docling native LlamaIndex/LangChain integration
+4. PyMuPDF4LLM lightweight baseline
+5. Marker if needed
+6. MinerU if needed
 
 Test questions:
 
@@ -290,8 +329,8 @@ Goal: decide whether a ready-made app can replace custom RAG work.
 
 Order:
 
-1. AnythingLLM with parser-generated Markdown
-2. Dify with parser-generated Markdown and local Ollama/local embeddings
+1. Dify with OpenDataLoader-generated Markdown and local Ollama/local embeddings
+2. AnythingLLM with parser-generated Markdown
 3. Kotaemon with Docling or best parser output
 4. Open WebUI + Docling Serve only if needed
 
@@ -350,7 +389,8 @@ Next concrete task:
 2. Install/test OpenDataLoader local mode only if environment impact is acceptable.
 3. Run one ESP32-S3 datasheet conversion.
 4. Inspect JSON/Markdown/HTML around `Table 2-9`.
-5. Decide whether to proceed to hybrid mode or compare Docling integrations.
+5. Test the official OpenDataLoader LangChain loader on the same PDF/output.
+6. Decide whether Dify should consume OpenDataLoader Markdown next.
 
 Do not write project framework code before this.
 
@@ -358,6 +398,8 @@ Do not write project framework code before this.
 
 - OpenDataLoader PDF: https://github.com/opendataloader-project/opendataloader-pdf
 - OpenDataLoader site: https://opendataloader.org/
+- OpenDataLoader PDF LangChain integration: https://docs.langchain.com/oss/python/integrations/document_loaders/opendataloader_pdf
+- OpenDataLoader RAG integration guide: https://opendataloader.org/docs/rag-integration
 - Dify Knowledge: https://docs.dify.ai/en/use-dify/knowledge/readme
 - Dify self-host Docker Compose: https://docs.dify.ai/en/self-host/quick-start/docker-compose
 - Dify model providers: https://docs.dify.ai/en/use-dify/workspace/model-providers

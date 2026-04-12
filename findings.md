@@ -29,6 +29,11 @@ The project direction is now external-first:
   - Has LangChain integration.
   - Must be verified on our real chip manuals; benchmark claims are project-provided.
 
+- `OpenDataLoader PDF + LangChain`
+  - Official `langchain-opendataloader-pdf` loader exists.
+  - LangChain docs describe it as local, deterministic, fast, Markdown/JSON output with bounding boxes.
+  - Should be tested as OpenDataLoader's paired consumer before generic app UIs.
+
 - `Docling + LlamaIndex`
   - Official Docling integration.
   - `DoclingReader` can load Docling JSON.
@@ -107,6 +112,8 @@ The original PDF remains final authority for engineering conclusions.
 ## Key References
 
 - OpenDataLoader PDF: https://github.com/opendataloader-project/opendataloader-pdf
+- OpenDataLoader PDF LangChain integration: https://docs.langchain.com/oss/python/integrations/document_loaders/opendataloader_pdf
+- OpenDataLoader RAG integration guide: https://opendataloader.org/docs/rag-integration
 - Dify Knowledge: https://docs.dify.ai/en/use-dify/knowledge/readme
 - Dify self-host Docker Compose: https://docs.dify.ai/en/self-host/quick-start/docker-compose
 - AnythingLLM: https://anythingllm.com/

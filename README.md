@@ -39,25 +39,29 @@
    - JSON 包含 page number / bounding box，适合做源定位验证。
    - 先测 local mode，再考虑 hybrid mode。
 
-2. `Docling` 官方集成
+2. `OpenDataLoader PDF + LangChain`
+   - OpenDataLoader 官方配套 consumer。
+   - 先看 loader 是否保留 page number / bbox / source metadata。
+
+3. `Docling` 官方集成
    - 不再以 `docling_batch` 为唯一用法。
    - 优先试 `LlamaIndex + DoclingReader/DoclingNodeParser`。
    - 再试 `LangChain + DoclingLoader`。
 
-3. `PyMuPDF4LLM`
+4. `PyMuPDF4LLM`
    - 作为快速数字 PDF baseline。
 
-4. `Marker` / `MinerU`
+5. `Marker` / `MinerU`
    - 在 OpenDataLoader 与 Docling 集成不足时再试。
 
 ### 第二优先：本地文档问答应用
 
-1. `AnythingLLM`
-   - 本地/offline 友好，适合快速验证“上传文档后能不能用”。
-
-2. `Dify`
+1. `Dify`
    - 自托管 Docker Compose，适合后续做 Knowledge / workflow。
-   - 先喂解析器输出的 Markdown，不优先测试其原生 PDF 解析。
+   - 优先喂 OpenDataLoader/Docling 输出的 Markdown，不优先测试其原生 PDF 解析。
+
+2. `AnythingLLM`
+   - 本地/offline 友好，适合快速验证“上传文档后能不能用”。
 
 3. `Kotaemon`
    - 文档 QA UI，支持 local LLM、citations、PDF preview、Docling loader。
@@ -118,5 +122,6 @@ manuals/raw/st/stm32h7/stm32h743vi.pdf
 OpenDataLoader PDF local mode
 -> ESP32-S3 datasheet
 -> 检查 Table 2-9 的 JSON/Markdown/HTML 输出
--> 和当前 Docling baseline + 原始 PDF 对比
+-> 测 OpenDataLoader 官方 LangChain loader 是否保留 page/bbox/source metadata
+-> 再决定是否让 Dify 消费 OpenDataLoader Markdown
 ```

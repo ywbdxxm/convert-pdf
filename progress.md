@@ -14,8 +14,9 @@
 ## Recent Decisions
 
 - First parser to test: `OpenDataLoader PDF` local mode.
-- First app/UI candidate: `AnythingLLM`.
-- Dify remains a serious candidate, but only after parser output is chosen.
+- OpenDataLoader's official LangChain loader must be tested as the paired consumer before generic UI tools.
+- First knowledge-app candidate after parser validation: `Dify` consuming OpenDataLoader/Docling Markdown with local models.
+- First lightweight chat fallback: `AnythingLLM`.
 - Docling should be tested through mature integrations such as LlamaIndex and LangChain, not through more custom wrapper code.
 
 ## Next Action
@@ -33,6 +34,7 @@ Check:
 - bounding boxes
 - Markdown readability
 - HTML/table rendering
+- official LangChain loader metadata preservation
 - ability to map evidence back to the original PDF page
 
 ## Verification

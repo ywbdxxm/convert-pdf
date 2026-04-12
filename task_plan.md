@@ -151,7 +151,7 @@ Local-Free Tooling Plan Cleanup
 
 ### Phase 23: Local-Free Tooling Plan Cleanup
 - [x] 根据 WSL + RTX 4060、本地免费优先、不测 RAGFlow/Unstructured 的约束重排工具候选
-- [x] 纳入 OpenDataLoader PDF、Dify、AnythingLLM、Kotaemon、Open WebUI、Docling 集成、Marker/MinerU/PyMuPDF4LLM 的试用顺序
+- [x] 纳入 OpenDataLoader PDF、OpenDataLoader LangChain consumer、Dify、AnythingLLM、Kotaemon、Open WebUI、Docling 集成、Marker/MinerU/PyMuPDF4LLM 的试用顺序
 - [x] 更新总计划文档
 - [x] 压缩 `findings.md` / `progress.md`
 - [x] 优化 `README.md`
