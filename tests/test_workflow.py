@@ -54,14 +54,20 @@ class WorkflowHelpersTests(unittest.TestCase):
 
     def test_select_page_windows_keeps_small_documents_whole(self):
         self.assertEqual(
-            select_page_windows(total_pages=87, page_window_size=250, page_window_min_pages=500),
+            select_page_windows(total_pages=87, page_window_size=250, page_window_min_pages=300),
             [(1, 87)],
         )
 
     def test_select_page_windows_splits_only_when_above_threshold(self):
         self.assertEqual(
-            select_page_windows(total_pages=501, page_window_size=250, page_window_min_pages=500),
+            select_page_windows(total_pages=501, page_window_size=250, page_window_min_pages=300),
             [(1, 250), (251, 500), (501, 501)],
+        )
+
+    def test_select_page_windows_splits_mid_sized_manuals_once_above_300_pages(self):
+        self.assertEqual(
+            select_page_windows(total_pages=357, page_window_size=250, page_window_min_pages=300),
+            [(1, 250), (251, 357)],
         )
 
     def test_aggregate_conversion_statuses_returns_partial_when_any_window_fails(self):
@@ -268,7 +274,7 @@ class WorkflowHelpersTests(unittest.TestCase):
                     source_path=source_path,
                     converter=FailingConverter(),
                     page_window_size=250,
-                    page_window_min_pages=500,
+                    page_window_min_pages=300,
                     window_cache_dir=cache_dir,
                     resume_windows=True,
                     config=config,

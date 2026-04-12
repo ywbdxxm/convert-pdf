@@ -1152,6 +1152,18 @@
   - 先取 markdown 的纯文本标题行
   - 若拿不到，再从 HTML 首行中提取符合 `Table N.` 形式的标题
 
+### 2026-04-12: 500-Page Window Threshold Was Too Conservative
+- 继续检查两份样本后确认：
+  - `87` 页的 ESP32-S3 不需要分窗
+  - `357` 页的 STM32H743VI 已经足够大，首轮如果不分窗，会失去缓存收益
+- 因此默认 `page_window_min_pages` 从 `500` 下调到 `300`。
+- 这个调整的特点是：
+  - 对小文档没有影响
+  - 对 300+ 页数据手册，能更早获得：
+    - 中断恢复
+    - 局部重跑
+    - 更稳的长任务执行
+
 ## Active Open Questions
 - 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
 - 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？

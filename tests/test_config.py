@@ -33,7 +33,7 @@ class ConfigTests(unittest.TestCase):
                 input=["manuals/raw"],
                 output="manuals/processed",
                 page_window_size=250,
-                page_window_min_pages=500,
+                page_window_min_pages=300,
                 device="cuda",
                 ocr_engine="rapidocr",
                 tokenizer="sentence-transformers/all-MiniLM-L6-v2",

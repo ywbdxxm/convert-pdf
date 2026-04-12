@@ -19,7 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     convert.add_argument(
         "--page-window-min-pages",
         type=int,
-        default=500,
+        default=300,
     )
     convert.add_argument(
         "--device",
