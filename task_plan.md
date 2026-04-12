@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
 
 ## Current Phase
-External-First Tooling Research
+Local-Free Tooling Plan Cleanup
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -147,6 +147,14 @@ External-First Tooling Research
 - [x] 调研 Docling 官方/生态中已有的 RAG 和文档问答集成最佳实践
 - [x] 调研成熟 PDF/RAG 工具软件，优先寻找可直接使用的方案
 - [x] 形成外部工具优先的试用顺序和验收标准
+- **Status:** complete
+
+### Phase 23: Local-Free Tooling Plan Cleanup
+- [x] 根据 WSL + RTX 4060、本地免费优先、不测 RAGFlow/Unstructured 的约束重排工具候选
+- [x] 纳入 OpenDataLoader PDF、Dify、AnythingLLM、Kotaemon、Open WebUI、Docling 集成、Marker/MinerU/PyMuPDF4LLM 的试用顺序
+- [x] 更新总计划文档
+- [x] 压缩 `findings.md` / `progress.md`
+- [x] 优化 `README.md`
 - **Status:** complete
 
 ## Key Questions
