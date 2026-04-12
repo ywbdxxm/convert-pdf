@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 
 TABLE_CAPTION_RE = re.compile(r"^Table\s+\d+(?:-\d+)?\.\s+\S")
@@ -75,5 +76,40 @@ def detect_markdown_alerts(markdown: str) -> list[dict]:
             )
 
         index += 1
+
+    return alerts
+
+
+def _is_missing_or_empty(path: Path) -> bool:
+    if not path.exists():
+        return True
+    if path.stat().st_size == 0:
+        return True
+    return not path.read_text(encoding="utf-8").strip()
+
+
+def detect_table_sidecar_alerts(doc_dir: Path, table_records: list[dict]) -> list[dict]:
+    alerts: list[dict] = []
+    for table in table_records:
+        csv_path = doc_dir / table["csv_path"]
+        html_path = doc_dir / table["html_path"]
+        empty_csv = _is_missing_or_empty(csv_path)
+        empty_html = _is_missing_or_empty(html_path)
+        if not empty_csv and not empty_html:
+            continue
+
+        alerts.append(
+            {
+                "kind": "empty_table_sidecar",
+                "table_id": table["table_id"],
+                "page_start": table.get("page_start"),
+                "page_end": table.get("page_end"),
+                "caption": table.get("caption") or "",
+                "csv_path": table["csv_path"],
+                "html_path": table["html_path"],
+                "empty_csv": empty_csv,
+                "empty_html": empty_html,
+            }
+        )
 
     return alerts

@@ -79,6 +79,13 @@ Docling Batch Program Incremental Hardening
 - [x] 用 `ESP32-S3` 和 `STM32H743VI` 样本验证
 - **Status:** complete
 
+### Phase 12: ESP32-S3 TRM Evaluation
+- [x] 用 Docling 处理 `esp32-s3_technical_reference_manual_en.pdf`
+- [x] 完整等待 1531 页转换结束
+- [x] 评估输出规模、表格、告警、chunk/section 结果
+- [x] 增加空 table sidecar 告警
+- **Status:** complete
+
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
 2. 对嵌入式 datasheet / app note，什么场景本地方案更优，什么场景云端/远程增强更优？

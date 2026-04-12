@@ -1187,6 +1187,61 @@
   - 向上回溯最近合法的 `Table N.` 标题
 - 这一步不需要猜测，不依赖 VLM，也不改变 `document.md` 原文，只补强 manifest/table metadata。
 
+## ESP32-S3 Technical Reference Manual Evaluation
+### 2026-04-12: Full TRM conversion completed
+- 输入：
+  - `manuals/raw/espressif/esp32s3/esp32-s3_technical_reference_manual_en.pdf`
+- 输出：
+  - `manuals/processed/esp32-s3-technical-reference-manual-en`
+- PDF 基本信息：
+  - 1531 页
+  - 约 15 MB
+- 本次运行方式：
+  - `--device cuda`
+  - `--no-ocr`
+  - `--enable-window-cache`
+  - `--cache-window-size 250`
+- 运行结果：
+  - `status = success`
+  - `window_count = 7`
+  - `table_count = 667`
+  - `chunks.jsonl = 3775` 行
+  - `sections.jsonl = 1379` 行
+  - `document.json ≈ 137 MB`
+  - `document.md ≈ 2.7 MB`
+  - `document.html ≈ 2.5 MB`
+
+### TRM quality findings
+- 正面结论：
+  - Docling 标准主线能完整处理这份 1531 页 TRM
+  - 寄存器摘要表、GPIO/I2C/UART 等章节可以进入 `document.md` 和 `chunks.jsonl`
+  - `Table sidecars` 覆盖大部分表格，适合后续查阅时回到 CSV/HTML 核对
+  - 7 个窗口都已缓存，后续复跑可跳过主转换阶段
+- 明显弱点：
+  - 第 501-750 页窗口耗时特别长，说明复杂寄存器/图表段落是性能热点
+  - `document.md` 仍有 `T able` 断词，当前统计为 274 次
+  - `document.md` 中仍有 `Submit Documentation Feedback`，当前统计为 7 次
+  - `document.md` 中有 51 个 `formula-not-decoded`
+  - 空 caption 仍多：`blank_captions = 443`，其中非目录表 `410`
+- 当前判断：
+  - 空 caption 很多，但大部分不是可安全恢复的普通 `Table N.` 标题
+  - 额外补 `Register N.` caption 只能稳定恢复 2 条，收益太低，不值得继续堆规则
+
+### 2026-04-12: Empty table sidecar alert landed
+- TRM 完整转换后发现：
+  - `table_count = 667`
+  - `document.md` 里有 661 个原位 `Table sidecars`
+  - 6 张表进入 `Table Sidecars Appendix`
+  - 共有 9 个表格 sidecar 存在空 CSV 或空 HTML
+- 新增 `empty_table_sidecar` 告警后，`alerts.json` 能显式记录这些问题。
+- 当前告警结果：
+  - `alert_count = 9`
+  - 全部为 `empty_table_sidecar`
+- 这属于确定优化：
+  - 不尝试修复 Docling 的误判
+  - 不删除原始产物
+  - 只把不可用 sidecar 明确暴露给后续查阅/工具对比流程
+
 ## Active Open Questions
 - 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
 - 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？

@@ -1,6 +1,8 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from docling_batch.alerts import detect_markdown_alerts
+from docling_batch.alerts import detect_markdown_alerts, detect_table_sidecar_alerts
 
 
 class MarkdownAlertTests(unittest.TestCase):
@@ -44,3 +46,29 @@ class MarkdownAlertTests(unittest.TestCase):
         alerts = detect_markdown_alerts(markdown)
 
         self.assertEqual(alerts, [])
+
+    def test_detect_table_sidecar_alerts_flags_empty_sidecar_files(self):
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            tables_dir = root / "tables"
+            tables_dir.mkdir()
+            (tables_dir / "table_0001.csv").write_text("", encoding="utf-8")
+            (tables_dir / "table_0001.html").write_text("<table></table>", encoding="utf-8")
+            table_records = [
+                {
+                    "table_id": "doc:table:0001",
+                    "page_start": 42,
+                    "page_end": 42,
+                    "csv_path": "tables/table_0001.csv",
+                    "html_path": "tables/table_0001.html",
+                    "caption": "Figure 1. Timing diagram",
+                }
+            ]
+
+            alerts = detect_table_sidecar_alerts(root, table_records)
+
+            self.assertEqual(len(alerts), 1)
+            self.assertEqual(alerts[0]["kind"], "empty_table_sidecar")
+            self.assertEqual(alerts[0]["table_id"], "doc:table:0001")
+            self.assertTrue(alerts[0]["empty_csv"])
+            self.assertFalse(alerts[0]["empty_html"])
