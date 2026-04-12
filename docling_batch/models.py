@@ -9,6 +9,7 @@ class RuntimeConfig:
     input_paths: list[Path]
     output_root: Path
     page_window_size: int | None
+    page_window_min_pages: int
     device: str
     enable_ocr: bool
     ocr_engine: str
@@ -19,3 +20,4 @@ class RuntimeConfig:
     generate_picture_images: bool
     generate_page_images: bool
     image_scale: float
+    image_filter: str

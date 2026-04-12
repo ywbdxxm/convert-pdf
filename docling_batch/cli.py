@@ -17,6 +17,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=250,
     )
     convert.add_argument(
+        "--page-window-min-pages",
+        type=int,
+        default=500,
+    )
+    convert.add_argument(
         "--device",
         default="cuda",
         choices=["auto", "cpu", "cuda", "mps", "xpu"],
@@ -47,7 +52,12 @@ def build_parser() -> argparse.ArgumentParser:
     convert.add_argument(
         "--image-scale",
         type=float,
-        default=1.0,
+        default=2.0,
+    )
+    convert.add_argument(
+        "--image-filter",
+        default="heuristic",
+        choices=["off", "heuristic"],
     )
     convert.add_argument(
         "--no-ocr",
@@ -66,6 +76,7 @@ def build_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         input_paths=[Path(item) for item in args.input],
         output_root=Path(args.output),
         page_window_size=args.page_window_size if args.page_window_size and args.page_window_size > 0 else None,
+        page_window_min_pages=max(0, args.page_window_min_pages),
         device=args.device,
         enable_ocr=not args.no_ocr,
         ocr_engine=args.ocr_engine,
@@ -76,6 +87,7 @@ def build_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         generate_picture_images=args.image_mode != "placeholder",
         generate_page_images=args.generate_page_images,
         image_scale=args.image_scale,
+        image_filter=args.image_filter,
     )
 
 

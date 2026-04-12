@@ -165,6 +165,10 @@
   - CLI 默认值
 - 真实样本上的强制多窗口 smoke 已开始尝试，但当前阶段仍偏慢；这一点需要在下一轮继续量化与优化
 - 同时已将 `manuals/processed/` 调整为仅保留 `.gitkeep`，不再跟踪真实生成产物，避免大文档处理结果污染 git 历史
+- 当前已补充结论说明：
+  - 分窗的首要目标是稳态和容错，不是让中等 PDF 更快
+  - 目前实现属于“朴素分窗”，会让中等规模 PDF 看起来比整本处理更慢
+  - 这不代表方向错了，而是说明下一轮要继续做吞吐优化和更好的进度可见性
 
 ### 2026-04-12: Image Noise Issue Confirmed
 - 用户指出二维码、页脚反馈条这类图片进入 Markdown 没有价值
@@ -172,6 +176,66 @@
 - 当前判断：
   - “引用式图片 sidecar”方向仍然正确
   - 但必须增加图片过滤，不能无差别保留所有图片
+
+### 2026-04-12: End-To-End Pipeline Explained
+- 已将“当前处理一份 PDF 的全过程”写回 findings
+- 当前统一口径为：
+  - `CLI -> RuntimeConfig -> PDF 发现 -> 可选页窗切分 -> Docling 转换 -> 文档合并 -> JSON/Markdown 导出 -> native chunking -> sections/chunks 索引 -> run summary`
+- 这样后续讨论性能、图片过滤、OCR 或大 PDF 优化时，默认都指向同一条实际代码路径
+
+### 2026-04-12: Artifact Usage Model Clarified
+- 已把“chunk 是什么”“我后续如何查阅最终产物”“document.md 中图片的定位”写回 findings
+- 当前统一结论：
+  - `chunks.jsonl` 是主检索层
+  - `sections.jsonl` 是导航层
+  - `document.md` 是阅读层
+  - 原始 PDF / 图片 sidecar 是证据层
+  - `document.json` 是 canonical source，但不是我日常第一眼去读的层
+
+### 2026-04-12: RAG Positioning Clarified
+- 已补充说明当前工作与完整 RAG 系统的关系
+- 当前统一结论：
+  - 我们现在做的是 RAG 上游的 parsing / evidence packaging
+  - 不是完整的 embedding + retrieval + answer system
+  - 当前产物未来完全可以接入成熟 RAG 软件
+
+### 2026-04-12: Official Docling RAG Examples Re-Checked
+- 已重新核对 Docling 官方 examples 中与 RAG 最相关的几条路线：
+  - Haystack
+  - LangChain
+  - LlamaIndex
+  - Visual grounding
+  - Hybrid chunking
+  - Advanced chunking & serialization
+- 当前进一步确认：
+  - 官方默认更偏向 `DOC_CHUNKS` / native chunking，而不是纯 Markdown 切块
+  - 官方非常强调 grounded metadata、`contextualized_text` 和 Docling-native JSON 路线
+  - 我们当前路线与官方 ingestion 方向一致，只是还没接 embedding/vector store/retriever 这一段
+
+### 2026-04-12: Final Embedded-Manual Best Practice Summarized
+- 已把“基于第一性原理、面向后续嵌入式开发”的完整最佳实践写回 findings
+- 当前统一口径：
+  - 原始 PDF 是最终证据
+  - `document.json` 是 canonical source
+  - `chunks.jsonl` 是主检索层
+  - `sections.jsonl` 是导航层
+  - `document.md` 是阅读层
+  - 图片采取“高价值保留、低价值过滤”的策略
+  - 超大 PDF 优先内部分窗
+- 成熟 RAG 框架应作为下游接入，而不是替代这层上游证据准备
+
+### 2026-04-12: Auto Window Threshold And Image Filtering Landed
+- 已新增：
+  - `--page-window-min-pages`，默认 `500`
+  - `--image-filter {off,heuristic}`，默认 `heuristic`
+- 当前默认行为已经收敛为：
+  - 小文档整本处理
+  - 大文档才启用内部分窗
+  - Markdown 图片先做一轮启发式噪声过滤
+- 已重新跑 ESP32-S3 真实样本验证：
+  - `window_count = 1`
+  - 第一页二维码已被移除
+  - 功能框图仍保留
 
 ## Verification Summary
 | Area | Result | Status |

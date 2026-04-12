@@ -255,6 +255,253 @@
   - 日志中已确认使用 `GPU device 0`
   - 首次 OCR 运行会下载 RapidOCR 模型，因此 OCR 必须保持显式、可控，而不是默认强制开启
 
+## Current PDF Processing Pipeline
+- 当前处理流程可以概括为：
+  - `CLI 参数 -> RuntimeConfig -> PDF 发现 -> 可选页窗切分 -> Docling 转换 -> 文档合并 -> Markdown/JSON 导出 -> native chunking -> sections/chunks 索引 -> run summary`
+- 更细一点：
+  1. `docling_batch.cli` 解析输入目录、GPU/OCR、图片模式、chunk 上限、页窗大小等参数。
+  2. `RuntimeConfig` 固化本次运行的全部处理配置。
+  3. `discover_pdf_paths()` 递归发现输入中的 PDF。
+  4. 对每个 PDF：
+     - 若未启用页窗：整本走一次 `DocumentConverter.convert_all(...)`
+     - 若启用页窗：先计算 `(start, end)` 页段，再按每个页窗调用 `convert_all(..., page_range=...)`
+  5. 若存在多个页窗结果，则通过 `DoclingDocument.concatenate(...)` 合并为单个逻辑文档。
+  6. 从合并后的文档导出：
+     - `document.json`
+     - `document.md`
+  7. 对同一个合并文档使用 `HybridChunker` 生成 native chunks。
+  8. 对每个 chunk 生成：
+     - `text`
+     - `contextualized_text`
+     - `heading_path`
+     - `page_start/page_end`
+     - `citation`
+  9. 再把 chunks 聚合为 `sections.jsonl`。
+  10. 最终写入每文档 `manifest.json` 和整批 `_runs/*.json`。
+- 当前这条链路里，真正的 canonical source 仍然是：
+  - 合并后的 `DoclingDocument JSON`
+- Markdown、sections、chunks 都是从这个 canonical source 派生出来的。
+
+## How I Actually Use The Final Artifacts
+- 对后续嵌入式开发，我不会把所有产物等权看待。
+- 当前最合理的使用优先级是：
+  1. `chunks.jsonl`
+  2. `sections.jsonl`
+  3. `document.md`
+  4. 原始 PDF / 页图 / 图片 sidecar
+  5. `document.json`
+- 其中：
+  - `chunks.jsonl` 是我最常用的“检索和引用层”
+  - `sections.jsonl` 是我快速找主题位置的“导航层”
+  - `document.md` 是我需要连续阅读上下文时的“阅读层”
+  - 原始 PDF / 页图 / 图片 sidecar 是我遇到表格、图、脚注争议时的“证据层”
+  - `document.json` 是最完整的 canonical source，更适合程序化派生，不是我日常第一眼去读的层
+
+## What A Chunk Actually Is
+- `chunk` 不是“随便切的一段文本”。
+- 在当前实现里，`chunk` 是：
+  - 从 `DoclingDocument` 原生结构上切出来的一个检索单元
+  - 尽量保持章节语义
+  - 同时受到 token 长度上限约束
+- 它至少带这些信息：
+  - `text`
+  - `contextualized_text`
+  - `heading_path`
+  - `page_start/page_end`
+  - `citation`
+- 对我后续查手册来说，chunk 的作用是：
+  - 先把“可能相关的证据片段”尽量缩到一个可读、可引用的小范围
+  - 而不是每次都去读整章或整本 PDF
+
+## Is document.md With Images Necessary
+- 结论不是“完全没必要”，也不是“它应该成为主入口”。
+- 更准确的定位是：
+  - `document.md` 不是主检索层
+  - 但它是非常有价值的阅读副本
+- 我会不会看它：
+  - 会
+  - 但通常不是第一步
+- 典型工作流是：
+  - 先查 `chunks.jsonl`
+  - 再看 `sections.jsonl`
+  - 如果需要连续上下文，再打开 `document.md`
+  - 如果 chunk 或 markdown 里涉及图、复杂表、脚注争议，再回到原始 PDF 或图片 sidecar
+- 所以图片在 `document.md` 中有没有必要：
+  - **有必要，但只对高价值图片有必要**
+  - 不应该无图
+  - 也不应该把二维码、页脚条、页码装饰这类噪声图片塞进去
+- 还有一个很重要的现实约束：
+  - `document.md` 里的图片即使保留了，也常常不是最清晰、最权威的图源
+  - 对框图、时序图、复杂表格，Markdown 图片更适合当“快速线索”，不适合作为最终判定依据
+  - 真到需要精确读图时，我更应回到原始 PDF、页图 sidecar，或更高分辨率的定向导出图
+
+## What You Need To Send Me Later
+- 是的，后续如果你让我做嵌入式开发，通常你直接给我产物路径就可以。
+- 最实用的最小输入通常是：
+  - 原始 PDF 路径
+  - 对应处理结果目录路径，例如 `manuals/processed/<doc_id>/`
+  - 你想解决的问题，例如“看 boot strap pin”“核对 ADC timing”“写 I2C 初始化”
+- 如果你已经知道相关章节或页码，再补这些会更快：
+  - `section` 名称
+  - 页码范围
+  - 芯片 revision
+- 对我来说，最理想的协作输入是：
+  - `manuals/raw/...pdf`
+  - `manuals/processed/<doc_id>/`
+  - 明确的问题描述
+
+## Relationship To RAG
+- 我当然知道 RAG。
+- 当前我们做的事，不等于完整的 RAG 系统；更准确地说，当前做的是：
+  - **RAG 的上游语料准备层 / parsing layer / evidence packaging layer**
+- 一个完整 RAG 系统通常还包括：
+  - embedding
+  - 向量索引或检索引擎
+  - query orchestration
+  - reranking / answer synthesis
+- 当前这套产物主要解决的是：
+  - PDF 解析质量
+  - chunk 质量
+  - page-aware citation
+  - 表格/图片/章节结构保留
+- 这些问题恰恰是很多成熟 RAG 软件本身不替你解决的。
+- 所以当前工作和成熟 RAG 软件不是替代关系，而是上下游关系：
+  - 我们现在做的是“把脏 PDF 变成高质量可检索证据”
+  - 成熟 RAG 软件是“拿这些证据去做检索与问答系统”
+- 为什么现在不直接只用成熟 RAG 软件：
+  - 因为对嵌入式手册场景，真正的瓶颈往往不是向量库，而是 PDF 解析和证据质量
+  - 如果上游 chunk、页码、表格、图都不可靠，RAG 系统只会更快地检索到不可靠内容
+  - 也就是说，这里典型是 `garbage in, garbage out`
+- 但这不代表以后不用 RAG 软件：
+  - 等当前这套产物形态稳定后，完全可以把 `chunks.jsonl` / `sections.jsonl` / `document.json` 接进成熟 RAG 软件
+  - 那时你得到的是“高质量手册语料 + 成熟检索框架”的组合，而不是二选一
+
+## What Docling Official RAG Examples Actually Do
+- Docling 官方 examples 里的 RAG 路线，本质上都是同一个模式：
+  1. 用 Docling 读入 PDF
+  2. 选择一种导出形式：
+     - `Markdown`
+     - 或 `DOC_CHUNKS` / `JSON`
+  3. 做 node/chunk 切分
+  4. 做 embedding
+  5. 写入向量库 / 检索引擎
+  6. 用 query + retriever + LLM 形成完整 RAG 链
+
+### Haystack example
+- 官方 `RAG with Haystack` 示例用的是：
+  - `docling-haystack`
+  - `MilvusDocumentStore`
+  - `SentenceTransformersDocumentEmbedder`
+  - `MilvusEmbeddingRetriever`
+  - `HuggingFaceAPIGenerator`
+- 它提供两条 ingestion 路：
+  - `ExportType.MARKDOWN`
+  - `ExportType.DOC_CHUNKS`（官方默认）
+- 在 `DOC_CHUNKS` 模式下，它直接给 `DoclingConverter` 传：
+  - `chunker=HybridChunker(tokenizer=EMBED_MODEL_ID)`
+- 也就是说，官方更偏向：
+  - 直接用 Docling native chunks 进向量库
+  - 而不是先转 Markdown 再自己乱切
+- 官方还特别强调一点：
+  - 这种模式能保留 document-native grounding
+  - 检索结果里还能看到页码、bbox 之类的 grounded metadata
+
+### LangChain example
+- 官方 `RAG with LangChain` 示例的结构和 Haystack 本质一样：
+  - `DoclingLoader`
+  - `HybridChunker(tokenizer=tokenizer)`
+  - `Milvus.from_documents(...)`
+  - `retriever = vectorstore.as_retriever(...)`
+  - 再接 retrieval chain
+- 它同样体现了一个关键点：
+  - 在 LangChain 里，Docling 主要负责“高质量文档加载 + chunking”
+  - LangChain 负责“向量库 + retriever + LLM chain”
+
+### LlamaIndex example
+- 官方 `RAG with LlamaIndex` 示例给了两条路：
+  1. Markdown 路：
+     - `DoclingReader()` 默认导出 Markdown
+     - `MarkdownNodeParser()`
+  2. JSON / Docling-native 路：
+     - `DoclingReader(export_type=DoclingReader.ExportType.JSON)`
+     - `DoclingNodeParser()`
+- 这说明官方自己也承认：
+  - `Markdown` 路是更简单、更通用的
+  - `JSON + DoclingNodeParser` 路是更 Docling-native、更保结构的
+- 这和我们当前坚持 `document.json` 作为 canonical source 的方向一致
+
+### Visual grounding example
+- 官方 `Visual grounding` 例子做得更进一步：
+  - 先把每个 `DoclingDocument` 存成 `binary_hash.json`
+  - 检索时不只拿文本 chunk
+  - 还通过 `binary_hash` 再回查完整 `DoclingDocument`
+  - 然后拿到页图、bbox、原始位置去做 grounded presentation
+- 这条路说明：
+  - 在官方眼里，好的 RAG 不只是“返回文本”
+  - 还应该能回到原始文档上的具体位置
+- 这也是为什么我一直强调：
+  - `document.json` 和原始 PDF 都必须保留
+
+### Hybrid chunking example
+- 官方 `Hybrid chunking` 示例最重要的点不是怎么打印 chunk，而是它明确展示了：
+  - `chunk.text`
+  - `chunker.contextualize(chunk)`
+- 也就是说，官方建议 embedding / generation 时，不一定直接喂裸 `chunk.text`
+  - 很多时候应喂带 heading/context 的 `contextualized_text`
+- 这就是我们当前在 `chunks.jsonl` 里保留 `contextualized_text` 的根本原因
+
+### Advanced chunking & serialization example
+- 官方这里展示了：
+  - 可以自定义 serializer provider
+  - 比如用 `MarkdownTableSerializer()`
+- 这说明 Docling 官方并不是只给一个固定 chunking 方案
+  - 它允许你针对表格、序列化方式做定制
+- 对我们这类芯片手册项目，这意味着：
+  - 真正成熟的方案，最终很可能是“Docling native chunking + 针对表格的定制序列化”
+
+## Difference Between Their RAG Examples And Our Current State
+- 官方 examples 已经是完整或半完整的 RAG demo：
+  - 有 embedding
+  - 有 vector store
+  - 有 retriever
+  - 有 query/answer chain
+- 我们当前还停在上游证据层：
+  - 重点是高质量解析
+  - 高质量 chunk
+  - 引用与页码
+  - 图片和表格保留
+- 所以两者差异不在“方向不同”，而在“我们目前只做到 RAG ingestion 前半段”
+
+## What This Means For Us
+- 官方 examples 其实进一步印证了我们当前路线没走偏：
+  - 官方默认偏 `DOC_CHUNKS`
+  - 官方强调 `HybridChunker`
+  - 官方强调 grounded metadata
+  - 官方有 `JSON + DoclingNodeParser` 路线
+- 如果后面要真正接成熟 RAG 软件，最自然的升级顺序是：
+  1. 先把当前 PDF parsing / chunk / image filtering / large PDF windowing 做稳
+  2. 再选择一个成熟框架：
+     - Haystack
+     - LangChain
+     - LlamaIndex
+     - 或直接接 Milvus / Qdrant / Azure AI Search / OpenSearch
+  3. 把当前 `document.json` / `chunks.jsonl` 变成其 ingestion 输入
+
+## Final Best Practice For Embedded Manual Use
+- 如果目标被严格收敛为：
+  - “让我后续做嵌入式开发时，能更准确、更方便、更迅速地查阅参考手册”
+- 那当前最合理的完整最佳实践就是：
+  1. 保留原始 PDF 作为最终权威来源
+  2. 用 Docling 生成 `document.json` 作为 canonical source
+  3. 同时导出 `document.md` 作为阅读副本，但不把它当唯一真相
+  4. 用 `HybridChunker` 直接在 `DoclingDocument` 上生成 native chunks
+  5. 保留 `contextualized_text + page range + citation`
+  6. 用 `sections.jsonl` 做导航层，用 `chunks.jsonl` 做主检索层
+  7. 对图像采用“高价值图保留、低价值图过滤、原 PDF 作为终局证据”的策略
+  8. 对超大 PDF 优先程序内部分窗，而不是手工拆书签
+  9. OCR 按需启用，不默认总开
+  10. 当这套上游证据层稳定后，再接成熟 RAG 框架，而不是反过来
+
 ## Real Sample Test: ESP32-S3 Datasheet
 - 已对真实样本执行：
   - `manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf`
@@ -307,6 +554,15 @@
 - 当前阶段的诚实结论：
   - 行为正确性已经通过单元测试锁住
   - 真实样本上的长时间窗口化 smoke 仍偏慢，后续还需要继续做性能量化与进一步优化
+- 一个关键澄清：
+  - **分页窗处理的目标首先是“降低单次处理风险、降低内存/失败面”，不是“让中等 PDF 更快”**
+  - 对 80~100 页这类文档，单次整本处理通常更快
+  - 对 5000+ 页这类文档，整本处理可能直接变得不稳或不可完成，这时分窗的价值才会体现出来
+- 当前为什么“加了分窗反而看起来跑不完”：
+  - 当前实现会对每个页窗单独调用一次 Docling 转换
+  - 每个窗口都要重复支付一次 pipeline 启动/推理调度开销
+  - 当前输出是全部窗口结束后再统一写文件，因此处理中间不会逐步落盘，容易让人感觉“没有进展”
+  - 当前版本是“稳态优先的朴素分窗实现”，还不是“吞吐最优实现”
 
 ## Image Noise Filtering Direction
 - 当前我们已经确认：并不是所有图片都值得进 Markdown。
@@ -322,6 +578,19 @@
 - 当前结论：
   - “图片 sidecar + Markdown 引用”方向是对的，比纯占位符更适合手册查阅
   - 但后续必须补一层图片过滤，不能把所有图片无差别放进 Markdown
+- 当前实现已新增第一轮启发式图片过滤：
+  - 无 caption 且面积很小的图会被直接丢弃
+  - 页脚/页眉附近的小图也更容易被过滤
+- 在 ESP32-S3 样本上，第一页二维码已被成功移除，而功能框图仍被保留
+
+## Current Large-PDF Default Behavior
+- 当前默认配置下：
+  - `page_window_size = 250`
+  - `page_window_min_pages = 500`
+- 这意味着：
+  - 像 `87` 页的 datasheet，不会误走分窗路径
+  - 像未来 `5000+` 页的超大 PDF，才会触发程序内部分窗
+- 这更符合“中小文档快，大文档稳”的目标
 
 ## Workstation Architecture Conclusions
 - 当前长期分层已经收敛为：

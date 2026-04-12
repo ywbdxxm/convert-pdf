@@ -12,8 +12,10 @@ from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.types.doc import DoclingDocument
 from docling_core.types.doc.base import ImageRefMode
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
+import pypdfium2 as pdfium
 
 from docling_batch.config import build_pdf_pipeline_options
+from docling_batch.images import filter_markdown_image_refs, picture_keep_flags
 from docling_batch.indexing import build_chunk_records, build_section_records
 from docling_batch.models import RuntimeConfig
 from docling_batch.paths import build_document_paths
@@ -57,6 +59,18 @@ def compute_page_windows(total_pages: int, page_window_size: int | None) -> list
     return windows
 
 
+def select_page_windows(
+    total_pages: int,
+    page_window_size: int | None,
+    page_window_min_pages: int,
+) -> list[tuple[int, int]]:
+    if total_pages <= 0:
+        return []
+    if not page_window_size or total_pages <= page_window_min_pages:
+        return [(1, total_pages)]
+    return compute_page_windows(total_pages=total_pages, page_window_size=page_window_size)
+
+
 def aggregate_conversion_statuses(statuses: list[ConversionStatus]) -> ConversionStatus:
     if not statuses:
         return ConversionStatus.FAILURE
@@ -65,6 +79,16 @@ def aggregate_conversion_statuses(statuses: list[ConversionStatus]) -> Conversio
     if all(status == ConversionStatus.FAILURE for status in statuses):
         return ConversionStatus.FAILURE
     return ConversionStatus.PARTIAL_SUCCESS
+
+
+def get_pdf_page_count(source_path: Path) -> int:
+    pdf = pdfium.PdfDocument(str(source_path))
+    try:
+        return len(pdf)
+    finally:
+        close = getattr(pdf, "close", None)
+        if callable(close):
+            close()
 
 
 def sha256_file(path: Path) -> str:
@@ -132,26 +156,16 @@ def convert_pdf_in_windows(
     source_path: Path,
     converter: DocumentConverter,
     page_window_size: int | None,
+    page_window_min_pages: int,
 ):
-    if not page_window_size:
-        return list(converter.convert_all([source_path], raises_on_error=False))
-
-    first_window_end = page_window_size
-    results = list(
-        converter.convert_all(
-            [source_path],
-            raises_on_error=False,
-            page_range=(1, first_window_end),
-        )
+    total_pages = get_pdf_page_count(source_path)
+    windows = select_page_windows(
+        total_pages=total_pages,
+        page_window_size=page_window_size,
+        page_window_min_pages=page_window_min_pages,
     )
-    if not results:
-        return results
-
-    total_pages = getattr(results[0].input, "page_count", None)
-    if not total_pages or total_pages <= first_window_end:
-        return results
-
-    for page_start, page_end in compute_page_windows(total_pages, page_window_size)[1:]:
+    results = []
+    for page_start, page_end in windows:
         results.extend(
             converter.convert_all(
                 [source_path],
@@ -207,6 +221,7 @@ def export_document_bundle(
         "docling_version": version("docling"),
         "status": status,
         "page_window_size": config.page_window_size,
+        "page_window_min_pages": config.page_window_min_pages,
         "window_count": len(results),
         "windows": windows,
         "ocr_enabled": config.enable_ocr,
@@ -241,6 +256,12 @@ def export_document_bundle(
         page_break_placeholder="<!-- page_break -->",
         image_placeholder="<!-- image -->",
     )
+    if config.image_filter == "heuristic":
+        filtered_markdown = filter_markdown_image_refs(
+            paths.document_markdown.read_text(encoding="utf-8"),
+            picture_keep_flags(combined_doc),
+        )
+        paths.document_markdown.write_text(filtered_markdown, encoding="utf-8")
 
     chunks = list(chunker.chunk(combined_doc))
     chunk_records = build_chunk_records(
@@ -290,6 +311,7 @@ def run_batch(config: RuntimeConfig) -> dict:
             source_path=source_path,
             converter=converter,
             page_window_size=config.page_window_size,
+            page_window_min_pages=config.page_window_min_pages,
         )
         manifests.append(export_document_bundle(source_path, results, config, chunker))
 

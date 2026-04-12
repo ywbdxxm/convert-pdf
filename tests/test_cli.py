@@ -32,4 +32,7 @@ class BuildParserTests(unittest.TestCase):
         self.assertEqual(args.image_mode, "referenced")
         self.assertFalse(args.generate_page_images)
         self.assertEqual(args.max_chunk_tokens, 384)
+        self.assertEqual(args.page_window_min_pages, 500)
         self.assertEqual(args.page_window_size, 250)
+        self.assertEqual(args.image_scale, 2.0)
+        self.assertEqual(args.image_filter, "heuristic")

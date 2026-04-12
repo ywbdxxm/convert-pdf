@@ -9,6 +9,7 @@ from docling_batch.converter import (
     compute_page_windows,
     discover_pdf_paths,
     make_doc_id,
+    select_page_windows,
 )
 
 
@@ -39,6 +40,18 @@ class WorkflowHelpersTests(unittest.TestCase):
         self.assertEqual(
             compute_page_windows(total_pages=501, page_window_size=None),
             [(1, 501)],
+        )
+
+    def test_select_page_windows_keeps_small_documents_whole(self):
+        self.assertEqual(
+            select_page_windows(total_pages=87, page_window_size=250, page_window_min_pages=500),
+            [(1, 87)],
+        )
+
+    def test_select_page_windows_splits_only_when_above_threshold(self):
+        self.assertEqual(
+            select_page_windows(total_pages=501, page_window_size=250, page_window_min_pages=500),
+            [(1, 250), (251, 500), (501, 501)],
         )
 
     def test_aggregate_conversion_statuses_returns_partial_when_any_window_fails(self):
