@@ -35,6 +35,7 @@ htmlcov/
 Thumbs.db
 
 # Local experiment outputs
+.worktrees/
 outputs/
 tmp/
 temp/
