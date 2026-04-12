@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
 
 ## Current Phase
-Docling Batch Program Incremental Hardening
+Docling Architecture Documentation
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -84,6 +84,13 @@ Docling Batch Program Incremental Hardening
 - [x] 完整等待 1531 页转换结束
 - [x] 评估输出规模、表格、告警、chunk/section 结果
 - [x] 增加空 table sidecar 告警
+- **Status:** complete
+
+### Phase 13: Docling Architecture Documentation
+- [x] 总结嵌入式开发场景下的 Docling 手册处理架构
+- [x] 解释设计初衷、产物含义、AI 使用流程和配置方式
+- [x] 总结 Docling 优缺点和当前样本评估结果
+- [x] 更新 README 和 AGENTS 文档入口
 - **Status:** complete
 
 ## Key Questions

@@ -1,110 +1,42 @@
 # convert-pdf
 
-一个面向 PDF 处理的项目，当前第一阶段专注于将 PDF 转换为适合大模型阅读、检索和 RAG 使用的 Markdown。
+这个仓库用于把芯片手册、技术参考手册、应用手册等 PDF 转换为适合 AI 查阅、检索、引用和人工核对的资产。
 
-## 当前阶段
+当前主线不是“只把 PDF 转成 Markdown”，而是：
 
-当前目标不是做一个“什么都支持”的 PDF 工具箱，而是先把 `PDF -> Markdown` 这条链路做扎实，包括：
+```text
+PDF -> Docling JSON -> Markdown/HTML -> chunks/sections -> table sidecars -> alerts
+```
 
-- 保留尽可能好的阅读顺序
-- 提升表格、公式、图片说明等结构信息的保真度
-- 兼顾文本型 PDF 和扫描件 PDF
-- 为后续大模型检索、摘要、问答和结构化抽取做准备
+完整架构说明见：
 
-## 为什么先做 PDF 转 Markdown
+- [Docling Embedded Manual Processing Architecture](docs/architecture/2026-04-12-docling-embedded-manual-processing.md)
 
-Markdown 是当前大模型处理中最实用的中间格式之一：
+## 当前目标
 
-- 比纯文本更能保留文档结构
-- 比直接喂 PDF 更容易切分、清洗和检索
-- 适合进入 RAG、embedding、chunking 和 agent 工作流
-- 便于人工检查和版本管理
+面向嵌入式开发，处理后的手册需要支持：
 
-## 当前选型方向
+- 快速定位寄存器、位定义、复位值、地址偏移
+- 查找 GPIO/AF/pin matrix、外设信号、时序和电气参数
+- 从 AI 回答回溯到手册页码和原始 PDF
+- 对表格、图、公式和解析失败点做显式告警
+- 后续可接入 RAG 或其他检索框架，但不在第一阶段绑定具体框架
 
-基于当前调研，这个仓库接下来优先关注以下工具：
+## 核心设计
 
-### 1. Docling
+当前最佳实践：
 
-默认优先尝试的基础方案。
+- 原始 PDF 是最终权威来源
+- `document.json` 是 Docling canonical source
+- `document.md` 是 AI/人工阅读副本
+- `document.html` 用于人工核对宽表和图片
+- `chunks.jsonl` 是检索级索引
+- `sections.jsonl` 是章节导航索引
+- `tables/*.csv` 和 `tables/*.html` 用于表格核对
+- `alerts.json` 用于暴露解析质量问题
+- `_windows/` 只在显式开启缓存时使用
 
-- 导出 Markdown 能力完整
-- 对 OCR、表格、公式、阅读顺序支持较均衡
-- 很适合作为本仓库第一条可落地的转换管线
-
-### 2. Marker
-
-偏高精度和复杂版面的方案。
-
-- 对复杂 PDF、表格、公式、版面还原更强
-- 适合做高保真对照实验
-
-### 3. PyMuPDF4LLM
-
-偏轻量、快速集成的 baseline。
-
-- 接入成本低
-- 适合先跑通最小可用链路
-
-### 4. MinerU
-
-针对扫描件、中文、多语言和复杂学术文档的重要备选方案。
-
-## 当前实现状态
-
-当前仓库已经落地了第一版 `Docling` 批处理程序，目标不是“单纯导出 Markdown”，而是把芯片手册转成更适合 AI 查阅和引用的一组资产：
-
-1. 原始 PDF
-2. `Docling JSON`
-3. 阅读版 `Markdown`
-4. 章节级索引 `sections.jsonl`
-5. 检索级索引 `chunks.jsonl`
-6. 文档级 `manifest.json`
-7. 批处理级 `run summary`
-
-当前默认路线是：
-
-`PDF -> Docling JSON -> HybridChunker(native) -> contextualized chunks + Markdown companion`
-
-## 当前仓库内容
-
-- `README.md`
-  - 项目说明
-- `docs/architecture/`
-  - AI 工作站架构审计和执行计划
-- `task_plan.md`
-  - 任务规划和阶段记录
-- `findings.md`
-  - 工具调研与结论
-- `progress.md`
-  - 执行过程和验证记录
-- `scripts/`
-  - 共享 AI base、Docling overlay 和环境验证脚本
-- `docling/`
-  - Docling 项目级工作区
-- `docling_batch/`
-  - 第一版 Docling 批处理程序
-- `tests/`
-  - 批处理程序的单元测试
-
-## 当前工作站架构
-
-当前仓库采用分层工作站设计：
-
-1. `Host`
-   - Windows 驱动、WSL 集成、宿主代理
-2. `WSL System`
-   - Docker、NVIDIA runtime、OCR、本地构建工具
-3. `Shared Heavy AI Base`
-   - 单一共享的 `torch + CUDA` 重型环境
-4. `Project Overlay`
-   - 每个项目自己的轻量 Python 依赖层
-5. `Data / Outputs`
-   - PDF 样本、转换结果、索引和实验产物
-
-这样做的目标是既保持项目隔离，又避免每个项目都重新下载完整的 GPU Python 栈。
-
-## 当前推荐启动顺序
+## 环境启动
 
 从仓库根目录执行：
 
@@ -114,54 +46,81 @@ Markdown 是当前大模型处理中最实用的中间格式之一：
 ./scripts/verify_ai_stack.sh
 ```
 
-## 批处理程序用法
+项目环境位于：
 
-先准备环境：
-
-```sh
-./scripts/bootstrap_ai_base.sh
-./scripts/bootstrap_docling_env.sh
-./scripts/verify_ai_stack.sh
+```text
+docling/.venv
 ```
 
-然后运行批处理：
+共享重型 AI base 位于：
+
+```text
+/home/qcgg/.mamba/envs/ai-base-cu124-stable
+```
+
+不要把项目私有依赖安装进系统 Python。
+
+## 输入目录
+
+建议把 PDF 放在：
+
+```text
+manuals/raw/<vendor>/<chip>/<manual>.pdf
+```
+
+当前样本包括：
+
+```text
+manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf
+manuals/raw/espressif/esp32s3/esp32-s3_technical_reference_manual_en.pdf
+manuals/raw/st/stm32h7/stm32h743vi.pdf
+```
+
+## 默认转换命令
+
+数字版 datasheet/manual 优先关闭 OCR：
 
 ```sh
 docling/.venv/bin/python -m docling_batch convert \
-  --input /path/to/manuals \
-  --output /path/to/output \
-  --device cuda
-```
-
-若当前 PDF 是数字版手册，建议先关闭 OCR：
-
-```sh
-docling/.venv/bin/python -m docling_batch convert \
-  --input /path/to/manuals \
-  --output /path/to/output \
+  --input manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf \
+  --output manuals/processed \
   --device cuda \
   --no-ocr
 ```
 
-若文档页数很大，优先使用程序内部分窗，而不是手工拆 PDF：
+默认行为：
+
+- 整本处理
+- 不启用窗口缓存
+- 保留图片 sidecars
+- 生成 JSON/Markdown/HTML/chunks/sections/tables/alerts
+
+## 超大文档可选缓存
+
+缓存默认关闭。只有超大文档、易中断任务、或需要反复实验时才开启：
 
 ```sh
 docling/.venv/bin/python -m docling_batch convert \
-  --input /path/to/manuals \
-  --output /path/to/output \
+  --input manuals/raw/espressif/esp32s3/esp32-s3_technical_reference_manual_en.pdf \
+  --output manuals/processed \
   --device cuda \
   --no-ocr \
-  --page-window-size 250
+  --enable-window-cache \
+  --cache-window-size 250
 ```
 
-这会让程序按页窗分段调用 Docling，再把窗口结果合并回同一个逻辑文档的索引和导出物，适合以后处理 5000+ 页 PDF。
+缓存不是首轮加速功能。它的作用是让长文档失败后能复用已完成页窗，避免整本从头再跑。
 
-若是扫描件或图片化 PDF，再启用 OCR，默认走 `RapidOCR`：
+## OCR
+
+数字版芯片手册默认使用 `--no-ocr`。
+
+扫描件或图片化 PDF 再启用 OCR：
 
 ```sh
 docling/.venv/bin/python -m docling_batch convert \
-  --input /path/to/manuals \
-  --output /path/to/output \
+  --input manuals/raw/vendor/chip/scanned_manual.pdf \
+  --output manuals/processed \
   --device cuda \
   --ocr-engine rapidocr \
   --force-full-page-ocr
@@ -169,40 +128,120 @@ docling/.venv/bin/python -m docling_batch convert \
 
 ## 输出结构
 
-每个文档会生成：
+每份文档输出到：
 
-- `<output>/<doc_id>/document.json`
-- `<output>/<doc_id>/document.md`
-- `<output>/<doc_id>/manifest.json`
-- `<output>/<doc_id>/sections.jsonl`
-- `<output>/<doc_id>/chunks.jsonl`
+```text
+manuals/processed/<doc_id>/
+```
 
-每次批处理还会生成：
+主要文件：
 
-- `<output>/_runs/<timestamp>.json`
+```text
+document.json
+document.md
+document.html
+manifest.json
+sections.jsonl
+chunks.jsonl
+alerts.json
+artifacts/
+tables/
+_windows/
+```
 
-其中：
+批处理运行摘要：
 
-- `document.json`
-  - Docling canonical source，后续索引和结构化抽取应从这里派生
-- `document.md`
-  - 供人工阅读和 diff 的副产物
-- `sections.jsonl`
-  - 章节级索引，方便快速定位某个主题在哪章哪页
-- `chunks.jsonl`
-  - 原生 `HybridChunker` 产出的检索级片段，带 `contextualized_text` 和页码引用
-- `manifest.json`
-  - 文档元数据、处理参数和输出路径
-  - 若启用了页窗处理，还会记录 `page_window_size`、`window_count` 和各窗口页段状态
+```text
+manuals/processed/_runs/<timestamp>.json
+```
 
-## 当前结论
+## AI 使用方式
 
-对这个仓库，当前最佳实践已经收敛为：
+后续让 AI 使用某份处理后的手册时，优先给它这个目录：
 
-- 默认主线：`Docling`
-- canonical source：`Docling JSON`
-- 检索切块：Docling 原生 `HybridChunker`
-- 阅读副本：`Markdown`
-- GPU：优先 `--device cuda`
-- OCR：按需启用，而不是默认总开
-- 超大文档：优先 `--page-window-size` 内部分窗，而不是手工按书签拆 PDF
+```text
+manuals/processed/<doc_id>
+```
+
+AI 应按以下顺序工作：
+
+1. 先读 `manifest.json`，确认状态、页数、表格数、告警数和原始 PDF 路径。
+2. 如果 `alert_count > 0`，先读 `alerts.json`，了解哪些页面/表格需要谨慎。
+3. 用 `sections.jsonl` 找章节和页码范围。
+4. 用 `chunks.jsonl` 检索具体段落和 `citation`。
+5. 用 `document.md` 阅读上下文。
+6. 遇到表格值时打开 `tables/*.csv` 或 `tables/*.html` 核对。
+7. 遇到图、时序图、寄存器位图时看 `artifacts/` 和原始 PDF。
+8. 对寄存器、电气参数、时序限制等关键结论，必须回到页码引用或原始 PDF 做交叉验证。
+
+## 已验证样本
+
+### ESP32-S3 datasheet
+
+```text
+manuals/processed/esp32-s3-datasheet-en
+```
+
+- 87 页
+- 71 张表
+- 309 chunks
+- 141 sections
+- 1 条告警：`Table 2-9. Peripheral Pin Assignment` 表体退化为图片
+
+### STM32H743VI datasheet
+
+```text
+manuals/processed/stm32h743vi
+```
+
+- 357 页
+- 329 张表
+- 1324 chunks
+- 242 sections
+- 当前告警数为 0
+
+### ESP32-S3 Technical Reference Manual
+
+```text
+manuals/processed/esp32-s3-technical-reference-manual-en
+```
+
+- 1531 页
+- 667 张表
+- 3775 chunks
+- 1379 sections
+- 9 条 `empty_table_sidecar` 告警
+- 第 501-750 页窗口是明显性能热点
+
+## Docling 当前评估
+
+适合作为默认本地主线：
+
+- 对数字版 datasheet/TRM 可完整跑通
+- 能生成 JSON/Markdown/HTML 和检索索引
+- 多数普通表格、寄存器摘要、电气参数表可用
+- 能保留图片和表格 sidecars
+- 便于后续接入 RAG，但不强绑定任何 RAG 框架
+
+已知弱点：
+
+- 超宽 pin matrix / AF matrix 可能退化成图片
+- 部分 figure 可能被识别成 table
+- 部分 table sidecar 可能为空
+- 部分 caption 无法安全恢复
+- 公式/MathML 可能解析失败
+- 超大 TRM 的局部窗口可能非常慢
+
+当前策略：
+
+- 继续把 Docling 作为默认本地主线
+- 不继续堆复杂 heuristic 或 VLM 补丁
+- 用 `alerts.json` 记录边界问题
+- 后续用告警页和慢窗口页对比 Marker、MinerU、OpenDataLoader PDF 等工具
+
+## 相关文档
+
+- [Docling Embedded Manual Processing Architecture](docs/architecture/2026-04-12-docling-embedded-manual-processing.md)
+- [AI workstation design audit](docs/architecture/2026-04-12-ai-workstation-design-audit.md)
+- [AI workstation execution plan](docs/architecture/2026-04-12-ai-workstation-execution-plan.md)
+- [Global workstation reference](docs/architecture/global-workstation-reference.md)

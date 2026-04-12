@@ -99,3 +99,68 @@ Prefer shared cache roots such as:
 
 - `~/.cache/docling`
 - `~/.cache/convert-pdf`
+
+## Docling Embedded Manual Processing
+
+This repository now has a documented Docling-based manual-processing architecture:
+
+- `docs/architecture/2026-04-12-docling-embedded-manual-processing.md`
+
+For tasks involving chip manuals, datasheets, TRMs, application notes, or processed manual artifacts, read that document first.
+
+### Processing Defaults
+
+Use Docling as the default local mainline for digital embedded manuals.
+
+Default command shape:
+
+```sh
+docling/.venv/bin/python -m docling_batch convert \
+  --input manuals/raw/<vendor>/<chip>/<manual>.pdf \
+  --output manuals/processed \
+  --device cuda \
+  --no-ocr
+```
+
+Do not enable OCR by default for digital datasheets/manuals. Enable OCR only for scanned or image-heavy PDFs.
+
+Window cache is opt-in. Use it only for very large PDFs, unstable long runs, or repeated experiments:
+
+```sh
+docling/.venv/bin/python -m docling_batch convert \
+  --input manuals/raw/<vendor>/<chip>/<manual>.pdf \
+  --output manuals/processed \
+  --device cuda \
+  --no-ocr \
+  --enable-window-cache \
+  --cache-window-size 250
+```
+
+Do not treat window cache as a first-run speed optimization.
+
+### Processed Manual Consumption Rules
+
+When using a processed manual for embedded development:
+
+1. Start with `manuals/processed/<doc_id>/manifest.json`.
+2. If `alert_count > 0`, read `alerts.json` before trusting table-heavy or figure-heavy content.
+3. Use `sections.jsonl` for navigation by topic/chapter/page range.
+4. Use `chunks.jsonl` for retrieval and page-aware citations.
+5. Use `document.md` for local reading context.
+6. Use `document.html` for human inspection of wide tables and images.
+7. Use `tables/*.csv` or `tables/*.html` to verify table values.
+8. Use `artifacts/` and the original PDF for timing diagrams, register bit diagrams, block diagrams, and visual tables.
+9. For register values, bit definitions, timing limits, pin mappings, and electrical characteristics, cross-check the processed artifact against the original PDF page before presenting a final engineering conclusion.
+
+### Known Docling Boundaries
+
+Do not keep adding fragile heuristics for every parse imperfection. Current known boundaries include:
+
+- ultra-wide pin/alternate-function matrices
+- figure-like content misclassified as tables
+- empty table sidecars
+- formula/MathML serialization warnings
+- broken words such as `T able`
+- slow windows in very large TRMs
+
+Prefer recording these as `alerts.json` entries and using them for later tool A/B comparisons rather than turning the Docling mainline into a complex VLM repair pipeline.

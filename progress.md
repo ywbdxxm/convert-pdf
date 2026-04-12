@@ -419,3 +419,4 @@
 2026-04-12 将缓存机制改为显式 opt-in：默认整本处理，不启用缓存；通过 --enable-window-cache 和 --cache-window-size 控制。
 2026-04-12 TRM 完整转换后发现空表格 sidecar；新增 empty_table_sidecar 告警，避免 manifest 中存在不可用表文件时静默通过。
 2026-04-12 完成 ESP32-S3 TRM 全量转换：1531 页、7 窗口、667 表、3775 chunks、1379 sections；新增 empty_table_sidecar 告警后捕获 9 个空/不可用表格 sidecar。
+2026-04-12 完成 Docling 嵌入式手册处理架构文档收口：新增完整 architecture doc，并同步更新 README 与 AGENTS，明确产物、AI 使用流程、配置方式和 Docling 边界。

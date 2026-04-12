@@ -1242,6 +1242,21 @@
   - 不删除原始产物
   - 只把不可用 sidecar 明确暴露给后续查阅/工具对比流程
 
+### 2026-04-12: Docling Architecture Documentation Landed
+- 已新增完整架构文档：
+  - `docs/architecture/2026-04-12-docling-embedded-manual-processing.md`
+- 文档覆盖：
+  - 为什么该项目不是单纯 PDF 转 Markdown
+  - 为什么 `document.json` 是 canonical source
+  - `document.md` / `document.html` / `chunks.jsonl` / `sections.jsonl` / `tables/` / `alerts.json` 的角色
+  - AI 后续如何使用处理后的手册做嵌入式开发查阅
+  - 默认配置、OCR 配置、窗口缓存配置
+  - 当前三份样本评估结果
+  - Docling 优缺点和边界
+- 已同步更新：
+  - `README.md`
+  - `AGENTS.md`
+
 ## Active Open Questions
 - 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
 - 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？
