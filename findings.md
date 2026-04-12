@@ -333,6 +333,46 @@
   - 进度输出已正常出现
   - 之前的 `Token indices sequence length ...` warning 已不再出现
 
+## Tokenizer Length Clarification
+- `tokenizer 长度` 在我们当前上下文里，不是指 PDF 页数，也不是指原文会被截断的长度。
+- 它更准确地指：
+  - 用于 `HybridChunker` 计数和切分的 tokenizer 的 `model_max_length`
+  - 以及一个 chunk 在 tokenizer 看来会被切成多少 token
+- 调整这个值当前主要影响：
+  - chunk 计数/切分时是否触发 HuggingFace 的长度 warning
+  - `HybridChunker` 内部对“这段文本会不会太长”的判断过程是否顺畅
+- 它当前**不直接改变**：
+  - 原始 PDF 内容
+  - `document.json`
+  - `document.md`
+- 在我们这套实现里，真正决定 chunk 大小的主参数仍然是：
+  - `max_chunk_tokens`
+- 运行时放宽 `model_max_length` 更像是：
+  - 让 tokenizer 不要因为自己的默认上限太小而在计数阶段报误导性 warning
+
+## HF Hub Warning Clarification
+- `Warning: You are sending unauthenticated requests to the HF Hub...` 的意思是：
+  - 当前有组件会从 HuggingFace Hub 下载模型或 tokenizer 资产
+  - 你现在是匿名访问
+  - 匿名访问通常仍然能用，但速率限制和下载体验会更差
+- 对当前 Docling 使用的实际影响是：
+  - **首次下载** 可能更慢
+  - 更容易碰到限流
+  - 已下载并缓存后，后续运行影响会明显下降
+- 它通常**不意味着**：
+  - Docling 不能工作
+  - 当前解析逻辑有错误
+- 在我们当前链路里，这个 warning 最常见的来源是：
+  - `HybridChunker` 默认用的 HuggingFace tokenizer/模型标识
+- 当前更合理的配置方式是：
+  - 不把 token 写进仓库文件
+  - 优先用 `hf auth login`
+  - 或在本地 shell / 用户环境里设置 `HF_TOKEN`
+- 当前这台机器上已实际完成本机 Hugging Face 认证：
+  - 使用官方登录流程写入了用户级 token 缓存
+  - `whoami` 已返回当前账号
+  - 单独加载 `sentence-transformers/all-MiniLM-L6-v2` tokenizer 时已不再出现匿名访问提示
+
 ## What gpu_vlm_pipeline Is For
 - 官方 `gpu_vlm_pipeline` 示例并不是“把当前标准流水线换成更快版本”那么简单。
 - 它做的是：

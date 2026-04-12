@@ -297,6 +297,21 @@
 - 重新跑 ESP32-S3 样本后确认：
   - 进度日志正常出现
   - 先前的 `Token indices sequence length ...` warning 已消失
+
+### 2026-04-12: Tokenizer And HF Warning Meaning Clarified
+- 已把两个容易误解的点写回 findings：
+  - `tokenizer length` 主要影响 chunk 计数/切分阶段，不直接改动原文内容
+  - `HF Hub unauthenticated` warning 主要影响首次下载速度和限流，不等于 Docling 失效
+- 已补充当前建议：
+  - `HF_TOKEN` 不写进仓库
+  - 优先使用 `hf auth login` 或本地环境变量配置
+
+### 2026-04-12: Hugging Face Auth Configured
+- 已使用官方 Hugging Face 登录流程完成本机认证
+- 已验证：
+  - `whoami` 返回当前账号
+  - 单独加载 Hugging Face tokenizer 成功
+  - 当前 Docling 使用链不再需要匿名访问 Hugging Face Hub
 - 新发现：
   - `Submit Documentation Feedback` 这一类内容当前仍会出现在 `document.md`
   - 但它是文本/链接噪声，不是图片过滤失效
