@@ -34,3 +34,13 @@ class MarkdownAlertTests(unittest.TestCase):
         alerts = detect_markdown_alerts(markdown)
 
         self.assertEqual(alerts, [])
+
+    def test_detect_markdown_alerts_ignores_narrative_mentions_of_tables(self):
+        markdown = (
+            "Table 9 and Table 10 show pin definition and alternate functions.\n\n"
+            "![Image](artifacts/image_000075.png)\n"
+        )
+
+        alerts = detect_markdown_alerts(markdown)
+
+        self.assertEqual(alerts, [])

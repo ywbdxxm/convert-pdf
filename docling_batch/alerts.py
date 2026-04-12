@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 
-TABLE_CAPTION_RE = re.compile(r"^Table\s+[0-9A-Za-z][^\n]*")
+TABLE_CAPTION_RE = re.compile(r"^Table\s+\d+(?:-\d+)?\.\s+\S")
 IMAGE_REF_RE = re.compile(r"!\[Image\]\(([^)]+)\)")
 
 
