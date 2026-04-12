@@ -134,6 +134,21 @@ def write_jsonl(path: Path, rows: list[dict]) -> None:
             handle.write("\n")
 
 
+def build_conversion_signature(config) -> str:
+    payload = {
+        "docling_version": version("docling"),
+        "pipeline": ThreadedStandardPdfPipeline.__name__,
+        "device": getattr(config, "device", None),
+        "enable_ocr": getattr(config, "enable_ocr", None),
+        "ocr_engine": getattr(config, "ocr_engine", None),
+        "force_full_page_ocr": getattr(config, "force_full_page_ocr", None),
+        "generate_picture_images": getattr(config, "generate_picture_images", None),
+        "generate_page_images": getattr(config, "generate_page_images", None),
+        "image_scale": getattr(config, "image_scale", None),
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
 def build_window_cache_paths(cache_dir: Path, window_index: int, page_start: int, page_end: int) -> tuple[Path, Path]:
     stem = f"window_{window_index:04d}_p{page_start:06d}-{page_end:06d}"
     return cache_dir / f"{stem}.document.json", cache_dir / f"{stem}.meta.json"
@@ -145,6 +160,7 @@ def store_window_result(
     page_start: int,
     page_end: int,
     source_pdf_sha256: str,
+    conversion_signature: str,
     result,
 ) -> None:
     if result.status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} or result.document is None:
@@ -160,6 +176,7 @@ def store_window_result(
             "page_start": page_start,
             "page_end": page_end,
             "source_pdf_sha256": source_pdf_sha256,
+            "conversion_signature": conversion_signature,
             "errors": normalize_errors(getattr(result, "errors", None)),
             "input_page_count": getattr(getattr(result, "input", None), "page_count", None),
             "document_json": document_path.name,
@@ -173,6 +190,7 @@ def load_cached_window_result(
     page_start: int,
     page_end: int,
     source_pdf_sha256: str,
+    conversion_signature: str,
     input_page_count: int | None,
 ):
     document_path, meta_path = build_window_cache_paths(cache_dir, window_index, page_start, page_end)
@@ -185,6 +203,8 @@ def load_cached_window_result(
         return None
 
     if meta.get("source_pdf_sha256") != source_pdf_sha256:
+        return None
+    if meta.get("conversion_signature") != conversion_signature:
         return None
     if meta.get("page_start") != page_start or meta.get("page_end") != page_end:
         return None
@@ -263,6 +283,7 @@ def convert_pdf_in_windows(
     page_window_min_pages: int,
     window_cache_dir: Path | None = None,
     resume_windows: bool = True,
+    config=None,
 ):
     total_pages = get_pdf_page_count(source_path)
     windows = select_page_windows(
@@ -274,6 +295,7 @@ def convert_pdf_in_windows(
     doc_id = make_doc_id(source_path)
     window_count = len(windows)
     source_pdf_sha256 = sha256_file(source_path) if window_cache_dir is not None else ""
+    conversion_signature = build_conversion_signature(config) if window_cache_dir is not None and config is not None else ""
     for window_index, (page_start, page_end) in enumerate(windows, start=1):
         print(
             format_window_progress(
@@ -292,6 +314,7 @@ def convert_pdf_in_windows(
                 page_start=page_start,
                 page_end=page_end,
                 source_pdf_sha256=source_pdf_sha256,
+                conversion_signature=conversion_signature,
                 input_page_count=total_pages,
             )
             if cached_result is not None:
@@ -317,6 +340,7 @@ def convert_pdf_in_windows(
                     page_start=page_start,
                     page_end=page_end,
                     source_pdf_sha256=source_pdf_sha256,
+                    conversion_signature=conversion_signature,
                     result=result,
                 )
         results.extend(window_results)
@@ -370,6 +394,7 @@ def export_document_bundle(
         "status": status,
         "page_window_size": config.page_window_size,
         "page_window_min_pages": config.page_window_min_pages,
+        "conversion_signature": build_conversion_signature(config),
         "window_count": len(results),
         "windows": windows,
         "ocr_enabled": config.enable_ocr,
@@ -473,6 +498,7 @@ def run_batch(config: RuntimeConfig) -> dict:
             page_window_min_pages=config.page_window_min_pages,
             window_cache_dir=paths.windows_dir,
             resume_windows=config.resume_windows,
+            config=config,
         )
         manifests.append(export_document_bundle(source_path, results, config, chunker, paths=paths))
 

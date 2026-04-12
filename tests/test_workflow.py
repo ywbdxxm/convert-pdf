@@ -5,10 +5,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from docling.datamodel.base_models import ConversionStatus
+from importlib.metadata import version
 from docling_core.types.doc import DoclingDocument
 
 from docling_batch.converter import (
     aggregate_conversion_statuses,
+    build_conversion_signature,
     compute_page_windows,
     convert_pdf_in_windows,
     discover_pdf_paths,
@@ -93,6 +95,32 @@ class WorkflowHelpersTests(unittest.TestCase):
 
         self.assertGreaterEqual(updated.tokenizer.model_max_length, 32768)
 
+    def test_build_conversion_signature_changes_when_conversion_inputs_change(self):
+        base_config = SimpleNamespace(
+            device="cuda",
+            enable_ocr=False,
+            ocr_engine="rapidocr",
+            force_full_page_ocr=False,
+            generate_picture_images=True,
+            generate_page_images=False,
+            image_scale=2.0,
+        )
+
+        changed_config = SimpleNamespace(
+            device="cuda",
+            enable_ocr=True,
+            ocr_engine="rapidocr",
+            force_full_page_ocr=False,
+            generate_picture_images=True,
+            generate_page_images=False,
+            image_scale=2.0,
+        )
+
+        self.assertNotEqual(
+            build_conversion_signature(base_config),
+            build_conversion_signature(changed_config),
+        )
+
     def test_store_and_load_cached_window_result_roundtrip(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_dir = Path(tmp_dir) / "_windows"
@@ -109,6 +137,7 @@ class WorkflowHelpersTests(unittest.TestCase):
                 page_start=1,
                 page_end=250,
                 source_pdf_sha256="abc123",
+                conversion_signature="sig-v1",
                 result=result,
             )
 
@@ -118,6 +147,7 @@ class WorkflowHelpersTests(unittest.TestCase):
                 page_start=1,
                 page_end=250,
                 source_pdf_sha256="abc123",
+                conversion_signature="sig-v1",
                 input_page_count=501,
             )
 
@@ -142,6 +172,7 @@ class WorkflowHelpersTests(unittest.TestCase):
                 page_start=1,
                 page_end=250,
                 source_pdf_sha256="old-hash",
+                conversion_signature="sig-v1",
                 result=result,
             )
 
@@ -151,6 +182,39 @@ class WorkflowHelpersTests(unittest.TestCase):
                 page_start=1,
                 page_end=250,
                 source_pdf_sha256="new-hash",
+                conversion_signature="sig-v1",
+                input_page_count=501,
+            )
+
+            self.assertIsNone(cached)
+
+    def test_load_cached_window_result_rejects_stale_conversion_signature(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cache_dir = Path(tmp_dir) / "_windows"
+            result = SimpleNamespace(
+                status=ConversionStatus.SUCCESS,
+                document=DoclingDocument(name="window-1"),
+                errors=[],
+                input=SimpleNamespace(page_count=501),
+            )
+
+            store_window_result(
+                cache_dir=cache_dir,
+                window_index=1,
+                page_start=1,
+                page_end=250,
+                source_pdf_sha256="same-hash",
+                conversion_signature="sig-v1",
+                result=result,
+            )
+
+            cached = load_cached_window_result(
+                cache_dir=cache_dir,
+                window_index=1,
+                page_start=1,
+                page_end=250,
+                source_pdf_sha256="same-hash",
+                conversion_signature="sig-v2",
                 input_page_count=501,
             )
 
@@ -162,6 +226,16 @@ class WorkflowHelpersTests(unittest.TestCase):
             source_path = root / "large.pdf"
             source_path.write_bytes(b"%PDF-1.4\nplaceholder\n")
             cache_dir = root / "_windows"
+            config = SimpleNamespace(
+                device="cuda",
+                enable_ocr=False,
+                ocr_engine="rapidocr",
+                force_full_page_ocr=False,
+                generate_picture_images=True,
+                generate_page_images=False,
+                image_scale=2.0,
+            )
+            conversion_signature = build_conversion_signature(config)
 
             for window_index, page_start, page_end in [
                 (1, 1, 250),
@@ -174,6 +248,7 @@ class WorkflowHelpersTests(unittest.TestCase):
                     page_start=page_start,
                     page_end=page_end,
                     source_pdf_sha256="cached-hash",
+                    conversion_signature=conversion_signature,
                     result=SimpleNamespace(
                         status=ConversionStatus.SUCCESS,
                         document=DoclingDocument(name=f"window-{window_index}"),
@@ -188,7 +263,7 @@ class WorkflowHelpersTests(unittest.TestCase):
 
             with patch("docling_batch.converter.get_pdf_page_count", return_value=501), patch(
                 "docling_batch.converter.sha256_file", return_value="cached-hash"
-            ):
+            ), patch("docling_batch.converter.version", return_value=version("docling")):
                 results = convert_pdf_in_windows(
                     source_path=source_path,
                     converter=FailingConverter(),
@@ -196,6 +271,7 @@ class WorkflowHelpersTests(unittest.TestCase):
                     page_window_min_pages=500,
                     window_cache_dir=cache_dir,
                     resume_windows=True,
+                    config=config,
                 )
 
             self.assertEqual(len(results), 3)

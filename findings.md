@@ -1067,6 +1067,18 @@
 - 为“表题存在但表体退化为图片”的页建立自动告警
 - 对疑难页做二级补救，而不是整本文档切到 VLM
 
+### 2026-04-12: Conversion Signature Cache Landed
+- 当前窗口缓存不再只看 `source_pdf_sha256`。
+- 现在还会校验 `conversion_signature`，其内容覆盖：
+  - `docling_version`
+  - `ThreadedStandardPdfPipeline`
+  - `device`
+  - `enable_ocr / ocr_engine / force_full_page_ocr`
+  - `generate_picture_images / generate_page_images / image_scale`
+- 这解决了之前最明显的缓存严谨性问题：
+  - 同一份 PDF 只要解析参数变了，旧窗口缓存就会失效
+  - `manifest.json` 里现在也会记录 `conversion_signature`
+
 ## Active Open Questions
 - 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
 - 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？
