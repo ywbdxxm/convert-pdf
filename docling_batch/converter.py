@@ -18,7 +18,7 @@ from docling.pipeline.threaded_standard_pdf_pipeline import ThreadedStandardPdfP
 
 from docling_batch.config import build_pdf_pipeline_options
 from docling_batch.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
-from docling_batch.indexing import build_chunk_records, build_section_records
+from docling_batch.indexing import attach_table_references, build_chunk_records, build_section_records
 from docling_batch.models import RuntimeConfig
 from docling_batch.paths import build_document_paths
 from docling_batch.tables import export_tables
@@ -310,6 +310,7 @@ def export_document_bundle(
     section_records = build_section_records(doc_id=doc_id, chunk_records=chunk_records)
     tables = [item for item, _level in combined_doc.iterate_items() if isinstance(item, TableItem)]
     table_records = export_tables(doc_id=doc_id, tables=tables, tables_dir=paths.tables_dir, doc=combined_doc)
+    attach_table_references(chunk_records, section_records, table_records)
     manifest["table_count"] = len(table_records)
     manifest["tables"] = table_records
 

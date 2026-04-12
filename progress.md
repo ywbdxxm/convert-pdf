@@ -354,6 +354,14 @@
   - 真实 sidecar 文件已落盘
   - 先前表格导出 deprecated warning 已修复
 
+### 2026-04-12: Table References Linked Into Retrieval Layer
+- 已将 table sidecar 与检索层打通：
+  - `chunks.jsonl` 中相关 chunk 会携带 `tables`
+  - `sections.jsonl` 中相关 section 会携带 `tables`
+- 重新跑 ESP32-S3 样本后确认：
+  - table sidecar 仍正常导出
+  - 检索层已能直接给出对应 `tables/table_XXXX.(csv|html)` 引用
+
 ## Verification Summary
 | Area | Result | Status |
 |------|--------|--------|

@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from docling_batch.indexing import (
+    attach_table_references,
     build_chunk_record,
     build_chunk_records,
     build_section_records,
@@ -155,3 +156,34 @@ class IndexingTests(unittest.TestCase):
 
         self.assertEqual(len(records), 1)
         self.assertIn("Power supply voltage", records[0]["text"])
+
+    def test_attach_table_references_links_chunks_by_page_overlap(self):
+        chunk_records = [
+            {
+                "chunk_id": "esp32:0001",
+                "page_start": 64,
+                "page_end": 64,
+                "section_id": "5.2 Recommended Operating Conditions",
+            }
+        ]
+        section_records = [
+            {
+                "section_id": "5.2 Recommended Operating Conditions",
+                "page_start": 64,
+                "page_end": 64,
+            }
+        ]
+        table_records = [
+            {
+                "table_id": "esp32:table:0001",
+                "page_start": 64,
+                "page_end": 64,
+                "csv_path": "tables/table_0001.csv",
+                "html_path": "tables/table_0001.html",
+            }
+        ]
+
+        attach_table_references(chunk_records, section_records, table_records)
+
+        self.assertEqual(chunk_records[0]["tables"][0]["table_id"], "esp32:table:0001")
+        self.assertEqual(section_records[0]["tables"][0]["html_path"], "tables/table_0001.html")

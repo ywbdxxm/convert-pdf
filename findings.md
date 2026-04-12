@@ -414,6 +414,10 @@
 - 在 ESP32-S3 当前样本上：
   - 已实际导出 `71` 张表的 sidecar
   - 这明显提升了“宽表/矩阵表可精读性”的保底能力
+- 当前又进一步打通了检索层和表格 sidecar 的关系：
+  - `chunks.jsonl` 中与某张表页码重叠的 chunk，会附带 `tables` 字段
+  - `sections.jsonl` 中与某张表页码重叠的 section，也会附带 `tables` 字段
+- 这意味着后续我查到某个 chunk/section 时，已经能直接知道相关 table sidecar 在哪，而不是只能靠页码再手工跳转
 
 ## What Docling Features We Are Using Right Now
 - 当前代码里实际用到的 Docling 核心能力包括：

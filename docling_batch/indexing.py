@@ -121,6 +121,28 @@ def build_section_records(doc_id, chunk_records):
     )
 
 
+def _overlaps(page_start_a, page_end_a, page_start_b, page_end_b):
+    if None in {page_start_a, page_end_a, page_start_b, page_end_b}:
+        return False
+    return not (page_end_a < page_start_b or page_end_b < page_start_a)
+
+
+def attach_table_references(chunk_records, section_records, table_records):
+    for record in chunk_records:
+        record["tables"] = [
+            table
+            for table in table_records
+            if _overlaps(record.get("page_start"), record.get("page_end"), table.get("page_start"), table.get("page_end"))
+        ]
+
+    for record in section_records:
+        record["tables"] = [
+            table
+            for table in table_records
+            if _overlaps(record.get("page_start"), record.get("page_end"), table.get("page_start"), table.get("page_end"))
+        ]
+
+
 def build_chunk_records(doc_id, chunks, contextualize):
     records = []
     for index, chunk in enumerate(chunks, start=1):
