@@ -16,6 +16,7 @@
 - First parser to test: `OpenDataLoader PDF` local mode.
 - OpenDataLoader's official LangChain loader must be tested as the paired consumer before generic UI tools.
 - Current `docling_batch` outputs are the frozen comparison baseline.
+- If `docling_batch` is ever unfrozen, only thin agentic-file improvements are acceptable: page slices, folder index, quality summary, optional hard-page images, native chunk comparison.
 - `LiteParse` is added as a high-priority agentic parser candidate because it is local, bbox-oriented, and screenshot-friendly.
 - First priority after parser validation: determine whether Codex direct folder inspection is enough.
 - First knowledge-app candidate only if folder inspection is insufficient: `Dify` consuming OpenDataLoader/Docling Markdown with local models.

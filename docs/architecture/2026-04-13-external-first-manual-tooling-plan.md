@@ -99,6 +99,22 @@ Rules:
 - Do not fix heuristics unless a later decision explicitly keeps this path.
 - Compare against it using existing outputs only.
 
+If later unfrozen, acceptable improvements are narrow:
+
+- add page-level slices such as `pages/page_0027.md` or `pages/page_0027.json`
+- add a generated folder entrypoint such as `README.generated.md` or `index.json`
+- add a concise `quality-summary.md` from existing table/alert/chunk metadata
+- add optional hard-page images for pages flagged by alerts
+- add Docling-native chunk export beside custom filtered chunks for comparison
+
+Do not use `docling_batch` as a place to build:
+
+- RAG/search/vector DB
+- more fragile table parser heuristics
+- VLM repair workflows
+- multi-tool orchestration
+- UI/application logic
+
 First test:
 
 - Use existing ESP32-S3 datasheet output.

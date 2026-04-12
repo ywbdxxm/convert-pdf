@@ -169,6 +169,12 @@ Local-Free Tooling Plan Cleanup
 - [x] 将当前 `docling_batch` 明确纳入冻结 baseline 对比
 - **Status:** complete
 
+### Phase 26: Optional Docling Batch Unfreeze Boundaries
+- [x] 分析如果不冻结 `docling_batch`，哪些优化仍符合 Agentic 文件检索方向
+- [x] 明确只允许 page slices、folder index、quality summary、hard-page images、native chunk comparison 等薄改动
+- [x] 明确禁止继续在 `docling_batch` 中构建 RAG/search/table 修复/VLM/多工具框架
+- **Status:** complete
+
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
 2. 对嵌入式 datasheet / app note，什么场景本地方案更优，什么场景云端/远程增强更优？

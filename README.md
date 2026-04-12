@@ -38,6 +38,7 @@
 0. `docling_batch`
    - 冻结为历史 baseline。
    - 用现有输出和新工具对比，不再新增功能。
+   - 如未来解冻，只允许做 agent 读文件更方便的薄改动，例如 page slices、入口索引、quality summary；不做 RAG/search/table 修复框架。
 
 1. `OpenDataLoader PDF`
    - 本地优先，输出 Markdown / JSON / HTML。

@@ -120,6 +120,24 @@ The project direction is now external-first and agentic-file-retrieval-first:
 - It should not be extended.
 - It can be used only for comparison against external tools.
 
+If we explicitly unfreeze `docling_batch`, limit work to thin, high-value agentic-file improvements:
+
+- Add `pages/` page-level Markdown or JSON slices for direct page lookup.
+- Add `index.json` / `README.generated.md` as a folder entrypoint for agents.
+- Add source PDF relative path and recommended verification workflow at the top level.
+- Add page-image generation mode for hard pages only, not by default.
+- Add `quality-summary.md` derived from existing alerts/tables/chunks.
+- Add export of Docling-native chunks without our filtering, to compare with current custom `chunks.jsonl`.
+- Remove or gate fragile heuristics such as caption recovery and image filtering if external tools supersede them.
+
+Do not unfreeze it for:
+
+- custom RAG/search/vector DB
+- more table parser heuristics
+- VLM repair pipeline
+- generic multi-tool framework
+- UI work
+
 ## Fixed Evaluation Questions
 
 - Locate `Table 2-9. Peripheral Pin Assignment` in ESP32-S3 datasheet.
