@@ -76,8 +76,8 @@ Docling Batch Program Incremental Hardening
 - [x] 为窗口缓存补 conversion signature
 - [x] 为阅读层增加 `document.html`
 - [x] 增加疑似“表格退化成图片”告警
-- [ ] 用 `ESP32-S3` 和 `STM32H743VI` 样本验证
-- **Status:** in_progress
+- [x] 用 `ESP32-S3` 和 `STM32H743VI` 样本验证
+- **Status:** complete
 
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？

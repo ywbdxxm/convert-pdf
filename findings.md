@@ -1106,6 +1106,41 @@
   - 后续可用这些 alert 去做人工回查
   - 或者用于和 `Marker` / `MinerU` 等其他工具做 A/B 对比
 
+### 2026-04-12: ESP32-S3 And STM32H743VI Re-validation
+- 当前两份样本都已在新链路下复验：
+  - `esp32-s3_datasheet_en.pdf`，87 页
+  - `stm32h743vi.pdf`，357 页
+- 两者都已确认：
+  - `document.html` 正常生成
+  - `manifest.json` 中有 `conversion_signature`
+  - 复跑时能命中 `_windows` 缓存
+- `ESP32-S3` 结果：
+  - `table_count = 71`
+  - `alert_count = 1`
+  - 这 1 条 alert 是真实有效告警：
+    - 第 27 页
+    - `Table 2-9. Peripheral Pin Assignment`
+    - 表题存在，但表体退化为图片
+- `STM32H743VI` 结果：
+  - `table_count = 329`
+  - `alert_count = 0`
+  - 当前规则下未发现图片退化表格误报
+  - 首轮转换中出现 `Could not parse formula with MathML` warning，但最终文档状态为 `success`
+
+### Current judgment on ultra-wide matrix tables
+- 现在可以更明确地下结论：
+  - `Table 2-9` 这类超宽外设/AF 矩阵表，主要是 Docling 标准解析管线的能力边界
+  - 不是我们后处理还差一点点就能稳定救回来的问题
+- 如果继续深挖，通常就会走向：
+  - VLM
+  - 第二解析器
+  - 更复杂的页级补救逻辑
+- 这些路线不能保证准确性，还会显著抬高复杂度和不确定性。
+- 因此当前项目的正确策略是：
+  - 承认这是标准 Docling 主线的局限
+  - 用 `alerts.json` 显式标记
+  - 后续再和其他工具做针对性 A/B，而不是现在无限制优化
+
 ## Active Open Questions
 - 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
 - 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？
