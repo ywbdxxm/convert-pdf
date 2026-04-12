@@ -421,3 +421,15 @@
 2026-04-12 完成 ESP32-S3 TRM 全量转换：1531 页、7 窗口、667 表、3775 chunks、1379 sections；新增 empty_table_sidecar 告警后捕获 9 个空/不可用表格 sidecar。
 2026-04-12 完成 Docling 嵌入式手册处理架构文档收口：新增完整 architecture doc，并同步更新 README 与 AGENTS，明确产物、AI 使用流程、配置方式和 Docling 边界。
 2026-04-12 Docling feature branch completed: fast-forward merged `feat/docling-batch-processor` into `main`, verified 39 tests on merged main, and pushed `origin/main` to 7230785.
+2026-04-12 开始 RAG 最佳实践复盘：目标是回答 RAG 是什么、对当前 Docling 手册资产有什么增量，以及第一性原理下芯片手册 AI 查阅系统应如何设计。
+2026-04-12 完成 RAG 最佳实践复盘：确认当前仓库已具备 RAG-ready corpus preparation，完整 RAG 的增量主要是 embeddings/vector-or-hybrid index/retriever/reranker/context packer/answer policy，而不是替换 Docling 转换产物。
+2026-04-12 新增 `docs/architecture/2026-04-12-rag-for-embedded-manuals.md`：独立总结 RAG 概念、当前工程位置、后续落地顺序，并明确先在当前工程开发轻量检索层，成熟后再接现成 RAG 软件。
+2026-04-12 开始 RAG 范围现实性复盘：回应“是否又要搞一堆、收益是否根本、Docling 是否半成品、是否有现成开源优秀实践”的问题。
+2026-04-12 完成 RAG 范围现实性复盘：修正策略为“当前不自研完整 RAG，先试 Kotaemon/RAGFlow/Dify/AnythingLLM/Open WebUI 等现成工具；只有它们无法保留页码、表格 sidecar、alerts、原 PDF 校验链时，才补最小适配层”。
+2026-04-12 完成 Docling 复杂度现实性复盘：当前 runtime glue 约 1321 行、测试约 870 行，说明 raw Docling output 不足以直接满足嵌入式手册证据链需求；结论是停止继续扩展 converter，下一步优先试用现成 RAG/文档问答工具。
+2026-04-12 完成避免 NIH 复盘：确认 Docling/Marker/MinerU/Unstructured/PyMuPDF4LLM/RAGFlow 已覆盖大量批处理、JSON/Markdown/HTML、表格/图片、chunking、长文档和 RAG 能力；当前自研实现只应视为实验基线，下一步应做 A/B 评估而不是继续开发。
+2026-04-12 开始当前 Docling 项目重构替代分析：按模块拆分 `docling_batch`，判断哪些可由现成工具替代，哪些只应作为验收标准或薄适配层保留。
+2026-04-12 完成重构替代分析：`docling_batch` 大部分通用能力可由 Docling 原生能力、Marker、MinerU、Unstructured、PyMuPDF4LLM、RAGFlow/Kotaemon 替代；项目应转向“嵌入式手册工具 A/B 评估 + 薄适配层”，当前 runtime 代码冻结为 baseline。
+2026-04-13 完成输出结构现实性复盘：当前核心解析/导出/chunking 多数使用 Docling 原生 API，但 manifest、alerts、sidecar 注入、JSONL 索引、缓存和目录布局是自定义包装；`manuals/processed/<doc_id>` 只能作为 Docling baseline，不应强制所有工具输出同构目录，A/B 应保留各工具 raw 输出并只做最小 evidence 归一化。
+2026-04-13 开始评估框架设计：先定义 Docling native CLI/API baseline、多工具 raw output、最小 evidence 归一化和 scorecard，不改 runtime，不安装重工具，等设计确认后再写实现计划。
+2026-04-13 完成评估框架设计 spec：新增 `docs/superpowers/specs/2026-04-13-manual-evaluation-framework-design.md`，明确 Docling CLI/API/debug/current 四种 baseline、多工具 raw output、minimal evidence schema、scorecard、初始样本问题和第一阶段非目标。

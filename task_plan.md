@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
 
 ## Current Phase
-Docling Architecture Documentation
+Evaluation Framework Design
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -91,6 +91,55 @@ Docling Architecture Documentation
 - [x] 解释设计初衷、产物含义、AI 使用流程和配置方式
 - [x] 总结 Docling 优缺点和当前样本评估结果
 - [x] 更新 README 和 AGENTS 文档入口
+- **Status:** complete
+
+### Phase 14: RAG Best Practice Review
+- [x] 解释 RAG 的第一性原理、用途和边界
+- [x] 对比当前 Docling 产物与完整 RAG 系统的差距
+- [x] 给出芯片手册转换成 AI 可理解查阅资产的最佳实践
+- **Status:** complete
+
+### Phase 15: RAG Documentation
+- [x] 将 RAG 总结落入 `docs/architecture/` 独立文档
+- [x] 明确后续轻量检索层需要在当前工程开发
+- [x] 明确现成 RAG 软件应作为后续集成层而不是当前基础
+- **Status:** complete
+
+### Phase 16: RAG Scope Reality Check
+- [x] 核对 Docling 官方定位是否本来就是 RAG ingest 组件而非完整应用
+- [x] 调研是否已有开源 RAG 应用/框架可直接复用
+- [x] 重新评估对当前“AI 查芯片手册”需求的实际提升和最小必要投入
+- **Status:** complete
+
+### Phase 17: Docling Complexity Reality Check
+- [x] 量化当前 Docling 包装代码、测试和文档规模
+- [x] 区分 Docling 解析能力边界与本项目工程化包装复杂度
+- [x] 明确当前阶段应停止继续扩展 Docling 工程，转向试用现成 RAG/文档问答工具
+- **Status:** complete
+
+### Phase 18: Avoid NIH Tooling Review
+- [x] 对照 Docling/Marker/MinerU/Unstructured/PyMuPDF4LLM/RAGFlow 现有能力
+- [x] 标记当前自研代码中可能重复造轮子的部分
+- [x] 明确当前实现只是实验基线，不是已证明的最佳路线
+- **Status:** complete
+
+### Phase 19: Refactor Replacement Analysis
+- [x] 按 `docling_batch` 模块拆分职责
+- [x] 对照现成工具能力，标记可替代、应保留、应冻结/删除的部分
+- [x] 给出第一性原理下的重构方向和推荐路线
+- **Status:** complete
+
+### Phase 20: Output Schema Reality Check
+- [x] 核对当前项目哪些部分是 Docling 原生 API，哪些是自定义包装
+- [x] 重新判断 `manuals/processed/<doc_id>` 是否应该作为所有工具的强制输出结构
+- [x] 明确多工具 A/B 下更合理的原始输出与最小归一化结构
+- **Status:** complete
+
+### Phase 21: Evaluation Framework Design
+- [x] 设计基于 Docling 原生工具的 baseline runner
+- [x] 设计多工具 raw output + minimal evidence normalization 框架
+- [x] 明确哪些现成软件先接入，哪些暂缓
+- [x] 等用户确认设计后再写实现计划
 - **Status:** complete
 
 ## Key Questions

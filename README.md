@@ -11,6 +11,7 @@ PDF -> Docling JSON -> Markdown/HTML -> chunks/sections -> table sidecars -> ale
 完整架构说明见：
 
 - [Docling Embedded Manual Processing Architecture](docs/architecture/2026-04-12-docling-embedded-manual-processing.md)
+- [RAG For Embedded Manual Lookup](docs/architecture/2026-04-12-rag-for-embedded-manuals.md)
 
 ## 当前目标
 

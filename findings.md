@@ -1263,6 +1263,433 @@
 - 为了支撑“写代码前先引用手册”这一工作流，最小可用数据 schema 应该长什么样？
 - 何时应该把 `Marker`、`MinerU` 或 `OpenDataLoader PDF` 正式拉进同一批样本做 A/B？
 
+## RAG Best Practice Review
+### 2026-04-12: What RAG means for this project
+- RAG = Retrieval-Augmented Generation: generation is augmented by retrieving explicit external knowledge instead of relying only on model parameters.
+- The original RAG paper frames the problem as large models having limited ability to access, update, and provide provenance for knowledge; RAG combines parametric model knowledge with non-parametric retrieved memory.
+- For chip manuals, the non-parametric memory should be the processed manual corpus plus links back to the original PDF pages, not a hand-written summary.
+
+### 2026-04-12: Docling's RAG emphasis
+- Docling's official chunking docs describe two routes: Markdown export plus post-processing chunking, or native chunkers operating on `DoclingDocument`.
+- Docling recommends/native-supports chunk records with metadata, and `contextualize(chunk)` specifically exists to create metadata-enriched text suitable for embedding or generation.
+- `HybridChunker` combines document-structure hierarchy with tokenizer-aware splitting/merging; this matches the current repository implementation.
+- Docling's RAG examples then add the missing runtime layer: embeddings, vector store, retriever, top-k context assembly, and generation.
+- Docling's visual grounding example keeps page images and uses Docling provenance metadata to highlight source regions; this is relevant for timing diagrams, register bit diagrams, and figure-like tables.
+
+### 2026-04-12: Current repository position
+- Current pipeline already implements the ingest/knowledge-preparation side of RAG:
+  - `document.json` as canonical structured parse
+  - `document.md` / `document.html` as reading companions
+  - `chunks.jsonl` as page-aware retrieval units
+  - `sections.jsonl` as navigation index
+  - `tables/*.csv` and `tables/*.html` as value-verification sidecars
+  - `alerts.json` as quality-risk surface
+- Missing pieces for a full RAG application:
+  - embedding generation for chunks
+  - persistent vector/BM25/hybrid search index
+  - query rewriting and metadata filters
+  - re-ranking
+  - context packer that attaches neighboring chunks, tables, alerts, and PDF page references
+  - answer policy requiring page citations and critical-value cross-checks
+- Therefore the current state is not "no RAG"; it is "RAG-ready corpus preparation without a runtime retriever service yet."
+
+### 2026-04-12: First-principles best practice for embedded manuals
+- The goal is not to make the model memorize the manual. The goal is to make the manual cheaply searchable, quotable, and verifiable at answer time.
+- The best durable artifact stack remains:
+  - raw PDF as authority
+  - Docling JSON as canonical machine representation
+  - chunk/section indexes for lookup
+  - table sidecars for numeric/register/electrical facts
+  - image/page artifacts for visual facts
+  - alerts for known parser risk
+- A vector database is optional infrastructure. It improves recall and convenience across many manuals, but it does not replace the authority chain or solve parse errors.
+- For the current project, next best step is a small local hybrid retriever over existing `chunks.jsonl` before adopting a heavy framework. Start with lexical search + embeddings + metadata filters; only add LangChain/LlamaIndex/Milvus/Qdrant when the local index becomes insufficient.
+
+## RAG Scope Reality Check
+### 2026-04-12: User challenge corrected the scope
+- User concern: the proposed RAG landing plan looks like another large engineering project after already building a Docling pipeline.
+- Revised judgment: the concern is valid. For current needs, full RAG would be scope creep unless there is a concrete pain point:
+  - many manuals
+  - repeated queries
+  - non-exact semantic lookup failures
+  - need for a GUI for non-agent users
+  - need for persistent shared knowledge base
+- Current Docling output already provides the root-level improvement: structured, page-aware, table-aware, alert-aware manual assets.
+- RAG would mainly improve convenience and recall, not the authoritative correctness of register/electrical/timing answers.
+- For critical embedded facts, RAG still cannot replace sidecar/PDF verification.
+
+### 2026-04-12: Official Docling positioning
+- Docling README describes it as document processing/parsing for the gen-AI ecosystem, with integrations into LangChain, LlamaIndex, CrewAI and Haystack.
+- Docling chunking docs define native chunkers that emit chunks plus metadata, and `contextualize(chunk)` for metadata-enriched text typically fed to embedding or generation models.
+- Docling examples show RAG with LangChain, Haystack, and LlamaIndex by adding embeddings, vector stores, retrievers, and generation components around Docling.
+- Therefore Docling is not a complete chat-with-documents product. It is an ingestion/conversion layer and RAG component.
+
+### 2026-04-12: Existing open-source tools to try before custom work
+- RAGFlow:
+  - Full open-source RAG engine with document understanding, template chunking, citations, multi-recall and re-ranking.
+  - README now states support for MinerU and Docling as document parsing methods.
+  - Heavy deployment: Docker, RAM/disk requirements, and backend services such as Elasticsearch/Infinity, MinIO, Redis, and MySQL.
+- Kotaemon:
+  - Open-source document-chat RAG UI.
+  - Docling is available as `DoclingReader`.
+  - Likely a better first GUI experiment than building our own UI.
+- Dify:
+  - General AI app platform with Knowledge bases, retrieval testing, metadata, and configurable retrieval strategy.
+  - Useful for app/workflow experimentation, less embedded-manual-specific.
+- AnythingLLM:
+  - Quick local document-chat app with multiple document types, source citations, many LLM providers, and many vector DB backends.
+  - Good for fast UX trial, but not necessarily ideal for preserving table sidecars/alerts.
+- Open WebUI:
+  - Docling is available as a plugin.
+  - Worth considering if the final interface should be a local chat UI.
+
+### 2026-04-12: Revised recommendation
+- Do not implement a full RAG stack in this repository now.
+- Keep the current Docling pipeline as the manual asset generator.
+- Next best experiment is to try Kotaemon or RAGFlow in a separate sandbox using:
+  - original PDFs
+  - current `document.md`
+  - possibly current `chunks.jsonl` if import can preserve metadata
+- Evaluate with embedded-specific questions:
+  - register bit lookup
+  - pin mux lookup
+  - electrical/timing value lookup
+  - known alert page lookup
+- Only build custom code if existing tools fail because they cannot preserve:
+  - page citation
+  - table sidecar linkage
+  - `alerts.json`
+  - original PDF verification path
+
+## Docling Complexity Reality Check
+### 2026-04-12: Quantified local complexity
+- Current repository glue around Docling is no longer trivial:
+  - runtime code in `docling_batch/*.py`: about 1321 lines
+  - tests in `tests/test_*.py`: about 870 lines
+  - architecture docs in `docs/architecture/*.md`: about 1315 lines, including the new RAG doc
+  - project README + AGENTS: about 414 lines
+- The largest runtime modules are:
+  - `converter.py`: conversion orchestration, batch handling, exports, optional windows/cache
+  - `tables.py`: sidecar export, caption recovery, sidecar injection
+  - `indexing.py`: chunks/sections records, citations, table overlap
+  - `alerts.py`: parser-risk detection
+- This is evidence that "Docling raw output alone" was not enough for our embedded-manual workflow.
+- It is not evidence that we rewrote PDF parsing; the heavy PDF/layout/table/OCR parsing remains Docling's responsibility.
+
+### 2026-04-12: Is Docling a half-finished PDF product?
+- For general document conversion and RAG ingestion, no:
+  - Docling officially exposes `DocumentConverter` for multiple formats and single/batch conversion.
+  - Docling docs include native chunking and RAG examples with LangChain, LlamaIndex, and Haystack.
+  - Docling integrations include frameworks/apps such as LangChain, LlamaIndex, Haystack, Kotaemon, and Open WebUI.
+- For "engineering-grade chip manual understanding out of the box", also no, but in the opposite sense:
+  - no generic PDF parser should be trusted alone for register bits, pin mux matrices, timing diagrams, or electrical limits.
+  - Docling still misses or degrades some real manual structures, as seen in ultra-wide tables, empty table sidecars, formula issues, and image-like tables.
+  - Those are expected hard boundaries for PDF-to-structure tools, not a solvable-by-more-glue problem.
+
+### 2026-04-12: Correct boundary from here
+- Stop expanding this repository into a document QA/RAG product.
+- Treat current Docling work as a good-enough local manual asset generator.
+- Do not add more Docling-side layers unless a concrete manual-processing defect blocks real use.
+- Next experiments should be outside the converter core:
+  - try Kotaemon with DoclingReader
+  - try RAGFlow with Docling/MinerU parsing
+  - compare against our current processed artifacts on the same embedded questions
+- If those tools are good enough for everyday lookup, use them and keep this repo as a preprocessing/export fallback.
+- If those tools are not good enough for page/table/alert/PDF evidence discipline, document the gap before writing any adapter code.
+
+## Avoid NIH Tooling Review
+### 2026-04-12: User challenge is correct
+- It is not credible to assume we are the first people who needed:
+  - batch PDF conversion
+  - Markdown/JSON/HTML outputs
+  - table/image sidecars
+  - page-aware chunks
+  - RAG-ready metadata
+  - long-document robustness
+  - citations and source traceability
+- The ecosystem already has multiple tools explicitly solving overlapping problems.
+- Therefore the current local `docling_batch` implementation must be treated as:
+  - an experiment
+  - a baseline
+  - a learning artifact
+  - not proof that custom development is the best path
+
+### 2026-04-12: Existing tools cover much of our custom work
+- Docling:
+  - supports single-file and many-file conversion via `DocumentConverter.convert` / `convert_all`
+  - exports `DoclingDocument` to dict/JSON, Markdown, and document tokens
+  - supports structured document traversal, table dataframe export, and native chunking metadata
+  - meaning: our batch/export/index code partially wraps first-party Docling APIs
+- Marker:
+  - converts to Markdown, JSON, chunks, and HTML
+  - extracts/saves images
+  - supports batch conversion
+  - has table-specific conversion, JSON cell bounding boxes, debug outputs, and optional LLM correction
+  - meaning: it directly competes with our table sidecar / output bundle direction
+- MinerU:
+  - converts PDF/image/DOCX to Markdown and JSON for downstream retrieval/extraction
+  - extracts images, image descriptions, tables, table titles, and footnotes
+  - converts tables to HTML
+  - has CLI/API/WebUI, GPU/CPU modes, and long-document improvements such as sliding windows and streaming writes
+  - meaning: it directly overlaps our window-cache, table extraction, and batch-processing concerns
+- Unstructured:
+  - partitions PDFs into typed elements such as Title, Table, Image, Header, Footer, PageBreak, PageNumber
+  - provides metadata including coordinates, parent hierarchy, page number, image path, and table `text_as_html`
+  - meaning: it already has a mature element/metadata model for RAG ingestion
+- PyMuPDF4LLM:
+  - converts pages to Markdown/text
+  - can return page chunks, page separators, layout boxes, image references, OCR options, and table detection strategies
+  - meaning: it may be enough for faster/lightweight digital PDFs where deep layout parsing is not needed
+- RAGFlow:
+  - full RAG application with document understanding, template chunking, citations, chunk visualization, multiple recall, re-ranking, UI/API
+  - now lists Docling and MinerU as parsing methods
+  - meaning: if the goal is "chat/query over manuals", this is much closer to the final product than our repo
+
+### 2026-04-12: What may still be project-specific
+- Embedded-manual evidence discipline is the narrow project-specific layer:
+  - register/pin/timing/electrical facts must cite pages
+  - table sidecars must remain inspectable
+  - parser-risk pages must be surfaced before trust
+  - original PDF remains final authority
+- Current custom pieces that may still be useful as evaluation criteria:
+  - `alerts.json` for known parser risks
+  - empty sidecar detection
+  - explicit table links in `document.md`
+  - manifest tying source PDF, hash, settings, outputs, tables, and alerts together
+- But even these should be treated as requirements for tool evaluation, not automatically as code we must keep maintaining.
+
+### 2026-04-12: Revised engineering stance
+- This project should stop assuming custom Docling wrapping is the main path.
+- Next step should be an A/B evaluation, not more implementation:
+  - Docling raw CLI/API output
+  - Marker
+  - MinerU
+  - RAGFlow with Docling/MinerU parsing
+  - optionally Unstructured or PyMuPDF4LLM for lightweight baselines
+- Use the same real embedded manuals and same questions:
+  - ESP32-S3 peripheral pin assignment hard page
+  - STM32H743VI table-heavy lookup
+  - ESP32-S3 TRM register summary lookup
+  - formula/figure-heavy page
+  - known empty-sidecar / alert pages
+- Keep or extend custom code only if external tools fail a concrete acceptance criterion.
+- If external tools satisfy the acceptance criteria, retire or freeze most custom code.
+
+## Refactor Replacement Analysis
+### 2026-04-12: First-principles target
+- The project should not be "our own PDF parser wrapper."
+- The irreducible goal is:
+  - given chip manuals, produce or select assets that let an AI/human find evidence quickly
+  - preserve source page traceability
+  - verify register/pin/timing/electrical facts against tables or original PDF
+  - surface parser uncertainty before trust
+- Everything else is replaceable infrastructure.
+
+### 2026-04-12: Current modules mapped to replacement options
+| Current area | Current files | Keep/custom? | Replacement candidates | Refactor decision |
+| --- | --- | --- | --- | --- |
+| CLI/batch discovery | `cli.py`, `discover_pdf_paths`, `run_batch` | Mostly not custom | Docling CLI/`convert_all`, Marker batch CLI, MinerU CLI/API/Router, RAGFlow upload/API | Replace or freeze; do not enhance |
+| PDF page windowing/cache | `convert_pdf_in_windows`, `_windows/`, cache signature | Mostly not custom | MinerU sliding windows + streaming writes, Marker `--page_range`/chunk conversion, RAGFlow parser pipeline, Docling `page_range` for experiments | Delete/freeze unless Docling-only A/B still needs it |
+| PDF conversion orchestration | `build_converter`, pipeline options | Thin tool config only | Docling first-party CLI/API, MinerU parser, Marker parser, Unstructured/PyMuPDF4LLM for lightweight path | Keep only as one adapter, not core architecture |
+| JSON/Markdown/HTML export | `combined_doc.save_as_*` | Not custom | Docling exports, Marker markdown/json/html/chunks, MinerU markdown/json/intermediate formats | Replaceable; no need for custom abstraction unless normalizing outputs |
+| Table CSV/HTML sidecars | `tables.py` | Partially custom | Docling `TableItem.export_to_dataframe/html`, Marker `TableConverter` + JSON cell bboxes, MinerU table HTML, Unstructured `text_as_html`, RAGFlow table chunks | Refactor into evaluation requirement; keep only thin normalizer if needed |
+| Caption recovery and table link injection | `tables.py` | Custom heuristic | Marker/MinerU may produce better table titles/HTML; RAGFlow provides source chunks/citations; manual original PDF check remains authority | Freeze; remove if external tool output is good enough |
+| Chunk/section indexes | `indexing.py` | Mostly replaceable | Docling native chunkers, Unstructured chunking, LlamaIndex/Haystack/LangChain loaders, RAGFlow chunking templates | Replace with chosen tool's native chunks; keep only evaluator if needed |
+| Image extraction/filtering | `images.py` | Mostly replaceable | Docling artifacts/page images, Marker image extraction, MinerU images + descriptions, PyMuPDF4LLM `write_images`, RAGFlow visual chunks | Delete/freeze heuristic filter unless a real sample proves value |
+| Alerts | `alerts.py` | Project-specific but small | RAGFlow chunk visualization, MinerU layout/span visualization, Marker debug output, manual A/B evaluation | Keep concept as acceptance criterion; keep code only if external tools lack risk signals |
+| Manifest/provenance | `manifest.json` generation | Project-specific but should be thin | Tool metadata + our source hash/evidence policy | Keep a small metadata wrapper if we need cross-tool comparison |
+| RAG/search/query | not implemented | Do not custom-build now | RAGFlow, Kotaemon, Dify, AnythingLLM, Open WebUI, LlamaIndex/LangChain/Haystack | Use existing tools first |
+
+### 2026-04-12: What can be replaced immediately in direction, not necessarily code today
+- Do not add new features to:
+  - `convert_pdf_in_windows`
+  - table caption heuristics
+  - markdown image filtering
+  - custom chunk/section indexing
+  - RAG/search CLI
+- Treat these as frozen baseline code until A/B results justify removal or retention.
+- For future work, route new needs to external tools first:
+  - complex tables -> Marker TableConverter / MinerU / original PDF
+  - long manuals -> MinerU or RAGFlow, not more window-cache work
+  - document chat -> RAGFlow/Kotaemon, not custom search
+  - lightweight digital PDF fast path -> PyMuPDF4LLM
+  - metadata-rich ingestion -> Unstructured or Docling native chunks
+
+### 2026-04-12: Recommended refactor shape
+- Rename the strategic role of this repository:
+  - from "Docling batch processor"
+  - to "embedded manual tool evaluation + thin adapters"
+- Target structure:
+  - `manuals/raw/`: immutable sample PDFs
+  - `manuals/evaluations/`: A/B outputs and scorecards
+  - `adapters/docling/`: minimal Docling runner, if still needed
+  - `adapters/marker/`: Marker runner/normalizer, if adopted
+  - `adapters/mineru/`: MinerU runner/normalizer, if adopted
+  - `criteria/`: embedded-manual acceptance tests/questions
+  - `docs/architecture/`: decisions and evidence
+- Existing `docling_batch` should become either:
+  - frozen baseline for comparison, or
+  - a thin Docling adapter with most heuristics removed after external tools prove better coverage.
+
+### 2026-04-12: Recommended next action
+- Do not refactor runtime code yet.
+- First create an A/B evaluation plan with fixed samples and questions.
+- Run candidates:
+  - Docling raw CLI/API
+  - current `docling_batch` baseline
+  - Marker
+  - MinerU
+  - RAGFlow with Docling/MinerU parsing
+  - optional Unstructured/PyMuPDF4LLM
+- Decide replacement based on evidence, not architecture preference.
+- Success criterion: remove or freeze more code than we add.
+
+## Output Schema Reality Check
+### 2026-04-13: Current code is mostly Docling API, not only Docling API
+- Current code uses Docling/docling-core native APIs for the core document path:
+  - `DocumentConverter`
+  - `PdfFormatOption`
+  - `ThreadedStandardPdfPipeline`
+  - `ThreadedPdfPipelineOptions`
+  - `HybridChunker`
+  - `HuggingFaceTokenizer`
+  - `DoclingDocument`
+  - `TableItem`
+  - `DoclingDocument.save_as_json`
+  - `DoclingDocument.save_as_html`
+  - `DoclingDocument.save_as_markdown`
+  - `DoclingDocument.iterate_items`
+  - `TableItem.export_to_dataframe`
+  - `TableItem.export_to_html`
+  - `TableItem.export_to_markdown`
+  - `DocumentConverter.convert_all(..., page_range=...)`
+- Current code is not "all native Docling":
+  - PDF page counting uses `pypdfium2` directly.
+  - CLI, path layout, manifest, run summaries, cache metadata, SHA-256, JSONL writing are custom.
+  - table sidecar injection into Markdown is custom.
+  - caption recovery is custom heuristic.
+  - `alerts.json` detection is custom heuristic.
+  - chunk/section JSONL schema and table-overlap attachment are custom.
+  - image filtering heuristic is custom.
+  - `_windows/` cache and resume behavior are custom.
+- Therefore the correct statement is:
+  - "The parser/export/chunker core is mostly Docling native APIs."
+  - "The productized output bundle around it is custom."
+
+### 2026-04-13: `manuals/processed/<doc_id>` is not proven optimal
+- Current structure:
+  - `manuals/processed/<doc_id>/document.json`
+  - `manuals/processed/<doc_id>/document.md`
+  - `manuals/processed/<doc_id>/document.html`
+  - `manuals/processed/<doc_id>/manifest.json`
+  - `manuals/processed/<doc_id>/chunks.jsonl`
+  - `manuals/processed/<doc_id>/sections.jsonl`
+  - `manuals/processed/<doc_id>/tables/`
+  - `manuals/processed/<doc_id>/artifacts/`
+  - `manuals/processed/<doc_id>/alerts.json`
+- This structure was a reasonable Docling-specific bundle for one baseline.
+- It should not be treated as the universal output contract for Marker, MinerU, RAGFlow, Unstructured, or PyMuPDF4LLM.
+- Forcing every tool into this shape would risk:
+  - losing tool-specific metadata
+  - hiding better native output formats
+  - building another normalization layer too early
+  - biasing the A/B comparison toward the existing Docling baseline
+- The current structure is useful as:
+  - one baseline artifact layout
+  - one candidate normalized view
+  - a source of acceptance criteria
+- It is not yet proven to be the best cross-tool schema.
+
+### 2026-04-13: Better multi-tool output strategy
+- Keep raw tool outputs isolated by tool and run.
+- Add only a minimal normalized evidence layer for comparison.
+- Suggested direction:
+  - `manuals/raw/<vendor>/<chip>/<manual>.pdf`
+  - `manuals/evaluations/<run_id>/<tool>/<doc_id>/raw/`
+  - `manuals/evaluations/<run_id>/<tool>/<doc_id>/normalized/evidence.jsonl`
+  - `manuals/evaluations/<run_id>/<tool>/<doc_id>/normalized/manifest.json`
+  - `manuals/evaluations/<run_id>/<tool>/<doc_id>/scorecard.md`
+- The normalized layer should be intentionally small:
+  - `doc_id`
+  - `tool`
+  - `source_pdf_path`
+  - `source_pdf_sha256`
+  - `page_start`
+  - `page_end`
+  - `text`
+  - `heading_path`
+  - `evidence_type` such as text/table/image/alert
+  - `native_ref` pointing back to raw tool output
+  - optional `table_ref` / `image_ref`
+- Do not normalize everything up front.
+- Normalize only what is needed to compare tools on real embedded-manual questions.
+
+### 2026-04-13: How to determine "optimal"
+- We cannot determine optimal from architecture alone.
+- The current directory shape was derived from our hypothesis:
+  - AI/human needs full reading text, chunks, sections, tables, alerts, and source provenance.
+- That hypothesis is plausible, but not proven best.
+- The decision should be evidence-based:
+  - run each candidate tool on fixed manuals
+  - ask fixed embedded questions
+  - score page citation accuracy
+  - score table value recoverability
+  - score image/timing-diagram traceability
+  - score parser-risk visibility
+  - score runtime, disk cost, setup cost, and maintenance complexity
+- A schema is "better" only if it improves those scores or reduces code while preserving scores.
+
+## Evaluation Framework Design Notes
+### 2026-04-13: Docling native baseline should use more first-party capabilities
+- Current Docling CLI/docs support:
+  - converting files, multiple documents, directories, and URLs
+  - output formats including json, yaml, html, html_split_page, markdown, text, doctags, and vtt
+  - image export modes placeholder/embedded/referenced
+  - standard and VLM pipelines
+  - OCR enable/disable and multiple OCR engines
+  - table extraction enable/disable and table modes
+  - enrichment for formula/code/picture description/chart extraction
+  - performance options such as device, page batch size, document timeout, profiling
+  - debug visualization for OCR/layout/table/cell outputs
+  - model download for offline model artifacts
+- Current custom `docling_batch` should not remain the only Docling baseline.
+- Better Docling baseline variants:
+  - `docling-cli-standard`: use `docling convert` with `--to json --to markdown --to html --image-export-mode referenced --no-ocr --device cuda`
+  - `docling-cli-debug`: same but with debug/profiling options for hard pages
+  - `docling-api-native`: minimal Python runner around `DocumentConverter.convert_all` and native exports, without table injection/caption heuristics/window cache
+  - `docling-current-bundle`: existing `docling_batch` frozen as historical baseline
+
+### 2026-04-13: Existing software combination points
+- Docling can be used directly via CLI/API for raw conversion baseline.
+- Docling can be used through Kotaemon as `DoclingReader` for document-chat UI evaluation.
+- Docling can be used as a plugin in Open WebUI for local chat UI evaluation.
+- RAGFlow now supports MinerU and Docling as document parsing methods and provides chunk visualization, citations, multi-recall, re-ranking, UI/API.
+- This means the framework should separate:
+  - conversion baseline evaluation
+  - document-chat/RAG software evaluation
+  - cross-tool evidence normalization
+
+### 2026-04-13: Proposed framework boundary
+- Do not design a new universal processed-manual format yet.
+- Store every tool's raw/native output intact.
+- Normalize only a small evidence layer for comparison and AI consumption.
+- Keep current `manuals/processed/<doc_id>` only as legacy/current Docling bundle.
+- New outputs should live under:
+  - `manuals/evaluations/<run_id>/<tool>/<doc_id>/raw/`
+  - `manuals/evaluations/<run_id>/<tool>/<doc_id>/normalized/evidence.jsonl`
+  - `manuals/evaluations/<run_id>/<tool>/<doc_id>/normalized/manifest.json`
+  - `manuals/evaluations/<run_id>/<tool>/<doc_id>/scorecard.md`
+
+### 2026-04-13: First implementation should be design-first
+- Because this changes project architecture, do not implement runtime code until user approves a design.
+- Recommended first spec:
+  - create A/B evaluation framework skeleton
+  - include Docling native CLI/API baseline definitions
+  - include current `docling_batch` as frozen baseline
+  - include placeholders for Marker/MinerU/RAGFlow/Kotaemon/Open WebUI
+  - define evidence schema and scorecard criteria
+- Implementation should avoid installing heavy tools in this phase.
+
 ## Historical Notes Worth Keeping
 - 早期 `uv` 方案留下的共享 base 路径和半成品环境已经作废；当前唯一权威共享 base 是 `/home/qcgg/.mamba/envs/ai-base-cu124-stable`。
 - 早期沙箱 `fetch` 网络问题已被诊断并改善到“日常可用”状态，但它已经不是当前主线阻塞项。
