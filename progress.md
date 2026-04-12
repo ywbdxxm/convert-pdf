@@ -289,6 +289,14 @@
   - `ocr_batch_size = 4`
   - `table_batch_size = 4`
 - 这样当前主线已经不只是“开 CUDA”，而是开始利用官方推荐的 threaded standard pipeline 做吞吐优化
+
+### 2026-04-12: Progress Visibility And Tokenizer Warning Improved
+- 已新增窗口级进度输出：
+  - 真实样本运行时会输出类似 `[esp32-s3-datasheet-en] window 1/1 pages 1-87`
+- 已对 HuggingFace tokenizer 的 `model_max_length` 做运行时放宽
+- 重新跑 ESP32-S3 样本后确认：
+  - 进度日志正常出现
+  - 先前的 `Token indices sequence length ...` warning 已消失
 - 新发现：
   - `Submit Documentation Feedback` 这一类内容当前仍会出现在 `document.md`
   - 但它是文本/链接噪声，不是图片过滤失效

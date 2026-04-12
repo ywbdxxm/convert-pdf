@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from docling.datamodel.base_models import ConversionStatus
 
@@ -8,7 +9,9 @@ from docling_batch.converter import (
     aggregate_conversion_statuses,
     compute_page_windows,
     discover_pdf_paths,
+    format_window_progress,
     make_doc_id,
+    relax_hf_tokenizer_limit,
     select_page_windows,
 )
 
@@ -63,3 +66,24 @@ class WorkflowHelpersTests(unittest.TestCase):
             ]
         )
         self.assertEqual(status, ConversionStatus.PARTIAL_SUCCESS)
+
+    def test_format_window_progress_is_stable_and_human_readable(self):
+        message = format_window_progress(
+            doc_id="esp32-s3-datasheet-en",
+            window_index=2,
+            window_count=5,
+            page_start=251,
+            page_end=500,
+        )
+
+        self.assertEqual(
+            message,
+            "[esp32-s3-datasheet-en] window 2/5 pages 251-500",
+        )
+
+    def test_relax_hf_tokenizer_limit_raises_model_max_length(self):
+        tokenizer = SimpleNamespace(tokenizer=SimpleNamespace(model_max_length=512))
+
+        updated = relax_hf_tokenizer_limit(tokenizer, max_tokens=384)
+
+        self.assertGreaterEqual(updated.tokenizer.model_max_length, 32768)

@@ -323,6 +323,16 @@
   - `RapidOCR(backend="torch")` 在 OCR 路径上的 GPU 加速
   - `ThreadedStandardPdfPipeline` 在标准 PDF 解析主线上的吞吐优化
 
+## Current Large-PDF Usability Improvements
+- 当前已经新增窗口级进度输出：
+  - 例如 `[esp32-s3-datasheet-en] window 1/1 pages 1-87`
+- 这让后续处理超大 PDF 时，不再像之前那样“长时间无输出”。
+- 另外，当前已对 HuggingFace tokenizer 的 `model_max_length` 做了运行时放宽：
+  - 目的是避免在 Docling native chunking 的计数/切分过程中产生误导性的长度 warning
+- 在 ESP32-S3 真实样本上，本轮验证后：
+  - 进度输出已正常出现
+  - 之前的 `Token indices sequence length ...` warning 已不再出现
+
 ## What gpu_vlm_pipeline Is For
 - 官方 `gpu_vlm_pipeline` 示例并不是“把当前标准流水线换成更快版本”那么简单。
 - 它做的是：

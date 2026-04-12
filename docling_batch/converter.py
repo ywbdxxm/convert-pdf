@@ -60,6 +60,16 @@ def compute_page_windows(total_pages: int, page_window_size: int | None) -> list
     return windows
 
 
+def format_window_progress(
+    doc_id: str,
+    window_index: int,
+    window_count: int,
+    page_start: int,
+    page_end: int,
+) -> str:
+    return f"[{doc_id}] window {window_index}/{window_count} pages {page_start}-{page_end}"
+
+
 def select_page_windows(
     total_pages: int,
     page_window_size: int | None,
@@ -90,6 +100,14 @@ def get_pdf_page_count(source_path: Path) -> int:
         close = getattr(pdf, "close", None)
         if callable(close):
             close()
+
+
+def relax_hf_tokenizer_limit(tokenizer, max_tokens: int | None):
+    inner = getattr(tokenizer, "tokenizer", None)
+    current_limit = getattr(inner, "model_max_length", None)
+    if inner is not None and current_limit is not None and max_tokens:
+        inner.model_max_length = max(int(current_limit), max_tokens * 8, 32768)
+    return tokenizer
 
 
 def sha256_file(path: Path) -> str:
@@ -138,6 +156,7 @@ def build_chunker(config: RuntimeConfig) -> HybridChunker:
         model_name=config.tokenizer,
         max_tokens=config.max_chunk_tokens,
     )
+    tokenizer = relax_hf_tokenizer_limit(tokenizer, max_tokens=config.max_chunk_tokens)
     return HybridChunker(tokenizer=tokenizer)
 
 
@@ -169,7 +188,19 @@ def convert_pdf_in_windows(
         page_window_min_pages=page_window_min_pages,
     )
     results = []
-    for page_start, page_end in windows:
+    doc_id = make_doc_id(source_path)
+    window_count = len(windows)
+    for window_index, (page_start, page_end) in enumerate(windows, start=1):
+        print(
+            format_window_progress(
+                doc_id=doc_id,
+                window_index=window_index,
+                window_count=window_count,
+                page_start=page_start,
+                page_end=page_end,
+            ),
+            flush=True,
+        )
         results.extend(
             converter.convert_all(
                 [source_path],
