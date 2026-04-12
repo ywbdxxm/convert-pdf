@@ -9,6 +9,8 @@
 - `OpenDataLoader + LangChain` and `Docling + LlamaIndex/LangChain` are kept only as metadata spot-checks.
 - All other parser/UI/RAG tools are deferred.
 - Added a dedicated architecture note for `docling_batch` future optimization boundaries.
+- OpenDataLoader output handling is now clarified as `raw native output + thin overlay`, not full forced alignment to the current `manuals/processed` schema.
+- Added a dedicated architecture note clarifying which `manuals/processed` artifacts are native Docling outputs and which are custom packaging.
 
 ## Next Action
 

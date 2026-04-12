@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
 
 ## Current Phase
-Docling Batch OpenDataLoader Scope Correction
+Docling Output Architecture Assessment
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -185,6 +185,18 @@ Docling Batch OpenDataLoader Scope Correction
 - [x] 记录 `docling_batch` 相对 Docling 原生输出的额外包装层
 - [x] 记录允许解冻后可做的薄优化方向
 - [x] 记录禁止继续做的方向，防止再次回到 NIH / 自研 RAG 路线
+- **Status:** complete
+
+### Phase 29: OpenDataLoader Output Handling Decision
+- [x] 说明 OpenDataLoader raw 输出不应被强行捏成当前 `manuals/processed/<doc_id>` 同构结构
+- [x] 保留当前 `manuals/processed` 中真正有价值的 agent-friendly 设计思想
+- [x] 给出 OpenDataLoader 更合适的 raw + thin overlay 输出策略
+- **Status:** complete
+
+### Phase 30: Docling Output Architecture Assessment
+- [x] 判断当前 `manuals/processed/<doc_id>` 对 Docling 是否算最优
+- [x] 区分哪些产物来自 Docling 原生导出，哪些来自我们自己的包装和 heuristic
+- [x] 给出更干净的 Docling raw/overlay 分层建议
 - **Status:** complete
 
 ## Key Questions

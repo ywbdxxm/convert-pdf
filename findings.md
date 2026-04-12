@@ -64,6 +64,58 @@ Not acceptable:
 
 The original PDF remains final authority for engineering conclusions.
 
+## OpenDataLoader Output Handling
+
+The current `manuals/processed/<doc_id>` layout is not a universal best practice.
+
+It is better understood as:
+
+- a good `docling_batch`-specific bundle
+- a useful example of agent-friendly affordances
+- not a schema every parser should be forced into immediately
+
+What is worth preserving from the current layout:
+
+- one obvious directory per document
+- both human-readable and machine-readable outputs
+- clear provenance
+- explicit table/image sidecars
+- explicit quality/risk signaling
+
+What should not be treated as universal:
+
+- our exact `manifest.json` shape
+- our exact `chunks.jsonl` / `sections.jsonl` schema
+- our exact `alerts.json` semantics
+- our exact table-link injection strategy
+- our exact `_windows/` cache layout
+
+For OpenDataLoader, the better rule is:
+
+1. keep raw OpenDataLoader outputs intact
+2. add only a thin agent-friendly overlay when needed
+3. do not normalize away useful native metadata too early
+
+Recommended output handling for OpenDataLoader:
+
+- `raw/`
+  - untouched OpenDataLoader JSON / Markdown / HTML / assets
+- `overlay/`
+  - small, optional, agent-friendly files derived from raw outputs
+
+The overlay should stay minimal:
+
+- `README.generated.md` or `index.json` for entrypoint
+- optional `pages/` page-level slices
+- optional `quality-summary.md`
+- optional normalized links to important raw files
+
+This means:
+
+- OpenDataLoader should not be forced to fully match the current `manuals/processed` architecture up front
+- parts of the current architecture remain useful as design inspiration
+- the likely best practice is `raw native output + thin overlay`, not a full schema rewrite
+
 ## Deferred
 
 - OpenDataLoader + LlamaIndex
