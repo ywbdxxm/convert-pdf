@@ -1079,6 +1079,21 @@
   - 同一份 PDF 只要解析参数变了，旧窗口缓存就会失效
   - `manifest.json` 里现在也会记录 `conversion_signature`
 
+### 2026-04-12: document.html Landed
+- 当前每份文档除了：
+  - `document.json`
+  - `document.md`
+- 还会额外导出：
+  - `document.html`
+- 这一层的定位不是给检索用，而是给人工核对用：
+  - 宽表
+  - 图片
+  - 页面阅读流
+- 当前实现保持保守：
+  - 直接导出 Docling 原生 HTML
+  - 不额外改写 HTML 内容
+  - `manifest.json` 中记录 `document_html` 路径
+
 ## Active Open Questions
 - 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
 - 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？

@@ -411,6 +411,7 @@ def export_document_bundle(
         "errors": all_errors,
         "document_json": str(paths.document_json),
         "document_markdown": str(paths.document_markdown),
+        "document_html": str(paths.document_html),
         "sections_index": str(paths.sections),
         "chunks_index": str(paths.chunks),
         "tables_dir": str(paths.tables_dir),
@@ -423,6 +424,11 @@ def export_document_bundle(
     artifacts_dir = resolve_artifacts_dir(paths.document_markdown)
 
     combined_doc.save_as_json(paths.document_json, artifacts_dir=artifacts_dir)
+    combined_doc.save_as_html(
+        paths.document_html,
+        artifacts_dir=artifacts_dir,
+        image_mode=ImageRefMode(config.image_mode),
+    )
     combined_doc.save_as_markdown(
         paths.document_markdown,
         artifacts_dir=artifacts_dir,

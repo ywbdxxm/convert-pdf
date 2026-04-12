@@ -74,7 +74,7 @@ Docling Batch Program Incremental Hardening
 
 ### Phase 11: Incremental Hardening
 - [x] 为窗口缓存补 conversion signature
-- [ ] 为阅读层增加 `document.html`
+- [x] 为阅读层增加 `document.html`
 - [ ] 增加疑似“表格退化成图片”告警
 - [ ] 用 `ESP32-S3` 和 `STM32H743VI` 样本验证
 - **Status:** in_progress

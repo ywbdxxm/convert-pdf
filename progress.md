@@ -404,3 +404,4 @@
 2026-04-12 已完成真实样本验证：ESP32-S3 文档表格 sidecar 已注入 document.md，_windows 缓存落盘，第二次复跑命中缓存；全量 28 项测试通过。
 2026-04-12 已完成架构缺口复盘：重新对照 Docling 官方 chunking / batch / table / figure / visual grounding / OCR 文档，确认主线不变，但需要补 conversion signature cache、page images / visual grounding、figure metadata 和疑难页二级补救。
 2026-04-12 开始实现 conversion signature cache：缓存现在会区分解析参数，避免配置变化时误复用窗口结果。
+2026-04-12 已接入 document.html 导出，并把路径写入 manifest，作为更适合人工核对宽表/图片的阅读副产物。
