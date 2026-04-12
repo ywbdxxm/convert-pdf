@@ -11,6 +11,7 @@ from docling.datamodel.base_models import ConversionStatus, InputFormat
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.types.doc import DoclingDocument
 from docling_core.types.doc.base import ImageRefMode
+from docling_core.types.doc import TableItem
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 import pypdfium2 as pdfium
 from docling.pipeline.threaded_standard_pdf_pipeline import ThreadedStandardPdfPipeline
@@ -20,6 +21,7 @@ from docling_batch.images import filter_markdown_image_refs, picture_keep_flags,
 from docling_batch.indexing import build_chunk_records, build_section_records
 from docling_batch.models import RuntimeConfig
 from docling_batch.paths import build_document_paths
+from docling_batch.tables import export_tables
 
 
 def make_doc_id(path: Path) -> str:
@@ -275,6 +277,7 @@ def export_document_bundle(
         "document_markdown": str(paths.document_markdown),
         "sections_index": str(paths.sections),
         "chunks_index": str(paths.chunks),
+        "tables_dir": str(paths.tables_dir),
     }
 
     if aggregate_status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} or combined_doc is None:
@@ -305,6 +308,10 @@ def export_document_bundle(
         contextualize=chunker.contextualize,
     )
     section_records = build_section_records(doc_id=doc_id, chunk_records=chunk_records)
+    tables = [item for item, _level in combined_doc.iterate_items() if isinstance(item, TableItem)]
+    table_records = export_tables(doc_id=doc_id, tables=tables, tables_dir=paths.tables_dir, doc=combined_doc)
+    manifest["table_count"] = len(table_records)
+    manifest["tables"] = table_records
 
     write_jsonl(paths.chunks, chunk_records)
     write_jsonl(paths.sections, section_records)

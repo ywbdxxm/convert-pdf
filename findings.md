@@ -282,6 +282,139 @@
   - 合并后的 `DoclingDocument JSON`
 - Markdown、sections、chunks 都是从这个 canonical source 派生出来的。
 
+## ESP32-S3 Accuracy Audit
+- 我对 `manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf` 和当前产物做了针对性对照，抽查了：
+  - 第 1 页：封面信息
+  - 第 2 页：图文混排页
+  - 第 27 页：大表格页
+  - 第 64 页：典型正文 + 表格 + 页脚噪声页
+- 当前结论：
+  - **标题与正文连续文本：整体表现良好**
+  - **图像保留：当前方向正确，阅读副本价值明显提升**
+  - **大表格页：仍明显不理想**
+  - **页脚文本噪声：阅读层仍存在，但检索层已做过滤**
+
+### 1. 标题与正文
+- 第 1 页和第 2 页对照结果显示：
+  - 标题层级基本正确
+  - 正文主叙述基本保住
+  - 产品概述、功能描述等连续文本已足够用于后续查阅
+- 对后续嵌入式开发，这一层已经可用。
+
+### 2. 图像
+- 第 2 页功能框图在 `document.md` 中已被保留，方向正确。
+- 这比之前只留 `<!-- image -->` 占位符明显更适合后续查阅。
+- 图像路径现在也已修正为相对 `artifacts/`，这点已经工程上闭环。
+
+### 3. 大表格页
+- 第 27 页 `Table 2-9. Peripheral Pin Assignment` 目前仍然偏弱：
+  - 原 PDF 是一个大型矩阵表
+  - 当前 `document.md` 中更多表现为图片 + 很短的尾注文本
+  - 这不够支持后续直接从 Markdown 里精确读 pin matrix
+- 这说明当前对“非常复杂的宽表/矩阵表”，Docling 这条默认主线仍有局限。
+- 对这类页面，后续最值得补的是：
+  - 表格 sidecar 导出
+  - 或对宽表做更专门的保留/对照策略
+
+### 4. 页脚噪声
+- 第 64 页对照结果显示：
+  - `document.md` 中仍保留 `Submit Documentation Feedback`
+  - 这与原 PDF 页脚一致
+- 当前这不是 bug，而是当前“阅读层尽量完整”的设计结果。
+- 同时，检索层已经对这类噪声做了过滤：
+  - `chunks.jsonl` / `sections.jsonl` 中不再保留它
+- 这说明我们当前已经实现：
+  - 阅读层偏完整
+  - 检索层偏干净
+
+## Current Docling Assessment
+- 如果问题是“当前 Docling 对这类 ESP32 datasheet 到底怎么样”，我的结论是：
+  - **做主线基础方案是合格的**
+  - 尤其在：
+    - 标题
+    - 连续正文
+    - 页码 grounding
+    - 图像保留
+    - canonical JSON
+  - 上表现已经足够支撑后续查阅型工作流
+- 但它当前仍然不是“所有页面都高保真”：
+  - 最大短板仍在宽表/复杂矩阵表
+  - 以及阅读层里的页脚 boilerplate
+
+## Highest-Value Next Optimizations
+- 基于这次真实对照，后续最值得做的优化顺序是：
+  1. 大表格 / 宽矩阵表的 sidecar 保留策略
+  2. 超大 PDF 性能量化与窗口策略优化
+  3. 如有必要，再评估是否引入第二条高保真补充管线（如 Marker / MinerU）专门处理复杂表格页面
+
+## Table Optimization Strategies
+- 针对宽表/矩阵表，最合理的优化不是只盯着 `document.md` 本身，而是做“多层表格保留”。
+- 当前最可行的策略分为 4 层：
+
+### 1. Markdown inline table
+- 适用于：
+  - 行列不多
+  - 宽度适中
+  - 单页内可读
+- 优点：
+  - 直接可读
+  - 对检索友好
+- 缺点：
+  - 对 pin matrix、AF table、宽时序表通常不够稳
+
+### 2. Table sidecar as HTML / CSV
+- 这是当前最值得优先补的策略。
+- 官方 `export_tables` 示例明确支持：
+  - `table.export_to_dataframe(...)`
+  - 导出 CSV / HTML
+- 对我们项目，建议是：
+  - 每张检测到的表都导出 sidecar：
+    - `tables/<table_id>.html`
+    - `tables/<table_id>.csv`
+  - `document.md` 中保留表格出现位置和对 sidecar 的引用
+- 这样即使 Markdown 本体不够理想，表格也还有独立、高可读的保底版本。
+
+### 3. Table image sidecar
+- 对非常宽、非常复杂、排版依赖强的表，可以进一步保留：
+  - 表格截图
+  - 或表格区域图片
+- 这对 pin matrix / AF matrix / 信号映射表很有价值。
+- 因为这类表哪怕 CSV/HTML 导出来了，也可能仍然缺少某些视觉结构感。
+
+### 4. Structured table extraction later
+- 更后续的阶段，可以针对高价值表做结构化抽取：
+  - pin assignment schema
+  - AF table schema
+  - register bitfield schema
+  - timing parameter schema
+- 但这已经不是当前第一阶段主线，应该建立在前 3 层稳定之后。
+
+## Recommended Table Best Practice
+- 对当前项目，我建议最终采用：
+  - Markdown 中保留表格位置和简要可读内容
+  - 同时导出 HTML/CSV sidecar
+  - 对特别宽的表，再保留图片 sidecar
+- 这样后续我做嵌入式开发时的工作流会是：
+  - 先从 `chunks.jsonl` 定位到表所在 section/page
+  - 再看 `document.md` 获取上下文
+  - 如需精确读表，优先打开 table sidecar
+  - 最后必要时回原始 PDF
+
+## Current Table Sidecar Result
+- 当前这条策略已经实际落地：
+  - 每张 Docling 识别到的表都会导出：
+    - `tables/table_XXXX.csv`
+    - `tables/table_XXXX.html`
+  - `manifest.json` 中会记录：
+    - `table_count`
+    - 每张表的 `table_id`
+    - 页码范围
+    - `csv_path`
+    - `html_path`
+- 在 ESP32-S3 当前样本上：
+  - 已实际导出 `71` 张表的 sidecar
+  - 这明显提升了“宽表/矩阵表可精读性”的保底能力
+
 ## What Docling Features We Are Using Right Now
 - 当前代码里实际用到的 Docling 核心能力包括：
   - `DocumentConverter`
@@ -372,6 +505,12 @@
   - 使用官方登录流程写入了用户级 token 缓存
   - `whoami` 已返回当前账号
   - 单独加载 `sentence-transformers/all-MiniLM-L6-v2` tokenizer 时已不再出现匿名访问提示
+- 这意味着当前认证已经是：
+  - **WSL 当前用户级全局认证**
+  - 而不是某个单独 venv 私有认证
+- 关键凭据位置是：
+  - `~/.cache/huggingface/token`
+  - `~/.cache/huggingface/stored_tokens`
 
 ## What gpu_vlm_pipeline Is For
 - 官方 `gpu_vlm_pipeline` 示例并不是“把当前标准流水线换成更快版本”那么简单。

@@ -10,6 +10,7 @@ class DocumentPaths:
     manifest: Path
     sections: Path
     chunks: Path
+    tables_dir: Path
 
 
 def build_document_paths(output_root: Path, doc_id: str) -> DocumentPaths:
@@ -21,5 +22,5 @@ def build_document_paths(output_root: Path, doc_id: str) -> DocumentPaths:
         manifest=doc_dir / "manifest.json",
         sections=doc_dir / "sections.jsonl",
         chunks=doc_dir / "chunks.jsonl",
+        tables_dir=doc_dir / "tables",
     )
-

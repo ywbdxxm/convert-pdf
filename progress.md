@@ -312,9 +312,47 @@
   - `whoami` 返回当前账号
   - 单独加载 Hugging Face tokenizer 成功
   - 当前 Docling 使用链不再需要匿名访问 Hugging Face Hub
+- 已进一步确认：
+  - token 已写入 `~/.cache/huggingface/`
+  - 当前认证是 WSL 用户级全局可复用，不局限于 `docling/.venv`
 - 新发现：
   - `Submit Documentation Feedback` 这一类内容当前仍会出现在 `document.md`
   - 但它是文本/链接噪声，不是图片过滤失效
+
+### 2026-04-12: ESP32-S3 Quality Audit Completed
+- 已对当前 ESP32-S3 样本产物与原始 PDF 做针对性对照
+- 抽查页：
+  - 第 1 页（封面）
+  - 第 2 页（图文混排）
+  - 第 27 页（宽表）
+  - 第 64 页（正文 + 表格 + 页脚噪声）
+- 当前审计结论：
+  - 标题和连续正文表现良好
+  - 图像保留方向正确
+  - 宽表/矩阵表仍然是当前主线短板
+  - 阅读层页脚噪声仍在，但检索层已清理
+
+### 2026-04-12: Table Optimization Strategy Summarized
+- 已把“怎么优化表格”的分层策略写回 findings
+- 当前统一方向：
+  - `document.md` 不是唯一表格承载层
+  - 对宽表/矩阵表应增加 HTML/CSV sidecar
+  - 必要时再保留表格图片 sidecar
+  - 结构化表格抽取留到更后续阶段
+
+### 2026-04-12: Table Sidecars Landed
+- 已新增表格 sidecar 导出：
+  - `tables/table_XXXX.csv`
+  - `tables/table_XXXX.html`
+- `manifest.json` 中已写入：
+  - `table_count`
+  - 各表 `table_id`
+  - 页码范围
+  - sidecar 路径
+- 重新跑 ESP32-S3 样本验证：
+  - 当前共导出 `71` 张表
+  - 真实 sidecar 文件已落盘
+  - 先前表格导出 deprecated warning 已修复
 
 ## Verification Summary
 | Area | Result | Status |
