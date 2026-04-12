@@ -39,6 +39,7 @@ outputs/
 tmp/
 temp/
 artifacts/
+*.pdf
 
 # Large or local-only PDF samples
 samples/private/

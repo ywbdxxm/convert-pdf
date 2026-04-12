@@ -1,556 +1,368 @@
 # Findings & Decisions
 
-## Requirements
-- 用户要为当前 PDF 处理项目调研“PDF 转 Markdown 供大模型查阅”的可用工具。
-- 需要关注“当前可用”“最好用”的工具，而不是历史方案。
-- 需要给出带场景区分的推荐，而不是单一答案。
-- 需要把研究过程和结论记录到仓库，并后续用 git 管理。
+## Current Focus
+- 当前主线已经从环境建设切到 `Docling Batch Program Design`。
+- 现在的问题不再是“这台机器能不能跑 `Docling`”，而是“如何把多份嵌入式手册批量转成适合 AI 检索、引用和工程开发的资产”。
 
-## Research Findings
-- `Marker`（`datalab-to/marker`）是目前非常活跃的开源方案，官方定位是将文档快速准确地转为 Markdown、JSON、chunks 和 HTML，强调表格、公式、代码块、图片提取，以及可选 LLM 增强模式。
-- `Docling` 官方站点明确支持 `DocumentConverter().convert(...).document.export_to_markdown()`，并把 Markdown 导出作为面向 AI/RAG ingestion 的一等能力。
-- `MinerU` 官方仓库定位是 “LLM-ready markdown/JSON”，重点强调复杂版面、公式转 LaTeX、表格转 HTML、109 语言 OCR、扫描件支持和多种部署方式。
-- `PyMuPDF4LLM` 是轻量级路线，官方文档强调 Markdown/JSON/TXT 输出、版面分析、多栏支持、自动 OCR，以及 LlamaIndex/LangChain 集成。
-- 初步判断：开源本地方案里，`Marker`/`Docling`/`MinerU` 更适合高保真解析；`PyMuPDF4LLM` 更适合追求轻量、低依赖和快速接入。
-- `Mathpix` 是偏商业/科研文档路线的强项，官方明确把 PDF→Markdown 作为核心能力，突出数学公式、双栏论文、复杂表格与 STEM 文档。
-- `Mistral OCR` 官方文档说明其 OCR 结果以结构化内容返回，页级结果直接带 `markdown` 字段，并支持把表格输出为 `markdown` 或 `html`。
-- `Azure Document Intelligence` 的 Layout API 官方支持 `outputContentFormat=markdown`，可输出段落、标题、表格、图片、选择标记、公式、条码等语义化 Markdown 元素。
-- `LlamaParse` 官方文档明确支持 `result_type="markdown"`，且定位就是为检索和上下文增强解析文件，工程接入 RAG 较顺手。
-- 初步判断：云 API 路线里，`Mathpix` 偏学术/STEM，`Mistral OCR` 偏通用 OCR+Markdown，`Azure Document Intelligence` 偏企业级文档处理，`LlamaParse` 偏 LlamaIndex/RAG 工作流集成。
-
-## Candidate Snapshot
-| Tool | Type | Officially highlighted strengths | Main caveat | Best fit |
-|------|------|----------------------------------|-------------|----------|
-| Marker | Open-source local / API | Markdown/JSON/chunks/HTML；表格、公式、图片、去页眉页脚；可加 `--use_llm` 提升准确率 | GPL 代码 + 模型许可限制，栈较重 | 追求高保真通用解析 |
-| Docling | Open-source local | Markdown/HTML/JSON；阅读顺序、表格、公式、OCR、chunking、RAG integrations、本地执行 | 对“极致精度”没有像 Marker 那样公开强调 benchmark | 默认工程集成首选 |
-| MinerU | Open-source local / offline | 复杂布局、跨页表格、公式转 LaTeX、109 语言 OCR、扫描件/手写、多种 SDK/CLI/REST | AGPL-3.0；复杂度和部署重量更高 | 扫描件、多语言、复杂学术/中文文档 |
-| PyMuPDF4LLM | Open-source local | `to_markdown()` 直接导出、自动/强制 OCR、语言包可配、LlamaIndex/LangChain 集成 | 对复杂表格/公式的高保真能力不如前三者完整 | 轻量基线和快速 PoC |
-| Mathpix | Commercial / API / on-prem | 科研论文、双栏、公式、含公式表格、Markdown 导出 | 商业付费路线 | 学术/STEM 文档最佳 |
-| Mistral OCR | Commercial API | 页级 `markdown` 主输出、多栏/表格、结构化返回、可选表格 Markdown/HTML | 托管 API，需上传文档 | 托管 API 通用方案 |
-| Azure Document Intelligence | Commercial API | `outputContentFormat=markdown`、语义元素丰富、公式 LaTeX、企业文档结构化强 | Markdown 更偏“结构化布局表达”，不一定最自然 | 企业文档/合规/微软生态 |
-| LlamaParse | Commercial API / self-host | 130+ 格式、agentic OCR、Markdown 输出、RAG/LlamaIndex 工作流顺滑 | 更偏平台化服务而非单点 Markdown 工具 | 已使用 LlamaIndex/LlamaCloud 的团队 |
-
-## Preliminary Recommendation
-- 如果这个仓库要先选一个默认开源方案，我建议先集成 `Docling`。
-- 如果目标是“能打复杂 PDF、追求高精度 Markdown”，优先试 `Marker`，尤其是复杂表格和公式多的文档。
-- 如果样本里扫描件、中文、多语言、跨页表格特别多，再补 `MinerU` 做第二条高保真管线。
-- 如果只想先跑通工程链路和做 baseline，`PyMuPDF4LLM` 最省事。
-- 如果文档以论文/教材/公式为主，商业方案里 `Mathpix` 仍然很强。
-- 如果你更想直接接 API 而不是维护本地模型，`Mistral OCR` 是当前很顺手的 Markdown 输出型 API。
-
-## Embedded Datasheet / App Note Recommendation
-- 对嵌入式工程文档场景，我最推荐的默认方案仍是 `Docling`。
-- 原因不是它在单项 benchmark 上一定绝对第一，而是它更贴合“芯片数据手册/应用手册转 Markdown 给自己和大模型查阅”的工程平衡点：
-  - 原生支持 Markdown 导出，接入路径直接。
-  - 明确强调阅读顺序、表格、公式、OCR、header/footer 处理，这些正是数据手册常见痛点。
-  - 更适合作为仓库里的第一条稳定基线，后续易于再补第二条高保真管线做对比。
-- 对嵌入式 PDF，常见难点不是纯 OCR，而是：
-  - 双栏或复杂阅读顺序；
-  - 大量寄存器表、时序参数表、封装引脚表；
-  - 图表、公式、脚注、页眉页脚干扰；
-  - 部分页是扫描件，或者混有图片化章节。
-- 结合这些特点，场景化建议如下：
-  - `Docling`：默认首选，先做主流程。
-  - `Marker`：当寄存器表、复杂表格、公式、版面保真要求更高时作为增强方案。
-  - `MinerU`：当 PDF 含扫描页、中文资料、多语言 OCR、跨页复杂表格时补充。
-- 一个实际判断标准：
-  - 如果你的 PDF 主要来自 STM32、TI、NXP、ADI、Infineon、Microchip 这类“原生数字版 datasheet/app note”，先上 `Docling`。
-  - 如果样本里有很多“扫描版手册、老旧国产芯片 PDF、图片化资料”，就尽早把 `MinerU` 加进候选。
-  - 如果你特别在意寄存器表格和复杂版面的最终还原效果，就一定要把 `Marker` 拉进 A/B 测试。
-- 对最终 Markdown 质量要有预期：
-  - 没有哪个工具能保证寄存器位域表、引脚复用矩阵、复杂时序图 100% 无需人工修正。
-  - 对大模型查阅来说，优先级通常是“阅读顺序正确 + 表格结构尽量保留 + 公式不丢 + 页眉页脚去掉”，而不是视觉像素级还原。
-
-## Docling Deep Dive
-- `Docling` 的核心形态首先是本地 Python 库和 CLI，不是默认依赖云端的 SaaS API。
-- 官方安装入口是 `pip install docling`；文档说明其可运行在 macOS、Linux、Windows，支持 x86_64 和 arm64。
-- 对 CPU-only Linux，官方给出了带 PyTorch CPU wheel 的安装方式；对离线或内网环境，官方支持预下载模型并用 `DOCLING_ARTIFACTS_PATH` 或 `--artifacts-path` 指定模型目录。
-- 它的核心抽象是 `DocumentConverter -> ConversionResult -> DoclingDocument`：
-  - `DocumentConverter` 负责按输入类型选择 backend 和 pipeline；
-  - `ConversionResult` 是一次转换结果；
-  - `DoclingDocument` 是统一文档表示，可再导出为 Markdown / HTML / JSON / Text / DocTags。
-- 这套架构很适合工程化批处理，因为你不必把“PDF 转 Markdown”写死在第一步，可以保留中间结构，后续再做：
-  - Markdown 导出；
-  - 表格单独抽取；
-  - 图片或页面图导出；
-  - chunking / RAG ingestion。
-- 对 PDF 场景，官方强调的能力包括：
-  - page layout；
-  - reading order；
-  - table structure；
-  - OCR；
-  - code / formulas；
-  - picture classification；
-  - 多种导出格式。
-- 批处理能力是内建的，官方示例直接使用 `doc_converter.convert_all(...)`，并支持 `raises_on_error=False` 让整批任务即使有坏文件也继续跑完，再统一汇总错误。
-- 这点很重要：对批处理 PDF 程序而言，`convert_all` 比你自己在外面手写一个最朴素的 `for` 循环更接近官方推荐路径。
-- OCR 方面，官方支持多种引擎：
-  - EasyOCR；
-  - Tesseract / Tesseract CLI；
-  - OcrMac；
-  - RapidOCR；
-  - OnnxTR。
-- 对扫描件，官方示例支持 `force_full_page_ocr=True`，意思是整页强制走 OCR；这适合扫描版手册，但通常会更慢。
-- GPU 方面，官方说明可通过 `ThreadedPdfPipelineOptions` 调整 batch size；已明确提到当前 OCR 里已知可工作的 GPU 方案是 `RapidOCR` 的 torch backend。
-- 远程服务方面，官方态度很明确：
-  - Docling 的主要目标仍是本地运行，不把用户数据发给外部服务；
-  - 但允许你显式 opt-in 使用 remote services；
-  - 远程模式主要出现在 VLM / enrichment 等场景，而不是普通 PDF->Markdown 主流程的必需条件。
-- 官方文档明确要求：若使用远程服务，必须显式启用 `enable_remote_services=True` 或 CLI 的 `--enable-remote-services`。
-- 这意味着对你的 datasheet 批处理项目，默认路线应是：
-  - 先本地标准 pipeline；
-  - 扫描件再加 OCR；
-  - 只有当你后续确实要接远程 VLM 或云 OCR 时，才打开 remote services。
-- 编程语言选择上，最佳选择是 `Python`：
-  - 官方一等公民接口就是 Python API；
-  - CLI 本质上适合手工调用或 shell 编排，但复杂批处理、错误恢复、日志、输出组织、后处理仍然更适合 Python。
-- 如果你要做“批处理 PDF 的程序”，建议技术路线是：
-  - 主程序语言：Python；
-  - 封装层：CLI 可选，但不作为主实现；
-  - 核心调用：`DocumentConverter` + `convert_all()`；
-  - 输出：至少保留 `md` 和 `json` 两份；
-  - 扫描件策略：按目录或参数切换 OCR / full-page OCR；
-  - 失败处理：记录每个文件状态，允许部分失败后继续。
-- 对嵌入式资料项目，一个比较稳的初始版本应当具备：
-  - 输入目录递归扫描 PDF；
-  - 输出 `.md`；
-  - 可选同时输出 `.json`；
-  - `--ocr` 开关；
-  - `--force-full-page-ocr` 开关；
-  - `--num-threads` / `--device` 参数；
-  - 成功/失败汇总报告。
-
-## PDF Reader MCP Assessment
-- `@sylphx/pdf-reader-mcp` 的定位是一个通用 PDF MCP server，面向 AI agent 做：
-  - text extraction；
-  - image extraction；
-  - metadata extraction；
-  - page count；
-  - 指定页/页范围读取；
-  - 本地文件或 URL 两类来源。
-- 它的优势是“直接给 agent 一个现成 PDF 读取工具”，不用先自己写解析脚本。
-- README 明确强调的当前能力是：
-  - 并行处理，主打 5-10x speedup；
-  - Y-coordinate ordering，尽量保持自然阅读顺序；
-  - 图片提取；
-  - 单工具接口 `read_pdf`。
-- 但从嵌入式手册场景看，它当前不是最强主方案，原因也很明确：
-  - README roadmap 里把 `OCR for scanned PDFs` 列为“Next”，说明扫描件 OCR 还不是其当前成熟核心能力；
-  - `Table detection` 也还在 roadmap，说明对寄存器表、参数表、引脚矩阵这类关键结构，它并不以高保真表格理解见长；
-  - 它更像“通用 PDF 读取器”，而不是面向 datasheet/app note 的结构化抽取器。
-- 因此，对你的场景我会这样定位它：
-  - 适合：按页快速查阅、临时问答、抽取页面文本/图片、验证某页原文。
-  - 不适合单独作为：长期批处理 datasheet -> 高质量 Markdown 的主数据管线。
-- 换句话说：
-  - `pdf-reader-mcp` 会让“我直接读某个 PDF”更方便；
-  - 但它不能替代 `Docling` 这类本地批量转换和结构化导出的主流程；
-  - 对复杂手册，最佳实践是“转换管线 + PDF MCP 兜底查证”。
-- 当前本地 Codex 配置里还没有接入 `pdf-reader-mcp`，所以“现在这个会话”并没有现成的专用 PDF MCP 可直接调用。
-
-## WSL / GPU Environment Facts
-- 当前环境是 `Ubuntu 24.04.4 LTS` on `WSL2`。
-- `nvidia-smi` 在当前 full-access 会话中已正常返回，说明这台机器的 WSL GPU 路径现在是通的：
-  - GPU: `NVIDIA GeForce RTX 4060 Laptop GPU`
-  - Driver: `595.79`
-  - CUDA: `13.2`
-- `/usr/lib/wsl/lib/libcuda.so*` 存在，说明 WSL 用户态 CUDA 桥接库已经由 Windows 驱动暴露给 Linux。
-- 当前 `nvcc` 未安装，因此“能用 GPU”不等于“已安装完整 CUDA toolkit / 编译环境”。
-- 当前 `docker` 已安装；此前“尚未安装 Docker”的状态已在后续系统层实施阶段解决。
-- 当前已安装：
-  - `python3 3.12.3`
-  - `pip`
-  - `uv`
-  - `build-essential`
-  - `cmake`
-  - `git`
-  - `curl`
-  - `wget`
-- 当前未安装：
-  - `nvcc`
-  - 完整 CUDA toolkit
-
-## WSL Environment Implementation Notes
-- 当前系统层已实际完成：
-  - `docker-ce` / `docker-ce-cli` / `containerd.io`
-  - `docker-buildx-plugin`
-  - `docker-compose-plugin`
+## Current State Snapshot
+- 系统环境：
+  - `Ubuntu 24.04.4 LTS` on `WSL2`
+  - GPU: `RTX 4060 Laptop GPU`
+  - `nvidia-smi` 正常
+  - WSL CUDA bridge 存在：`/usr/lib/wsl/lib/libcuda.so*`
+- 系统层已完成：
+  - `docker`
   - `nvidia-container-toolkit`
   - `ninja-build`
-  - `tesseract-ocr`
-  - `tesseract-ocr-eng`
-  - `tesseract-ocr-chi-sim`
-  - `libtesseract-dev`
-  - `libleptonica-dev`
-- Docker daemon 已追加 systemd proxy drop-in，显式继承：
-  - `HTTP_PROXY`
-  - `HTTPS_PROXY`
-  - `NO_PROXY`
-- 这是必要的，因为本机网络环境下，Docker daemon 默认不继承用户 shell 里的代理变量；不配置会导致 `docker pull` 超时。
-- Docker runtime 已配置出 `nvidia` runtime，且 GPU 容器已成功执行 `nvidia-smi`。
-- 当前用户已被加入 `docker` 组，但现有 shell 进程组列表尚未刷新；新开 WSL shell 后会自然生效。
-- 当前没有全局安装完整 CUDA toolkit / `nvcc`，这是有意选择：
-  - 当前目标是运行 `torch/docling` 和 GPU 容器，不是编译 CUDA 程序；
-  - 绝大多数 Python AI 项目使用 wheel/runtime 已足够；
-  - 以后若有自定义 CUDA extension 或编译需求，再补 toolkit 更稳。
-
-## UV / Torch Install Bottleneck Notes
-- `uv` 当然可以换源；当前这次安装实际上已经不是默认源，而是显式使用了 PyTorch 的 CUDA wheel index：
-  - `https://download.pytorch.org/whl/cu128`
-- 这说明当前瓶颈不是“不会换源”，而是：
-  - CUDA 版 `torch` 本身依赖非常大；
-  - PyTorch CUDA wheels 不一定被常见 PyPI 镜像完整镜像；
-  - 即使换源，也只有在该镜像真实同步了 `cu128` wheels 的前提下才会明显变快。
-- `uv` 侧可用的切换方式包括：
-  - 命令行 `--index` / `--default-index`
-  - 环境变量 `UV_INDEX` / `UV_DEFAULT_INDEX`
-  - `pyproject.toml` 中的 `[[tool.uv.index]]`
-- 从当前项目目标看，更合理的策略不是继续死磕本地 CUDA 版 `torch`，而是：
-  - 为当前项目建立 GPU 项目环境可以继续完成；
-  - 但从长期维护看，后续需要额外设计一个共享 `AI base` 环境；
-  - 这样每个项目只装增量依赖，而不是重复下载完整 CUDA Python 运行库。
-- 当前用户已明确选择：
-  - 这次继续等当前 GPU 项目环境装完；
-  - 但后续必须补 `AI base` 分层方案，避免每个项目都重复经历同样的超长安装。
-- 实测中，这条安装链还有一个稳定性问题：
-  - 并不只是“慢”，而且依赖 `pypi.nvidia.com` 上多个超大 wheel；
-  - 当网络抖动或 TLS 握手失败时，整个安装会退出；
-  - 当前已出现一次真实失败：`nvidia-cusolver-cu12==11.7.3.90` 下载经过 6 次重试后仍报 `tls handshake eof`。
-- 对“稳态优先”的工作站架构，这意味着：
-  - 不能把“每个项目各自从公网拉完整 CUDA Python 依赖”当成长期方案；
-  - 共享 `AI base` 环境不是优化项，而是必要项；
-  - 未来应优先复用稳定的本地 wheel 缓存或共享环境，而不是反复从外网重装。
-- 进一步约束：
-  - 如果把共享 base 拆得太碎，也会重新引入“重复安装大包”的问题；
-  - 尤其 `torch + CUDA runtime wheels` 这类超大依赖，不应该在多个共享环境里重复各装一份。
-- 因此，稳态优先下更合理的原则不是“按家族拆很多 base”，而是：
-  - 超大且高复用的底座依赖尽量收敛到极少数共享层；
-  - 只有轻量、变化快、耦合强的上层依赖才在更细粒度的共享层或项目层隔离。
-
-## Conda / Micromamba Assessment
-- 在最初评估 `conda` 必要性时，这台机器尚未安装 `conda`、`mamba` 或 `micromamba`；当前已安装 `micromamba`，但仍未安装完整 `conda/mamba`。
-- 对当前这台“稳态优先”的工作站，结论不是“全都换成 conda”，而是：
-  - **项目级轻量环境** 仍然优先 `uv`
-  - **共享重型 AI base** 则应认真考虑 `micromamba/conda`
-- 这样分层的原因是：
-  - `uv` 非常适合轻量、项目私有、以 PyPI 为主的依赖管理；
-  - 但当前两次 `torch + CUDA` 安装都暴露了重型二进制依赖链的稳定性问题；
-  - `micromamba` 官方定位是一个自包含、静态链接、面向 conda 包生态的轻量可执行文件，适合作为稳定工作站上的共享环境管理器；
-  - `mamba` 文档也明确其是快速、健壮、跨平台、兼容 conda 包的包管理器。
-- 对你的场景，我的评估是：
-  - **`conda/micromamba` 不是每个项目都必须引入**
-  - 但对“单一共享重型 AI base”这一层，它已经从“可选项”上升到了“强候选”
-- 如果继续坚持只用 `uv` 维护共享重型 AI base，也不是绝对不行，但必须接受：
-  - 仍然依赖 PyTorch CUDA wheels + `pypi.nvidia.com`
-  - 仍然可能在大包下载阶段被网络/TLS 问题打断
-- 当前这点已经被再次验证：
-  - 共享 `AI base` 的 `uv pip install --torch-backend cu128 ...` 会话已经结束；
-  - 原 `/home/qcgg/.venvs/ai-base-cu128-stable` 最终没有形成可用环境，后续已被清理；
-  - 说明这条路径目前没有形成可复用的稳定共享基座。
-- 在 `conda` 和 `micromamba` 之间，我更倾向：
-  - **优先 `micromamba`**
-  - 理由：更轻、更适合作为稳态工作站上的共享环境层，而不是把完整 conda 体系扩散到所有项目工作流
-- 结合当前两次 `uv + CUDA torch` 失败/未完成的实际结果，我现在的结论进一步收敛为：
-  - 对共享重型 `AI base`，**应当切换到 `micromamba` 路线**
-  - 对项目级轻量环境，继续保留 `uv`
-- 结合“稳态优先”的工作站目标，这里再进一步收敛：
-  - 不应设计多个都自带 `torch + CUDA` 的共享 base；
-  - 更合理的是一个共享重型 `AI base`，承载 `torch + CUDA` 这类超大且高复用依赖；
-  - “按家族分层”只体现在轻量增量依赖和项目模板上，而不是多个重型基础环境。
-
-## Environment Preference Update
-- 用户当前偏好是：
-  - `GPU driver / NVIDIA / CUDA / 容器支持` 尽量直接配置在 WSL 系统里；
-  - 希望后续所有项目都能复用这套已配置好的基础设施；
-  - 但 Python AI 依赖仍按项目做合理隔离，不直接灌进系统 Python。
-- 这对系统级 GPU / Docker / NVIDIA container toolkit 完全合理。
-- 这个边界现在已经明确：
-  - 系统级全局安装：GPU / CUDA bridge / Docker / NVIDIA container toolkit / 构建工具；
-  - 项目级隔离安装：`torch/docling/mineru` 等 Python AI 依赖。
-- 当前目录组织偏好也已明确：
-  - 项目环境目录直接放在仓库根下，例如 `docling/`
-  - 不额外套 `exploration/` 这一层
-- 这些原则现已写入仓库级 `AGENTS.md`，后续在本仓库开启新会话时可作为默认环境分层准则。
-- 这类偏好适合写进 `AGENTS.md`，因为它本质上是“环境与依赖分层原则”，不是某个一次性操作细节。
-- 更合适的写法是原则化描述，例如：
-  - 优先把可复用的宿主基础设施做系统级安装；
-  - 优先把会产生版本冲突的语言级依赖做项目级隔离；
-  - 做决定时先判断该依赖是“跨项目共享底座”还是“项目私有实现依赖”。
-
-## Local vs Cloud Parsing Reality
-- 对 `MinerU API` 这类云端/远程能力，核心优势通常不是“天然一定比本地强很多”，而是：
-  - 更容易接入更重的多模态模型或云侧推理资源；
-  - 对扫描件、复杂图文混排、图片化表格往往更容易堆出更高上限；
-  - 你不用自己维护模型权重、OCR 栈和算力调优。
-- 但对嵌入式手册场景，云端方案并不总是明显更优：
-  - 大量现代 datasheet / app note 本身是数字版 PDF，本地结构化解析往往已经足够；
-  - 云端通常带来成本、网络延迟、吞吐限制、数据外发和可重复性问题；
-  - 若你的工作流强调“持续批量处理 + 本地检索 + 反复修正”，本地方案更容易沉淀稳定资产。
-- 更准确的判断是：
-  - “云端上限可能更高”，尤其在扫描件/图片化资料/复杂视觉理解上；
-  - “本地下限和稳定性通常更好”，尤其在可控、低成本、批处理、可复现方面。
-- 因此对这个项目，推荐顺序仍是：
-  - 先把 `Docling` 本地主流程打通；
-  - 再在你选定的样本集上和 `MinerU API` 做 A/B 对比；
-  - 用真实样本决定是否值得长期引入云端增强。
-
-## OpenDataLoader PDF Assessment
-- `opendataloader-pdf` 不是 `MarkItDown` 那类轻量转换器，更接近“面向 AI-ready data 的专用 PDF parser”。
-- 官方 README 当前给出的定位很强：
-  - 输出 `Markdown / JSON / HTML`
-  - 支持带 bounding boxes 的 JSON
-  - 支持阅读顺序、标题层级、列表、表格、图片、header/footer/watermark filtering
-  - 强调 `AI safety`，会过滤疑似 prompt injection 内容
-  - 本地默认模式是 deterministic local mode
-  - 对复杂页、OCR、公式、图表描述，可切到 hybrid mode
-- 架构上它和 `Docling` / `MinerU` 的关系更像：
-  - 默认是本地快速解析；
-  - 遇到复杂页时，可通过 hybrid backend 把复杂任务路由给 AI；
-  - 不是单纯的纯云 API，也不是只能纯本地。
-- 官方说明的技术形态值得注意：
-  - Python / Node / Java 三套入口都有；
-  - Python 和 Node 包本质上都依赖 Java 11+；
-  - 每次 `convert()` 都会起 JVM，所以官方明确建议批量文件一次性调用，而不是频繁小调用。
-- 对当前选型，它的优点是：
-  - 有本地 deterministic mode，适合隐私和批处理；
-  - 有 hybrid mode，适合复杂表格、扫描件、公式、图表；
-  - JSON 带 bounding boxes，这对后续做引用定位、可视化核对、RAG source attribution 很有价值；
-  - `use_struct_tree=True` 这类能力对 tagged PDF 可能很强。
-- 对当前选型，它的注意点是：
-  - 依赖 Java 运行时，工程栈比 `Docling` 更杂；
-  - hybrid mode 需要额外后端服务，不像 `Docling` 默认路径那么直接；
-  - README 里的 benchmark 是项目方自报，值得参考，但不能无条件当成结论，仍需用自己的样本验证；
-  - 若你只想尽快开始 Python 本地实验，`Docling` 的上手阻力仍然更低。
-- 我对它在我们当前候选中的定位是：
-  - 不是替代 `MarkItDown` 的轻量工具，而是一个很值得认真测试的“强候选主解析器”；
-  - 如果你接受 `Java + Python` 混合栈，它完全值得和 `Docling`、`MinerU` 进入同一轮 A/B；
-  - 对数字版 datasheet/app note，它有潜力成为 `Docling` 的直接竞品；
-  - 对扫描件/复杂页，它的 hybrid mode 很值得测试，但这已经比纯本地路线更重。
-
-## Best Practice For Embedded Manual-Driven Development
-- 从“让我依据手册帮你写嵌入式代码”的角度，最佳实践不是只选一种工具，而是分层：
-  - 第 1 层：保留原始 PDF，作为最终权威来源。
-  - 第 2 层：用 `Docling` 批量转出 `Markdown + JSON`，作为日常检索和引用层。
-  - 第 3 层：给我一个 `PDF MCP`，用于遇到可疑表格、图、脚注、页码争议时回查原始 PDF。
-- 如果只能二选一：
-  - 长期开发效率优先：先做 `Docling` 批处理。
-  - 临时查阅体验优先：先装 `pdf-reader-mcp`。
-  - 真正最稳的是两者都要，但职责不同。
-- 具体建议的仓库结构：
-  - `manuals/raw/`：原始 PDF
-  - `manuals/md/`：Docling 导出的 Markdown
-  - `manuals/json/`：Docling 导出的结构化结果
-  - `manuals/index/`：按芯片、外设、章节整理后的索引
-  - `manuals/notes/`：人工修正后的关键结论，例如时钟树、寄存器初始化顺序、flash wait states、boot 流程
-- 对嵌入式开发，最关键的是不要只保留“大段 Markdown 文本”，还应尽量沉淀出结构化资产：
-  - 寄存器地址和位定义；
-  - 中断号和中断源；
-  - 时钟树和分频关系；
-  - GPIO alternate function 表；
-  - 初始化顺序和约束；
-  - 时序/电气限制。
-- 因为真正帮你写代码时，最有价值的不是“整本手册能读”，而是这些高价值约束能被稳定引用。
-- 最稳的工作流是：
-  - 先批量转 Markdown / JSON；
-  - 再把关键章节按芯片和外设切成小文件；
-  - 再把寄存器表、AF 表、时序限制做成结构化摘录；
-  - 代码生成或驱动开发时，我优先查这些摘录，不够再回查原 PDF 页面。
-- 实际协作时，你给我的输入最好是：
-  - 芯片准确型号和手册 revision；
-  - 对应章节或页码；
-  - 已转换的 Markdown 片段；
-  - 若表格/图片可疑，再补原 PDF 页或 PDF MCP 查询结果。
-- 这样我在写代码时能做到：
-  - 先根据结构化摘录做实现；
-  - 再对关键寄存器位、复位值、时序约束做原 PDF 复核；
-- 最终把驱动实现、初始化顺序、边界条件和注释都和手册对齐。
-
-## Mirror Reset & Recovery Decisions
-- 这次需要重置的不是“系统层基础设施”，而是失败的 Python 重型依赖下载链。
-- 保留不动的层：
-  - WSL GPU 桥接
-  - Docker / NVIDIA Container Toolkit
-  - OCR 与构建基础包
-- 清理重置的层：
-  - 失败的共享 `AI base`
-  - `micromamba` 包缓存
-  - `pip` / `uv` 下载缓存
-- 当前确认的镜像策略：
-  - `pip`：清华 PyPI 镜像
-  - `uv`：清华 PyPI 镜像
-  - `conda-forge`：中科大镜像
-  - `pytorch` / `nvidia`：教育网国内镜像，实际会重定向到南科大镜像节点
-- 这套混合镜像策略是有意设计，不是随意拼接：
-  - 单一国内镜像并未稳定覆盖 `conda-forge + pytorch + nvidia` 这组 GPU 相关 channel；
-  - 对共享重型 AI base，覆盖率比“全部来自同一家”更重要。
-- 关键修正点：
-  - 之前 `uv.toml` 写成了 `default-index = ...`；
-  - 当前版本 `uv` 不识别这个键；
-  - 已改为有效的 `index-url = ...`，并用 `uv pip install --dry-run` 验证通过。
-- 当前对重建方案的收敛结论：
-  - 共享重型 `AI base`：优先 `micromamba`
-  - 项目级轻量环境：继续 `uv`
-  - 不再把 `uv + CUDA torch wheels + pypi.nvidia.com` 当成第一条共享 base 重建路径
-- 一个容易忽略的点：
-  - `micromamba create --dry-run` 不会创建环境，但会缓存很大的 repodata / solv 索引文件；
-  - 在国内镜像验证阶段，这些索引缓存也可能达到数百 MB；
-- 若目标是“彻底清空后再重建”，验证完成后应再次清理缓存。
-
-## AI Workstation Design Audit Findings
-- 之前的设计主线是对的，但有 4 个关键缺口没有真正落盘：
-  - 全局 `~/.codex/AGENTS.md` 实际为空，跨会话规则没有继承；
-  - `task_plan.md` 引用的设计文档路径并不存在；
-  - `docling/` 目录为空，项目层没有真正 materialize；
-  - 没有把“项目层如何复用共享 `AI base`”说成一条可执行机制。
-- 本次审计后，工作站分层从原来的简化版进一步收敛为：
-  - `Host -> WSL System -> Docker/NVIDIA Runtime -> Shared Heavy AI Base -> Project Overlay -> Data/Artifacts`
-- 这里新增 `Host` 层是必要的，因为：
-  - WSL GPU 能力依赖 Windows 驱动；
-  - 当前代理能力也依赖宿主机上的 Clash；
-  - 这两者都不是 WSL 内部自足的。
-- 当前最重要的优化点不是“再装更多工具”，而是把复用边界写清楚：
-  - 系统层只放跨项目基础设施；
-  - 共享 `AI base` 只放重型高复用依赖；
-  - 项目层通过 overlay venv 复用共享 base；
-  - 模型和大缓存不放进仓库。
-- 对“共享 `AI base` + 项目隔离”的具体落地，本次设计采用：
-  - 共享 base 用 `micromamba`
-  - 项目层用由共享 base Python 创建的 `venv --system-site-packages`
-  - 项目私有依赖再用 `uv pip install` 装到 overlay venv
-- 这样做的好处是：
-  - 不把项目依赖灌进共享重型 base；
-  - 不再为每个项目重新下载完整 torch/CUDA；
-  - 仍保留项目级目录和可控激活方式。
-- 当前还补上了两个之前缺失但很重要的策略：
-  - 激活策略：禁止在 shell 启动文件里自动激活项目环境；
-  - 工件策略：Docling 等模型缓存应放到仓库外的共享 cache 路径。
-- 对这台机器，当前稳定基线可暂定为：
-  - Python `3.12`
-  - PyTorch `2.5.1`
-  - CUDA runtime `12.4`
-  - 镜像策略为国内混合镜像
-- 这比“追最新”更适合稳态优先的工作站。
-
-## Micromamba Role In This Workstation
-- 在这套架构里，`micromamba` 不是用来替代所有 Python 工作流的。
-- 它的职责被刻意收敛到一层：
-  - **共享重型 AI base**
-- 这样分工的原因是：
-  - `torch + CUDA` 这类二进制大包更适合走 conda 包生态；
-  - 当前网络条件下，这条链路比 `uv + pypi.nvidia.com` 更稳；
-  - `micromamba` 比完整 `conda` 更轻，适合做一个长期常驻的基础环境管理器。
-- 在当前工作站中，`micromamba` 负责：
-  - 创建 `~/.mamba/envs/ai-base-cu124-stable`
-  - 管理其 Python、PyTorch、CUDA 运行时依赖
-  - 作为后续项目 overlay 的底座 Python
-- 它不负责：
-  - 系统层 Docker / NVIDIA runtime
-  - 每个项目自己的轻量依赖求解
-  - 仓库级脚本和业务逻辑
-- 简单说：
-  - **系统层** 解决“机器能不能跑”
-  - **micromamba** 解决“共享的重型 AI 栈怎么稳定落地”
-  - **项目 overlay** 解决“每个项目怎么隔离自己的 Python 依赖”
-
-## Overlay Installation Finding
-- `docling` 的元数据并不要求一个比当前共享 base 更高的 `torch` 版本：
-  - `torch>=2.2.2,<3.0`
-- 当前共享 base 中的 `torch 2.5.1` 本来就满足这个约束。
-- 真正的问题出在安装器行为：
-  - `uv pip install` 在这次 `venv --system-site-packages` overlay 场景中，没有把继承来的共享 `torch` 视为已满足依赖；
-  - 它因此开始重新解析并下载一整套 PyPI 的 `torch + cu13` 依赖链；
-  - 这与“共享重型 AI base + 项目轻量 overlay”的工作站目标冲突。
-- `pip install` 在同一 overlay 环境中则能正确识别：
-  - 共享 base 的 `torch`
-  - 共享 base 的 `torchvision`
-  - 共享 base 的部分通用依赖
-- 因此当前设计进一步收敛为：
-  - 共享重型 base：`micromamba`
-  - overlay venv 创建：共享 base Python 的 `venv --system-site-packages`
-  - overlay 安装器：`pip`
-  - `uv` 继续保留给不依赖共享 site-packages 复用的轻量项目场景
-- 当前已验证：
-  - `docling 2.86.0` 安装成功
-  - `docling/.venv` 中导入的 `torch` 实际来自 `/home/qcgg/.mamba/envs/ai-base-cu124-stable/...`
-  - 这说明“共享 base + overlay”这条路径现在已经真正打通
-
-## Global Workstation Reference Doc
-- 已新增全局长文档：
-  - `/home/qcgg/.codex/docs/ai-workstation-architecture.md`
-- 这份文档的目标不是记录单个仓库，而是给未来其它项目里的会话恢复以下信息：
-  - 这台机器的分层架构
-  - `micromamba`、`pip`、`uv`、系统层各自负责什么
-  - 当前稳定基线是什么
-  - 哪些坑已经踩过，不要再重复踩
-- 已同步更新全局入口：
-  - `/home/qcgg/.codex/AGENTS.md`
-- 当前仓库里也补了一个短指针文档：
+  - `tesseract` 及基础开发包
+  - Docker daemon 的代理配置与 `nvidia` runtime 配置
+- 共享重型 AI base 已落地：
+  - 路径：`/home/qcgg/.mamba/envs/ai-base-cu124-stable`
+  - 已验证 `torch 2.5.1` 可见 GPU
+- 项目层 `Docling` overlay 已落地：
+  - 路径：`docling/.venv`
+  - `docling 2.86.0` 可正常导入
+  - overlay 中的 `torch` 来自共享 base，而不是项目层重复安装
+- 镜像配置已修正并验证：
+  - `pip`: `/home/qcgg/.config/pip/pip.conf`
+  - `uv`: `/home/qcgg/.config/uv/uv.toml`
+  - `conda/micromamba`: `/home/qcgg/.condarc`
+- 关键文档与脚本已补齐：
+  - `docs/architecture/2026-04-12-ai-workstation-design-audit.md`
+  - `docs/architecture/2026-04-12-ai-workstation-execution-plan.md`
   - `docs/architecture/global-workstation-reference.md`
-- 后续原则是：
-  - 全局长文档记录跨项目通用规则和坑点
-  - 仓库文档只记录项目特有偏差，不重复抄整份工作站文档
+  - `scripts/bootstrap_ai_base.sh`
+  - `scripts/bootstrap_docling_env.sh`
+  - `scripts/verify_ai_stack.sh`
+- 当前代码面现状：
+  - 第一版 `Docling` 批处理程序已经落地到 `docling_batch/`
+  - 当前仓库同时包含：
+    - 环境 bootstrap / verify 脚本
+    - `docling_batch` Python 包
+    - `tests/` 单元测试
+  - 批处理程序当前已能输出 `Docling JSON + Markdown + manifest + sections.jsonl + chunks.jsonl + run summary`
 
-## Technical Decisions
-| Decision | Rationale |
-|----------|-----------|
-| 调研优先看官方来源 | 避免二手比较文章过时或失真 |
-| 以 LLM/RAG 实用性为核心评估维度 | 用户目标是“供大模型查阅”，不是单纯视觉复刻 |
-| 把候选工具分为开源本地与云 API 两类 | 实际选型受成本、隐私、吞吐和部署约束影响很大 |
-| 默认推荐 Docling，精度推荐 Marker，复杂扫描推荐 MinerU | 这是基于官方能力声明后的工程化选型推断 |
-| `fetch` 失败的根因优先按“工具运行环境无法访问代理”解释 | 单条 `fetch`、沙箱 `curl`、提权 `curl` 三组证据一致 |
-| README 使用“项目方向 + 当前阶段 + 选型路线”结构 | 比泛泛介绍 PDF 工具更贴近当前仓库状态 |
-| `.gitignore` 保留，但收敛为最小必要集合 | 用户明确不想删掉它，同时仓库还处于早期阶段 |
+## Parsing Tool Conclusions
+### Default local path
+- 默认基线仍是 `Docling`。
+- 原因：
+  - 原生支持 Markdown / HTML / JSON 导出
+  - 关注阅读顺序、表格、公式、OCR 等 PDF 关键痛点
+  - Python API 直接，适合做批处理程序
+  - `DocumentConverter` + `convert_all(...)` 很适合多文件转换与错误汇总
 
-## Issues Encountered
-| Issue | Resolution |
-|-------|------------|
-| 当前仓库几乎为空，仅剩 `.git` 与 `.codex` | 先建立规划文件和研究记录，再继续调研 |
-| 当前会话中 `fetch` 工具失败，而用户自有 WSL 终端网络正常 | 正在做环境差异诊断 |
-| 原 README 过于泛化，和当前阶段不匹配 | 重写为“PDF 处理项目，当前先做 PDF 转 Markdown” |
+### Strong alternatives
+- `Marker`：
+  - 复杂表格、公式、版面保真要求更高时的优先增强方案
+  - 适合进入后续 A/B 测试
+- `MinerU`：
+  - 扫描件、中文、多语言 OCR、复杂布局时更值得投入
+  - 适合做第二条高保真备用管线
+- `OpenDataLoader PDF`：
+  - 值得认真测试的强候选解析器
+  - 优点是本地 deterministic mode + 可选 hybrid mode + bounding boxes
+  - 代价是 `Java + Python` 混合栈更重
+- `PyMuPDF4LLM`：
+  - 轻量 baseline 或快速 PoC 合适
+  - 不是当前高保真主路线
 
-## Resources
-- Marker GitHub: https://github.com/datalab-to/marker
-- Docling 官网: https://www.docling.ai/
-- MinerU GitHub: https://github.com/opendatalab/MinerU
-- PyMuPDF4LLM 文档: https://pymupdf.readthedocs.io/en/latest/pymupdf4llm/index.html
-- Mathpix PDF to Markdown: https://mathpix.com/pdf-to-markdown
-- Mathpix OCR API docs: https://docs.mathpix.com/
-- Mistral OCR docs: https://docs.mistral.ai/capabilities/document_ai/basic_ocr/
-- Azure Document Intelligence Markdown docs: https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/markdown-elements?view=doc-intel-4.0.0
-- LlamaParse docs: https://docs.llamaindex.ai/en/v0.10.33/module_guides/loading/connector/llama_parse/
+### Cloud / API options
+- `Mathpix`：学术/STEM 文档、复杂公式和双栏论文仍然很强。
+- `Mistral OCR`：托管 API 路线里，OCR 到 Markdown 的链路很直接。
+- `Azure Document Intelligence`：更偏企业级结构化抽取，不一定是最自然的 Markdown。
+- `LlamaParse`：如果工作流本来就围绕 LlamaIndex / RAG，集成会更顺手。
+- 当前判断：
+  - 云端方案在扫描件、复杂视觉理解上可能上限更高
+  - 但对“长期批量处理嵌入式手册”的默认工作流，本地方案仍更稳、更便宜、更可复现
 
-## Visual/Browser Findings
-- Marker README 写明支持 PDF/图片/PPTX/DOCX/XLSX/HTML/EPUB，输出 Markdown/JSON/chunks/HTML，可选 `--use_llm` 提升表格、行内公式和表单提取准确率。
-- Docling 官网首页直接给出 Python 示例，调用 `doc.export_to_markdown()` 导出 Markdown，并强调表格、公式、阅读顺序、OCR 以及面向 AI/RAG 的导出。
-- MinerU README 说明它支持复杂布局、表格、公式、跨页表格、扫描件和 109 语言 OCR，也明确列出一些局限，例如极复杂布局、特殊列表、代码块和复杂表格仍可能有误差。
-- PyMuPDF4LLM 文档显示其能自动对无可选文本页面触发 OCR，这对混合型 PDF 很实用，也说明其定位偏轻量与工程集成友好。
-- Mathpix 页面强调其 PDF→Markdown 针对 scientific documents 做了专项优化，尤其是高难公式、双栏论文和带公式的表格。
-- Mistral OCR 文档的返回结构里每页直接包含 `markdown` 主输出字段，对“转成 Markdown 给大模型吃”非常直接。
-- Azure 文档说明其 Markdown 输出保留层级和元素语义，这意味着它更偏“结构化企业文档抽取”，而不是纯文本 OCR。
-- LlamaParse 文档示例直接把 `result_type` 设为 `markdown`，说明其默认使用方式就是面向解析后检索/RAG 管线。
+## Embedded Manual Workflow Recommendation
+- 最稳的协作结构不是单一产物，而是三层：
+  - 原始 PDF：最终权威来源
+  - `Markdown + JSON`：日常检索和引用层
+  - 页级回查能力：处理表格、脚注、图、页码争议时兜底
+- 建议的目录形态：
+  - `manuals/raw/`
+  - `manuals/md/`
+  - `manuals/json/`
+  - `manuals/index/`
+  - `manuals/notes/`
+- 当前仓库里已先落地最小目录骨架：
+  - `manuals/raw/`
+  - `manuals/processed/`
+  - `manuals/raw/st/`
+  - `manuals/raw/ti/`
+  - `manuals/raw/nxp/`
+  - `manuals/raw/adi/`
+  - `manuals/raw/infineon/`
+  - `manuals/raw/microchip/`
+  - `manuals/raw/other/`
+- 对嵌入式开发，真正高价值的不是“整本能读”，而是这些可稳定引用的资产：
+  - 寄存器地址、位定义、复位值
+  - 中断号与中断源
+  - 时钟树与分频约束
+  - GPIO alternate function 表
+  - 初始化顺序与依赖约束
+  - 时序、电气与工作条件限制
 
-## Fetch Tool Diagnosis
-- 单独调用 `fetch` 请求 `https://example.com` 也失败，说明不是某个站点特例。
-- 沙箱内直接执行 `curl -I https://example.com` 失败，并明确报错尝试连接 `127.0.0.1:7897`。
-- 当前环境存在 `HTTP_PROXY`、`HTTPS_PROXY`、`http_proxy`、`https_proxy`，全部指向 `http://127.0.0.1:7897`。
-- 提权后执行同一条 `curl -I https://example.com` 成功，返回 `HTTP/1.1 200 Connection established` 和后续 `HTTP/2 200`。
-- 这说明“普通 WSL/提权环境”能访问你的 Clash 代理，但“我的沙箱环境”不能访问同一个 `127.0.0.1:7897`。
-- 在沙箱内去掉代理后，`curl` 报 `Could not resolve host: example.com`，说明沙箱本身没有直接外网 DNS/网络能力，依赖代理才能出网。
-- 在沙箱内显式把代理改成 `/etc/resolv.conf` 中的 `10.255.255.254:7897` 也无法连通，因此不只是 `localhost` 字面量问题，更像是沙箱与宿主网络命名空间隔离。
-- 对 `fetch` 工具本身再次复现，错误为 `Failed to fetch robots.txt https://example.com/robots.txt due to a connection issue`；这与代理不可达导致首个联网动作失败高度一致。
-- 已按 A 方案修改 `~/.codex/config.toml`：
-  - 设置 `sandbox_mode = "workspace-write"`
-  - 设置 `approval_policy = "on-request"`
-  - 设置 `sandbox_workspace_write.network_access = true`
-  - 为 `mcp_servers.fetch` 增加 `env_vars = ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"]`
-- 当前改动只会影响后续新启动的 Codex 会话；现有会话里的 `fetch` MCP 进程不会自动热重载。
-- 在新会话中，沙箱内 `curl -I https://example.com` 和 `curl -I https://raw.githubusercontent.com` 都成功，说明沙箱网络已经恢复正常。
-- `fetch` 现已成功抓取以下真实目标：
-  - `https://developers.openai.com/codex/concepts/sandboxing`
-  - `https://www.docling.ai/`
-  - `https://github.com/datalab-to/marker`
-  - `https://raw.githubusercontent.com/datalab-to/marker/master/README.md`
-- `fetch` 仍然会对 `https://example.com` 和 `https://example.com/robots.txt` 报 `Failed to fetch robots.txt ... due to a connection issue`。
-- 当前结论：`fetch` MCP 已达到“日常可用”状态，至少对文档站点、GitHub 页面和 raw 文本可正常使用；但不能视为对所有站点都完全无异常。
+## Batch Program Direction
+- 实现语言应保持为 `Python`。
+- 第一版批处理程序建议基于 `DocumentConverter` 和 `convert_all(...)`。
+- 第一版至少应输出：
+  - `.md`
+  - `.json`
+  - 每次运行的成功/失败汇总
+- 用户已将第一版范围收敛为：
+  - `Markdown + JSON + manifest + 章节/页码级索引`
+  - 第一阶段目标是“可查阅、可引用、可回溯”
+  - 寄存器表、AF 表、时序约束等深结构化资产留到后续阶段
+- 第一版功能建议包括：
+  - 递归扫描输入目录
+  - 每个 PDF 独立状态记录
+  - 可选 `--ocr`
+  - 可选 `--force-full-page-ocr`
+  - 局部失败不阻断整批任务
+  - 产出后续索引所需的文档级 metadata
+- 当前设计建议：
+  - `chunks` 不应采用纯固定长度切分
+  - 更合适的是“章节优先，但设置最大长度上限”的混合切分
+  - 目标是在保留章节语义和页码可回溯性的前提下，避免单个 chunk 过大，不利于后续检索和问答
+- 当前真正待设计的是：
+  - 多份手册应如何建立索引
+  - 哪些内容保留原始 Markdown
+  - 哪些内容应提升为结构化摘录或知识资产
 
----
-*Update this file after every 2 view/browser/search operations*
+## Docling Docs-Derived Best Practice
+- 这是我基于 Docling 官方文档、官方 examples 和官方 RAG recipes 收敛出的当前最佳实践。
+- 关键结论不是“直接把 PDF 转成一个 Markdown 文件”，而是：
+  - 以 `DoclingDocument JSON` 作为权威结构化中间层
+  - 以 `Markdown` 作为人类查阅层
+  - 以 Docling 原生 chunkers 作为 RAG / embedding 层
+
+### 1. Canonical artifact should be Docling JSON
+- Docling 官方 batch example 明确把现代导出方式作为推荐路径，`USE_V2 = True` 并使用 `save_as_json` / `save_as_markdown` / `save_as_html` 等导出。
+- LlamaIndex 示例里，`DoclingReader(export_type=JSON)` 配合 `DoclingNodeParser()`，说明官方集成本身也倾向保留 Docling 原生格式，再下游做 chunking / indexing。
+- 对我们这类芯片手册项目，最佳实践应是：
+  - 原始 PDF 保留
+  - `Docling JSON` 作为权威中间表示
+  - `Markdown` 作为日常阅读副产物
+- 这意味着后续任何 chunk、索引、摘录，都应尽量从 `Docling JSON` 派生，而不是从 Markdown 反推。
+
+### 2. For RAG, prefer native Docling chunking over Markdown-only splitting
+- Docling `Chunking` 概念文档明确区分两条路线：
+  - 先导出 Markdown，再自行切分
+  - 直接在 `DoclingDocument` 上使用原生 chunkers
+- 文档还明确说明 Docling 与 LlamaIndex 等框架的集成，是通过 `BaseChunker` 接口完成的。
+- Haystack 示例也把 `ExportType.DOC_CHUNKS` 设为默认，而 `ExportType.MARKDOWN` 只是另一种模式。
+- 对我们的嵌入式手册场景，最佳实践应是：
+  - 不把“纯 Markdown 切块”作为主 RAG 路线
+  - 主索引从 `DoclingDocument` 原生 chunking 得到
+  - Markdown 主要保留给人工查阅和 diff
+
+### 3. Default chunker should be HybridChunker aligned to the embedding tokenizer
+- Docling 官方文档明确指出：在 RAG / retrieval 场景里，chunker 和 embedding model 应使用同一 tokenizer。
+- `HybridChunker` 的官方定义是：先做基于文档结构的 hierarchical chunking，再按 tokenizer 做超长切分和可选的同 heading/caption 邻块合并。
+- 这与我们前面讨论的“章节优先，但设置最大长度上限”本质一致。
+- 对我们项目，最佳实践应是：
+  - 默认 chunker 用 `HybridChunker`
+  - tokenizer 与后续 embedding 模型严格对齐
+  - `max_tokens` 可以显式设定；若不设，则由 tokenizer 推导
+- 一个对我们后续程序设计很重要的点：
+  - `BaseChunker` 除了 `chunk()`，还有 `contextualize(chunk)` 接口
+  - 这个接口返回带 heading / caption / metadata 上下文的文本，官方明确说明它通常用于喂 embedding model 或 generation model
+- 因此我们自己的 chunk 索引里，最佳实践不是只存一个 `text`，而是同时保留：
+  - 原始 `chunk.text`
+  - `chunker.contextualize(chunk)` 生成的 `contextualized_text`
+
+### 4. Table-heavy manuals need special handling
+- `HybridChunker` 文档专门说明了表格分块时的 `repeat_table_header=True` 默认行为，这会在跨块表格前重复表头，帮助保持上下文。
+- `Advanced chunking & serialization` 示例展示了：
+  - 默认表格序列化策略
+  - 可切换到 `MarkdownTableSerializer`
+- `Table export` 示例又展示了将表格单独导出为 CSV / HTML。
+- 我的结论是：
+  - 对芯片手册这类“寄存器表 / 参数表 / AF 表很多”的场景，主 chunk 流程应启用 Docling 原生表格 chunking
+  - 对可读性更强的文本索引，可优先尝试 Markdown table 序列化
+  - 同时保留表格 sidecar 导出（如 CSV / HTML）会更稳
+- 这里最后一条是我基于官方 examples 做的工程推断：因为 Docling 同时提供了表格 chunking 定制和单独表格导出，两者结合最适合 datasheet 这类表格高价值文档。
+
+### 5. Pictures and page images should be optional sidecars, not primary text
+- Figure export 和 Visual grounding 示例都说明：
+  - 可以开启 `generate_page_images` / `generate_picture_images`
+  - 可以按页保存图片，也可以将图片以引用方式写入 Markdown / HTML
+  - Visual grounding 的做法是把 `Docling JSON` 按 `binary_hash` 存起来，再将检索到的 chunk 反查回页图和 bbox
+- 对我们项目，这意味着：
+  - 第一版不需要把图片内容硬塞进主 Markdown
+  - 但应保留可选的 page-image sidecar 能力
+  - 这样后续遇到引脚图、框图、时序图、流程图时，可以做人工或 agent 回查
+- 如果后面我们确实需要更强的图示理解，再考虑 picture description / visual grounding 管线。
+
+### 6. OCR should be conditional, not always-on
+- Force full page OCR 示例明确说明：
+  - `force_full_page_ocr=True` 会让整页纯 OCR，通常比混合检测更慢
+  - 适合扫描件或布局抽取不可靠的 PDF
+- GPU support 页面明确提到当前已知可工作的 GPU OCR 方案是 `RapidOCR` 的 torch backend。
+- 对我们项目，最佳实践应是：
+  - 默认数字版 datasheet / app note：不开 `force_full_page_ocr`
+  - 对扫描件、老旧 PDF、图片化章节：按文档或按运行参数启用 OCR
+  - 真要上 GPU OCR，再优先评估 `RapidOCR(backend="torch")`
+
+### 7. Batch processing should follow the official convert_all pattern
+- 官方 `batch_convert` 示例使用：
+  - `DocumentConverter(...)`
+  - `convert_all(input_doc_paths, raises_on_error=False)`
+  - 按 `ConversionStatus` 处理 `SUCCESS / PARTIAL_SUCCESS / FAILURE`
+- 对我们项目，最佳实践应是：
+  - 整批任务不因单文件失败而整体终止
+  - 每个 PDF 记录状态、错误、耗时和输出位置
+  - 最终生成一个 run-level summary / manifest
+
+### 8. Framework-specific RAG integrations should stay downstream
+- 官方 examples 展示了 Haystack、LlamaIndex、LangChain、OpenSearch、Milvus、Weaviate、Qdrant、visual grounding 等多条集成路线。
+- 这些示例更像“下游消费方式”，不是我们第一版批处理程序应耦合进去的核心产物。
+- 所以对我们仓库，最佳实践应是：
+  - 第一版先产出框架无关的 durable artifacts
+  - 如果后续接 LlamaIndex / LangChain，再让它们消费我们的 `Docling JSON + native chunks`
+  - 不要让第一版输出格式被某一个框架绑定
+
+### Practical recommendation for this repository
+- 结合 Docling 官方文档和我们的嵌入式目标，我现在的最终建议是：
+  - `PDF -> DoclingDocument JSON` 作为 canonical source
+  - 同时导出 `Markdown` 供人工阅读
+  - 用 `HybridChunker` 从 `DoclingDocument` 直接生成 chunk
+  - chunk 中同时保存 `text` 与 `contextualized_text`
+  - 对表格保留更强 sidecar 导出能力
+  - 对页图/图示保留可选 visual-grounding sidecar
+  - OCR 做成按文档/按参数启用的模式，而不是默认总开
+- 这套做法比“只导出 Markdown 再自己切块”更贴近 Docling 官方 RAG 路线，也更适合后面让我做带引用、可回溯的嵌入式开发辅助。
+
+## Current Implementation Result
+- 已实现的主入口：
+  - `docling/.venv/bin/python -m docling_batch convert --input ... --output ... --device cuda`
+- 当前实现的核心行为：
+  - 递归发现 PDF
+  - 用 Docling `convert_all(..., raises_on_error=False)` 批处理
+  - 导出 `document.json`
+  - 导出 `document.md`
+  - 用 `HybridChunker` 直接从 `DoclingDocument` 生成原生 chunk
+  - 保存 `contextualized_text`
+  - 汇总 `sections.jsonl`
+  - 写入每文档 `manifest.json`
+  - 写入批处理级 `run summary`
+- 已验证的 smoke 路径：
+  - `--device cuda --no-ocr` 可在最小 PDF 上成功落盘全部输出
+- 已观察到的真实 GPU/OCR 行为：
+  - Docling 当前环境触发 OCR 时会实际走 `RapidOCR` 的 `torch` backend
+  - 日志中已确认使用 `GPU device 0`
+  - 首次 OCR 运行会下载 RapidOCR 模型，因此 OCR 必须保持显式、可控，而不是默认强制开启
+
+## Real Sample Test: ESP32-S3 Datasheet
+- 已对真实样本执行：
+  - `manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf`
+  - 运行参数：`--device cuda --no-ocr`
+- 结果：
+  - 处理成功
+  - `page_count = 87`
+  - 输出目录：`manuals/processed/esp32-s3-datasheet-en/`
+  - 生成了：
+    - `document.json`
+    - `document.md`
+    - `manifest.json`
+    - `sections.jsonl`
+    - `chunks.jsonl`
+    - `_runs/20260412T063932Z.json`
+- 当前样本的索引规模：
+  - `sections.jsonl`: 145 条
+  - `chunks.jsonl`: 444 条
+- 正向观察：
+  - 主体章节抽取基本有效，例如 `Product Overview`、`CPU and Memory`、`4.1.3.5 Power Management Unit (PMU)` 等都形成了可引用 section/chunk
+  - `manifest.json` 中记录了原文件路径、sha256、页数、GPU 设备选择和输出路径
+  - `chunks.jsonl` 中已经包含 `heading_path`、`page_start/page_end`、`contextualized_text`、`citation`
+- 当前暴露出的优化点：
+  - `Contents`、`List of Tables`、`List of Figures` 这类目录/索引页进入了 chunks，后续应考虑增加过滤策略
+  - `Note:`、`Cont'd from previous page`、`CPU Clock` 这类 heading 有时被单独提升为 section，说明还需要做一层后处理归并/去噪
+  - 运行时出现过一次 tokenizer 长度 warning：`799 > 512`
+  - 这说明当前应为 `HybridChunker` 增加更明确的默认 `max_chunk_tokens`，避免后续 embedding 阶段出现超长 chunk
+
+## Large PDF Handling Recommendation
+- 基于第一性原理和当前 Docling 路线，我的默认建议是：
+  - **不要先按书签拆 PDF**
+  - 优先保留整本手册作为单个 canonical document 处理
+- 原因：
+  - revision、章节层级、交叉引用、页码语义会更完整
+  - 我们已经用 `sections.jsonl` 和 `chunks.jsonl` 去解决“大文档难查阅”的问题
+  - 先拆 PDF 往往会让引用链断掉，后续回查原文更麻烦
+- 只有在这些场景下，拆分才更合理：
+  - 一个 PDF 实际上拼了多本不同手册或不同器件资料
+  - 超大扫描件/OCR 文档导致速度、显存或稳定性明显恶化
+  - 附录、封装图库、法务页等大段内容长期无用，且确实干扰处理
+- 更稳的策略是：
+  - 先整本转换
+  - 再用章节级/chunk 级索引做后续检索
+  - 只有当真实样本显示整本处理效果或成本不可接受时，再增加“按书签/页段拆分”的预处理步骤
+
+## Workstation Architecture Conclusions
+- 当前长期分层已经收敛为：
+  - Host OS
+  - WSL system layer
+  - Docker / NVIDIA runtime layer
+  - shared heavy AI base
+  - project overlay environment
+  - project data / artifacts
+- 依赖分类规则已经明确：
+  - 系统级可复用基础设施
+  - 共享重型 AI 依赖
+  - 项目私有依赖
+- 当前仓库与全局规则都偏向：
+  - 系统层只放跨项目基础设施
+  - 重型 `torch + CUDA` 只保留一个共享 base
+  - 项目层用轻量 overlay 复用共享 base
+  - 大缓存、模型和产物尽量放仓库外
+  - 不在 shell 启动文件里自动激活项目环境
+
+## Environment Implementation Findings
+- `uv + PyPI CUDA wheels + pypi.nvidia.com` 这条共享 base 路线在当前网络条件下不够稳。
+- 因此共享重型 AI base 改为 `micromamba` 管理。
+- 在 `venv --system-site-packages` overlay 方案里：
+  - `uv pip install` 没有正确复用继承来的 `torch`
+  - 它会重新解析并尝试下载一整套新的 `torch + CUDA` 依赖
+- `pip install` 在同一 overlay 场景里能正确识别共享 `torch`。
+- 因此当前可工作的组合是：
+  - 共享重型 base：`micromamba`
+  - 项目 overlay：`venv --system-site-packages`
+  - overlay 安装器：`pip`
+- 当前没有安装完整 CUDA toolkit / `nvcc`，这是有意选择：
+  - 当前负载只需要运行时 GPU 支持
+  - 还没有需要自定义 CUDA 编译的场景
+
+## Key Decisions
+| Decision | Current conclusion |
+|----------|--------------------|
+| 默认本地解析器 | `Docling` |
+| 高保真增强方案 | `Marker` |
+| 扫描件 / 多语言备选 | `MinerU` |
+| 共享重型 AI base 管理器 | `micromamba` |
+| 项目 overlay 安装策略 | `venv --system-site-packages` + `pip` |
+| 仓库内项目目录布局 | 直接放根目录，如 `docling/` |
+| 大模型与缓存位置 | 尽量放仓库外 |
+| 全局工作站长文档 | `/home/qcgg/.codex/docs/ai-workstation-architecture.md` |
+
+## Active Open Questions
+- 多手册索引应按 `vendor / chip / peripheral / chapter` 建，还是先做更扁平的 chunk 索引？
+- 哪些内容应保留为接近原文的 Markdown，哪些内容应提升为结构化摘录？
+- 为了支撑“写代码前先引用手册”这一工作流，最小可用数据 schema 应该长什么样？
+- 何时应该把 `Marker`、`MinerU` 或 `OpenDataLoader PDF` 正式拉进同一批样本做 A/B？
+
+## Historical Notes Worth Keeping
+- 早期 `uv` 方案留下的共享 base 路径和半成品环境已经作废；当前唯一权威共享 base 是 `/home/qcgg/.mamba/envs/ai-base-cu124-stable`。
+- 早期沙箱 `fetch` 网络问题已被诊断并改善到“日常可用”状态，但它已经不是当前主线阻塞项。
+
+## References
+- Marker: https://github.com/datalab-to/marker
+- Docling: https://www.docling.ai/
+- MinerU: https://github.com/opendatalab/MinerU
+- PyMuPDF4LLM: https://pymupdf.readthedocs.io/en/latest/pymupdf4llm/index.html
+- OpenDataLoader PDF: https://github.com/opendataloader-project/opendataloader-pdf
+- Mathpix: https://mathpix.com/pdf-to-markdown
+- Mistral OCR: https://docs.mistral.ai/capabilities/document_ai/basic_ocr/
+- Azure Document Intelligence Markdown: https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/markdown-elements?view=doc-intel-4.0.0
+- LlamaParse: https://docs.llamaindex.ai/

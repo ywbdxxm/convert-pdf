@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
 
 ## Current Phase
-Docling Batch Program Design
+Docling Batch Program Implementation Verification
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -54,10 +54,10 @@ Docling Batch Program Design
 - **Status:** complete
 
 ### Phase 8: Docling Batch Program Design
-- [ ] 明确“给 AI/我自己查阅嵌入式手册”的最优产物形态
-- [ ] 设计多 PDF 批处理、文档索引和后续检索结构
-- [ ] 明确哪些信息应保留为原文、哪些应做结构化摘录
-- **Status:** in_progress
+- [x] 明确“给 AI/我自己查阅嵌入式手册”的最优产物形态
+- [x] 设计多 PDF 批处理、文档索引和后续检索结构
+- [x] 明确哪些信息应保留为原文、哪些应做结构化摘录
+- **Status:** complete
 
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
@@ -83,6 +83,8 @@ Docling Batch Program Design
 | `pip` / `uv` 统一使用清华 PyPI 镜像 | 国内可用性高，适合作为 Python 包默认源 |
 | `conda-forge` 使用中科大镜像，`pytorch` / `nvidia` 使用教育网国内镜像 | 单一镜像未覆盖全部 GPU 相关 channel，混合国内镜像更稳 |
 | 重建前必须先停掉未完成安装并清空残留缓存 | 避免“半完成环境 + 旧缓存”污染后续判断与重试 |
+| 批处理程序第一版先做 `Markdown + JSON + manifest + 章节/页码级索引` | 用户已明确优先做适合 AI 查阅和可引用回溯的 A 路线，暂不提前做寄存器等深结构化抽取 |
+| `Docling JSON` 作为批处理程序的 canonical source，`Markdown` 作为阅读副产物，RAG 主索引来自 Docling 原生 chunking | 这是基于 Docling 官方 chunking / serialization / RAG examples 收敛出的最稳妥路线 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

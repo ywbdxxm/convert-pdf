@@ -50,26 +50,21 @@ Markdown 是当前大模型处理中最实用的中间格式之一：
 
 针对扫描件、中文、多语言和复杂学术文档的重要备选方案。
 
-## 仓库当前计划
+## 当前实现状态
 
-短期计划：
+当前仓库已经落地了第一版 `Docling` 批处理程序，目标不是“单纯导出 Markdown”，而是把芯片手册转成更适合 AI 查阅和引用的一组资产：
 
-1. 接入至少一条本地 `PDF -> Markdown` 转换管线
-2. 准备一组真实 PDF 样本做对比测试
-3. 比较不同工具在以下维度的表现：
-   - 阅读顺序
-   - 表格保真度
-   - 公式保真度
-   - OCR 能力
-   - 中文文档支持
-   - 输出是否适合大模型直接使用
+1. 原始 PDF
+2. `Docling JSON`
+3. 阅读版 `Markdown`
+4. 章节级索引 `sections.jsonl`
+5. 检索级索引 `chunks.jsonl`
+6. 文档级 `manifest.json`
+7. 批处理级 `run summary`
 
-中期计划：
+当前默认路线是：
 
-1. 统一转换接口
-2. 增加批处理能力
-3. 增加结果评估与样本对比
-4. 逐步扩展到更多 PDF 处理能力
+`PDF -> Docling JSON -> HybridChunker(native) -> contextualized chunks + Markdown companion`
 
 ## 当前仓库内容
 
@@ -87,6 +82,10 @@ Markdown 是当前大模型处理中最实用的中间格式之一：
   - 共享 AI base、Docling overlay 和环境验证脚本
 - `docling/`
   - Docling 项目级工作区
+- `docling_batch/`
+  - 第一版 Docling 批处理程序
+- `tests/`
+  - 批处理程序的单元测试
 
 ## 当前工作站架构
 
@@ -115,25 +114,80 @@ Markdown 是当前大模型处理中最实用的中间格式之一：
 ./scripts/verify_ai_stack.sh
 ```
 
-## 后续实现方向
+## 批处理程序用法
 
-后续代码实现预计会围绕以下模块展开：
+先准备环境：
 
-- `converters/`
-  - 不同 PDF 转 Markdown 工具的适配层
-- `samples/`
-  - 测试 PDF 样本
-- `outputs/`
-  - 转换结果
-- `benchmarks/`
-  - 对比结果和评估脚本
+```sh
+./scripts/bootstrap_ai_base.sh
+./scripts/bootstrap_docling_env.sh
+./scripts/verify_ai_stack.sh
+```
+
+然后运行批处理：
+
+```sh
+docling/.venv/bin/python -m docling_batch convert \
+  --input /path/to/manuals \
+  --output /path/to/output \
+  --device cuda
+```
+
+若当前 PDF 是数字版手册，建议先关闭 OCR：
+
+```sh
+docling/.venv/bin/python -m docling_batch convert \
+  --input /path/to/manuals \
+  --output /path/to/output \
+  --device cuda \
+  --no-ocr
+```
+
+若是扫描件或图片化 PDF，再启用 OCR，默认走 `RapidOCR`：
+
+```sh
+docling/.venv/bin/python -m docling_batch convert \
+  --input /path/to/manuals \
+  --output /path/to/output \
+  --device cuda \
+  --ocr-engine rapidocr \
+  --force-full-page-ocr
+```
+
+## 输出结构
+
+每个文档会生成：
+
+- `<output>/<doc_id>/document.json`
+- `<output>/<doc_id>/document.md`
+- `<output>/<doc_id>/manifest.json`
+- `<output>/<doc_id>/sections.jsonl`
+- `<output>/<doc_id>/chunks.jsonl`
+
+每次批处理还会生成：
+
+- `<output>/_runs/<timestamp>.json`
+
+其中：
+
+- `document.json`
+  - Docling canonical source，后续索引和结构化抽取应从这里派生
+- `document.md`
+  - 供人工阅读和 diff 的副产物
+- `sections.jsonl`
+  - 章节级索引，方便快速定位某个主题在哪章哪页
+- `chunks.jsonl`
+  - 原生 `HybridChunker` 产出的检索级片段，带 `contextualized_text` 和页码引用
+- `manifest.json`
+  - 文档元数据、处理参数和输出路径
 
 ## 当前结论
 
-如果现在就开始落地实现，我的建议是：
+对这个仓库，当前最佳实践已经收敛为：
 
-- 先接入 `Docling`
-- 再补 `Marker` 做高保真对比
-- 再用 `PyMuPDF4LLM` 做轻量 baseline
-
-这样可以在工程复杂度、精度和实现速度之间取得比较合理的平衡。
+- 默认主线：`Docling`
+- canonical source：`Docling JSON`
+- 检索切块：Docling 原生 `HybridChunker`
+- 阅读副本：`Markdown`
+- GPU：优先 `--device cuda`
+- OCR：按需启用，而不是默认总开

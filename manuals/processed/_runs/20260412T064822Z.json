@@ -1,0 +1,37 @@
+{
+  "generated_at": "20260412T064822Z",
+  "output_root": "manuals/processed",
+  "total_documents": 1,
+  "success_count": 1,
+  "partial_success_count": 0,
+  "failure_count": 0,
+  "documents": [
+    {
+      "doc_id": "esp32-s3-datasheet-en",
+      "title": "esp32-s3_datasheet_en",
+      "source_pdf_path": "/home/qcgg/workspace/convert-pdf/manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf",
+      "source_pdf_sha256": "2d5a7cb7fd559d8d972bd88db32669c0196d23f22d7afaafb0f63d099b589a3f",
+      "source_filename": "esp32-s3_datasheet_en.pdf",
+      "page_count": 87,
+      "docling_version": "2.86.0",
+      "status": "success",
+      "ocr_enabled": false,
+      "ocr_engine": "rapidocr",
+      "force_full_page_ocr": false,
+      "accelerator_device": "cuda",
+      "chunker_type": "hybrid",
+      "tokenizer": "sentence-transformers/all-MiniLM-L6-v2",
+      "max_chunk_tokens": 384,
+      "image_mode": "referenced",
+      "generate_picture_images": true,
+      "generate_page_images": false,
+      "image_scale": 1.0,
+      "errors": [],
+      "document_json": "manuals/processed/esp32-s3-datasheet-en/document.json",
+      "document_markdown": "manuals/processed/esp32-s3-datasheet-en/document.md",
+      "sections_index": "manuals/processed/esp32-s3-datasheet-en/sections.jsonl",
+      "chunks_index": "manuals/processed/esp32-s3-datasheet-en/chunks.jsonl"
+    }
+  ],
+  "run_summary_path": "manuals/processed/_runs/20260412T064822Z.json"
+}
