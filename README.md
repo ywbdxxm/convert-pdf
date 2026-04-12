@@ -75,12 +75,45 @@ Markdown 是当前大模型处理中最实用的中间格式之一：
 
 - `README.md`
   - 项目说明
+- `docs/architecture/`
+  - AI 工作站架构审计和执行计划
 - `task_plan.md`
   - 任务规划和阶段记录
 - `findings.md`
   - 工具调研与结论
 - `progress.md`
   - 执行过程和验证记录
+- `scripts/`
+  - 共享 AI base、Docling overlay 和环境验证脚本
+- `docling/`
+  - Docling 项目级工作区
+
+## 当前工作站架构
+
+当前仓库采用分层工作站设计：
+
+1. `Host`
+   - Windows 驱动、WSL 集成、宿主代理
+2. `WSL System`
+   - Docker、NVIDIA runtime、OCR、本地构建工具
+3. `Shared Heavy AI Base`
+   - 单一共享的 `torch + CUDA` 重型环境
+4. `Project Overlay`
+   - 每个项目自己的轻量 Python 依赖层
+5. `Data / Outputs`
+   - PDF 样本、转换结果、索引和实验产物
+
+这样做的目标是既保持项目隔离，又避免每个项目都重新下载完整的 GPU Python 栈。
+
+## 当前推荐启动顺序
+
+从仓库根目录执行：
+
+```sh
+./scripts/bootstrap_ai_base.sh
+./scripts/bootstrap_docling_env.sh
+./scripts/verify_ai_stack.sh
+```
 
 ## 后续实现方向
 

@@ -147,6 +147,185 @@
   - 对复杂手册，最佳实践是“转换管线 + PDF MCP 兜底查证”。
 - 当前本地 Codex 配置里还没有接入 `pdf-reader-mcp`，所以“现在这个会话”并没有现成的专用 PDF MCP 可直接调用。
 
+## WSL / GPU Environment Facts
+- 当前环境是 `Ubuntu 24.04.4 LTS` on `WSL2`。
+- `nvidia-smi` 在当前 full-access 会话中已正常返回，说明这台机器的 WSL GPU 路径现在是通的：
+  - GPU: `NVIDIA GeForce RTX 4060 Laptop GPU`
+  - Driver: `595.79`
+  - CUDA: `13.2`
+- `/usr/lib/wsl/lib/libcuda.so*` 存在，说明 WSL 用户态 CUDA 桥接库已经由 Windows 驱动暴露给 Linux。
+- 当前 `nvcc` 未安装，因此“能用 GPU”不等于“已安装完整 CUDA toolkit / 编译环境”。
+- 当前 `docker` 已安装；此前“尚未安装 Docker”的状态已在后续系统层实施阶段解决。
+- 当前已安装：
+  - `python3 3.12.3`
+  - `pip`
+  - `uv`
+  - `build-essential`
+  - `cmake`
+  - `git`
+  - `curl`
+  - `wget`
+- 当前未安装：
+  - `nvcc`
+  - 完整 CUDA toolkit
+
+## WSL Environment Implementation Notes
+- 当前系统层已实际完成：
+  - `docker-ce` / `docker-ce-cli` / `containerd.io`
+  - `docker-buildx-plugin`
+  - `docker-compose-plugin`
+  - `nvidia-container-toolkit`
+  - `ninja-build`
+  - `tesseract-ocr`
+  - `tesseract-ocr-eng`
+  - `tesseract-ocr-chi-sim`
+  - `libtesseract-dev`
+  - `libleptonica-dev`
+- Docker daemon 已追加 systemd proxy drop-in，显式继承：
+  - `HTTP_PROXY`
+  - `HTTPS_PROXY`
+  - `NO_PROXY`
+- 这是必要的，因为本机网络环境下，Docker daemon 默认不继承用户 shell 里的代理变量；不配置会导致 `docker pull` 超时。
+- Docker runtime 已配置出 `nvidia` runtime，且 GPU 容器已成功执行 `nvidia-smi`。
+- 当前用户已被加入 `docker` 组，但现有 shell 进程组列表尚未刷新；新开 WSL shell 后会自然生效。
+- 当前没有全局安装完整 CUDA toolkit / `nvcc`，这是有意选择：
+  - 当前目标是运行 `torch/docling` 和 GPU 容器，不是编译 CUDA 程序；
+  - 绝大多数 Python AI 项目使用 wheel/runtime 已足够；
+  - 以后若有自定义 CUDA extension 或编译需求，再补 toolkit 更稳。
+
+## UV / Torch Install Bottleneck Notes
+- `uv` 当然可以换源；当前这次安装实际上已经不是默认源，而是显式使用了 PyTorch 的 CUDA wheel index：
+  - `https://download.pytorch.org/whl/cu128`
+- 这说明当前瓶颈不是“不会换源”，而是：
+  - CUDA 版 `torch` 本身依赖非常大；
+  - PyTorch CUDA wheels 不一定被常见 PyPI 镜像完整镜像；
+  - 即使换源，也只有在该镜像真实同步了 `cu128` wheels 的前提下才会明显变快。
+- `uv` 侧可用的切换方式包括：
+  - 命令行 `--index` / `--default-index`
+  - 环境变量 `UV_INDEX` / `UV_DEFAULT_INDEX`
+  - `pyproject.toml` 中的 `[[tool.uv.index]]`
+- 从当前项目目标看，更合理的策略不是继续死磕本地 CUDA 版 `torch`，而是：
+  - 为当前项目建立 GPU 项目环境可以继续完成；
+  - 但从长期维护看，后续需要额外设计一个共享 `AI base` 环境；
+  - 这样每个项目只装增量依赖，而不是重复下载完整 CUDA Python 运行库。
+- 当前用户已明确选择：
+  - 这次继续等当前 GPU 项目环境装完；
+  - 但后续必须补 `AI base` 分层方案，避免每个项目都重复经历同样的超长安装。
+- 实测中，这条安装链还有一个稳定性问题：
+  - 并不只是“慢”，而且依赖 `pypi.nvidia.com` 上多个超大 wheel；
+  - 当网络抖动或 TLS 握手失败时，整个安装会退出；
+  - 当前已出现一次真实失败：`nvidia-cusolver-cu12==11.7.3.90` 下载经过 6 次重试后仍报 `tls handshake eof`。
+- 对“稳态优先”的工作站架构，这意味着：
+  - 不能把“每个项目各自从公网拉完整 CUDA Python 依赖”当成长期方案；
+  - 共享 `AI base` 环境不是优化项，而是必要项；
+  - 未来应优先复用稳定的本地 wheel 缓存或共享环境，而不是反复从外网重装。
+- 进一步约束：
+  - 如果把共享 base 拆得太碎，也会重新引入“重复安装大包”的问题；
+  - 尤其 `torch + CUDA runtime wheels` 这类超大依赖，不应该在多个共享环境里重复各装一份。
+- 因此，稳态优先下更合理的原则不是“按家族拆很多 base”，而是：
+  - 超大且高复用的底座依赖尽量收敛到极少数共享层；
+  - 只有轻量、变化快、耦合强的上层依赖才在更细粒度的共享层或项目层隔离。
+
+## Conda / Micromamba Assessment
+- 在最初评估 `conda` 必要性时，这台机器尚未安装 `conda`、`mamba` 或 `micromamba`；当前已安装 `micromamba`，但仍未安装完整 `conda/mamba`。
+- 对当前这台“稳态优先”的工作站，结论不是“全都换成 conda”，而是：
+  - **项目级轻量环境** 仍然优先 `uv`
+  - **共享重型 AI base** 则应认真考虑 `micromamba/conda`
+- 这样分层的原因是：
+  - `uv` 非常适合轻量、项目私有、以 PyPI 为主的依赖管理；
+  - 但当前两次 `torch + CUDA` 安装都暴露了重型二进制依赖链的稳定性问题；
+  - `micromamba` 官方定位是一个自包含、静态链接、面向 conda 包生态的轻量可执行文件，适合作为稳定工作站上的共享环境管理器；
+  - `mamba` 文档也明确其是快速、健壮、跨平台、兼容 conda 包的包管理器。
+- 对你的场景，我的评估是：
+  - **`conda/micromamba` 不是每个项目都必须引入**
+  - 但对“单一共享重型 AI base”这一层，它已经从“可选项”上升到了“强候选”
+- 如果继续坚持只用 `uv` 维护共享重型 AI base，也不是绝对不行，但必须接受：
+  - 仍然依赖 PyTorch CUDA wheels + `pypi.nvidia.com`
+  - 仍然可能在大包下载阶段被网络/TLS 问题打断
+- 当前这点已经被再次验证：
+  - 共享 `AI base` 的 `uv pip install --torch-backend cu128 ...` 会话已经结束；
+  - 原 `/home/qcgg/.venvs/ai-base-cu128-stable` 最终没有形成可用环境，后续已被清理；
+  - 说明这条路径目前没有形成可复用的稳定共享基座。
+- 在 `conda` 和 `micromamba` 之间，我更倾向：
+  - **优先 `micromamba`**
+  - 理由：更轻、更适合作为稳态工作站上的共享环境层，而不是把完整 conda 体系扩散到所有项目工作流
+- 结合当前两次 `uv + CUDA torch` 失败/未完成的实际结果，我现在的结论进一步收敛为：
+  - 对共享重型 `AI base`，**应当切换到 `micromamba` 路线**
+  - 对项目级轻量环境，继续保留 `uv`
+- 结合“稳态优先”的工作站目标，这里再进一步收敛：
+  - 不应设计多个都自带 `torch + CUDA` 的共享 base；
+  - 更合理的是一个共享重型 `AI base`，承载 `torch + CUDA` 这类超大且高复用依赖；
+  - “按家族分层”只体现在轻量增量依赖和项目模板上，而不是多个重型基础环境。
+
+## Environment Preference Update
+- 用户当前偏好是：
+  - `GPU driver / NVIDIA / CUDA / 容器支持` 尽量直接配置在 WSL 系统里；
+  - 希望后续所有项目都能复用这套已配置好的基础设施；
+  - 但 Python AI 依赖仍按项目做合理隔离，不直接灌进系统 Python。
+- 这对系统级 GPU / Docker / NVIDIA container toolkit 完全合理。
+- 这个边界现在已经明确：
+  - 系统级全局安装：GPU / CUDA bridge / Docker / NVIDIA container toolkit / 构建工具；
+  - 项目级隔离安装：`torch/docling/mineru` 等 Python AI 依赖。
+- 当前目录组织偏好也已明确：
+  - 项目环境目录直接放在仓库根下，例如 `docling/`
+  - 不额外套 `exploration/` 这一层
+- 这些原则现已写入仓库级 `AGENTS.md`，后续在本仓库开启新会话时可作为默认环境分层准则。
+- 这类偏好适合写进 `AGENTS.md`，因为它本质上是“环境与依赖分层原则”，不是某个一次性操作细节。
+- 更合适的写法是原则化描述，例如：
+  - 优先把可复用的宿主基础设施做系统级安装；
+  - 优先把会产生版本冲突的语言级依赖做项目级隔离；
+  - 做决定时先判断该依赖是“跨项目共享底座”还是“项目私有实现依赖”。
+
+## Local vs Cloud Parsing Reality
+- 对 `MinerU API` 这类云端/远程能力，核心优势通常不是“天然一定比本地强很多”，而是：
+  - 更容易接入更重的多模态模型或云侧推理资源；
+  - 对扫描件、复杂图文混排、图片化表格往往更容易堆出更高上限；
+  - 你不用自己维护模型权重、OCR 栈和算力调优。
+- 但对嵌入式手册场景，云端方案并不总是明显更优：
+  - 大量现代 datasheet / app note 本身是数字版 PDF，本地结构化解析往往已经足够；
+  - 云端通常带来成本、网络延迟、吞吐限制、数据外发和可重复性问题；
+  - 若你的工作流强调“持续批量处理 + 本地检索 + 反复修正”，本地方案更容易沉淀稳定资产。
+- 更准确的判断是：
+  - “云端上限可能更高”，尤其在扫描件/图片化资料/复杂视觉理解上；
+  - “本地下限和稳定性通常更好”，尤其在可控、低成本、批处理、可复现方面。
+- 因此对这个项目，推荐顺序仍是：
+  - 先把 `Docling` 本地主流程打通；
+  - 再在你选定的样本集上和 `MinerU API` 做 A/B 对比；
+  - 用真实样本决定是否值得长期引入云端增强。
+
+## OpenDataLoader PDF Assessment
+- `opendataloader-pdf` 不是 `MarkItDown` 那类轻量转换器，更接近“面向 AI-ready data 的专用 PDF parser”。
+- 官方 README 当前给出的定位很强：
+  - 输出 `Markdown / JSON / HTML`
+  - 支持带 bounding boxes 的 JSON
+  - 支持阅读顺序、标题层级、列表、表格、图片、header/footer/watermark filtering
+  - 强调 `AI safety`，会过滤疑似 prompt injection 内容
+  - 本地默认模式是 deterministic local mode
+  - 对复杂页、OCR、公式、图表描述，可切到 hybrid mode
+- 架构上它和 `Docling` / `MinerU` 的关系更像：
+  - 默认是本地快速解析；
+  - 遇到复杂页时，可通过 hybrid backend 把复杂任务路由给 AI；
+  - 不是单纯的纯云 API，也不是只能纯本地。
+- 官方说明的技术形态值得注意：
+  - Python / Node / Java 三套入口都有；
+  - Python 和 Node 包本质上都依赖 Java 11+；
+  - 每次 `convert()` 都会起 JVM，所以官方明确建议批量文件一次性调用，而不是频繁小调用。
+- 对当前选型，它的优点是：
+  - 有本地 deterministic mode，适合隐私和批处理；
+  - 有 hybrid mode，适合复杂表格、扫描件、公式、图表；
+  - JSON 带 bounding boxes，这对后续做引用定位、可视化核对、RAG source attribution 很有价值；
+  - `use_struct_tree=True` 这类能力对 tagged PDF 可能很强。
+- 对当前选型，它的注意点是：
+  - 依赖 Java 运行时，工程栈比 `Docling` 更杂；
+  - hybrid mode 需要额外后端服务，不像 `Docling` 默认路径那么直接；
+  - README 里的 benchmark 是项目方自报，值得参考，但不能无条件当成结论，仍需用自己的样本验证；
+  - 若你只想尽快开始 Python 本地实验，`Docling` 的上手阻力仍然更低。
+- 我对它在我们当前候选中的定位是：
+  - 不是替代 `MarkItDown` 的轻量工具，而是一个很值得认真测试的“强候选主解析器”；
+  - 如果你接受 `Java + Python` 混合栈，它完全值得和 `Docling`、`MinerU` 进入同一轮 A/B；
+  - 对数字版 datasheet/app note，它有潜力成为 `Docling` 的直接竞品；
+  - 对扫描件/复杂页，它的 hybrid mode 很值得测试，但这已经比纯本地路线更重。
+
 ## Best Practice For Embedded Manual-Driven Development
 - 从“让我依据手册帮你写嵌入式代码”的角度，最佳实践不是只选一种工具，而是分层：
   - 第 1 层：保留原始 PDF，作为最终权威来源。
@@ -183,7 +362,73 @@
 - 这样我在写代码时能做到：
   - 先根据结构化摘录做实现；
   - 再对关键寄存器位、复位值、时序约束做原 PDF 复核；
-  - 最终把驱动实现、初始化顺序、边界条件和注释都和手册对齐。
+- 最终把驱动实现、初始化顺序、边界条件和注释都和手册对齐。
+
+## Mirror Reset & Recovery Decisions
+- 这次需要重置的不是“系统层基础设施”，而是失败的 Python 重型依赖下载链。
+- 保留不动的层：
+  - WSL GPU 桥接
+  - Docker / NVIDIA Container Toolkit
+  - OCR 与构建基础包
+- 清理重置的层：
+  - 失败的共享 `AI base`
+  - `micromamba` 包缓存
+  - `pip` / `uv` 下载缓存
+- 当前确认的镜像策略：
+  - `pip`：清华 PyPI 镜像
+  - `uv`：清华 PyPI 镜像
+  - `conda-forge`：中科大镜像
+  - `pytorch` / `nvidia`：教育网国内镜像，实际会重定向到南科大镜像节点
+- 这套混合镜像策略是有意设计，不是随意拼接：
+  - 单一国内镜像并未稳定覆盖 `conda-forge + pytorch + nvidia` 这组 GPU 相关 channel；
+  - 对共享重型 AI base，覆盖率比“全部来自同一家”更重要。
+- 关键修正点：
+  - 之前 `uv.toml` 写成了 `default-index = ...`；
+  - 当前版本 `uv` 不识别这个键；
+  - 已改为有效的 `index-url = ...`，并用 `uv pip install --dry-run` 验证通过。
+- 当前对重建方案的收敛结论：
+  - 共享重型 `AI base`：优先 `micromamba`
+  - 项目级轻量环境：继续 `uv`
+  - 不再把 `uv + CUDA torch wheels + pypi.nvidia.com` 当成第一条共享 base 重建路径
+- 一个容易忽略的点：
+  - `micromamba create --dry-run` 不会创建环境，但会缓存很大的 repodata / solv 索引文件；
+  - 在国内镜像验证阶段，这些索引缓存也可能达到数百 MB；
+- 若目标是“彻底清空后再重建”，验证完成后应再次清理缓存。
+
+## AI Workstation Design Audit Findings
+- 之前的设计主线是对的，但有 4 个关键缺口没有真正落盘：
+  - 全局 `~/.codex/AGENTS.md` 实际为空，跨会话规则没有继承；
+  - `task_plan.md` 引用的设计文档路径并不存在；
+  - `docling/` 目录为空，项目层没有真正 materialize；
+  - 没有把“项目层如何复用共享 `AI base`”说成一条可执行机制。
+- 本次审计后，工作站分层从原来的简化版进一步收敛为：
+  - `Host -> WSL System -> Docker/NVIDIA Runtime -> Shared Heavy AI Base -> Project Overlay -> Data/Artifacts`
+- 这里新增 `Host` 层是必要的，因为：
+  - WSL GPU 能力依赖 Windows 驱动；
+  - 当前代理能力也依赖宿主机上的 Clash；
+  - 这两者都不是 WSL 内部自足的。
+- 当前最重要的优化点不是“再装更多工具”，而是把复用边界写清楚：
+  - 系统层只放跨项目基础设施；
+  - 共享 `AI base` 只放重型高复用依赖；
+  - 项目层通过 overlay venv 复用共享 base；
+  - 模型和大缓存不放进仓库。
+- 对“共享 `AI base` + 项目隔离”的具体落地，本次设计采用：
+  - 共享 base 用 `micromamba`
+  - 项目层用由共享 base Python 创建的 `venv --system-site-packages`
+  - 项目私有依赖再用 `uv pip install` 装到 overlay venv
+- 这样做的好处是：
+  - 不把项目依赖灌进共享重型 base；
+  - 不再为每个项目重新下载完整 torch/CUDA；
+  - 仍保留项目级目录和可控激活方式。
+- 当前还补上了两个之前缺失但很重要的策略：
+  - 激活策略：禁止在 shell 启动文件里自动激活项目环境；
+  - 工件策略：Docling 等模型缓存应放到仓库外的共享 cache 路径。
+- 对这台机器，当前稳定基线可暂定为：
+  - Python `3.12`
+  - PyTorch `2.5.1`
+  - CUDA runtime `12.4`
+  - 镜像策略为国内混合镜像
+- 这比“追最新”更适合稳态优先的工作站。
 
 ## Technical Decisions
 | Decision | Rationale |
