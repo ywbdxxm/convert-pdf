@@ -7,7 +7,7 @@ class MarkdownAlertTests(unittest.TestCase):
     def test_detect_markdown_alerts_flags_caption_followed_by_image_without_sidecar(self):
         markdown = (
             "## 2.3.5 Peripheral Pin Assignment\n\n"
-            "Table 2-9. Peripheral Pin Assignment\n\n"
+            "## Table 2-9. Peripheral Pin Assignment\n\n"
             "![Image](artifacts/image_000025.png)\n\n"
             "2 Signals can be mapped through GPIO Matrix.\n\n"
             "<!-- page_break -->\n\n"

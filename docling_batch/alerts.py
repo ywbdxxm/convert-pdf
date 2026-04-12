@@ -7,6 +7,17 @@ TABLE_CAPTION_RE = re.compile(r"^Table\s+[0-9A-Za-z][^\n]*")
 IMAGE_REF_RE = re.compile(r"!\[Image\]\(([^)]+)\)")
 
 
+def _caption_text(line: str) -> str | None:
+    normalized = line.strip()
+    while normalized.startswith("#"):
+        normalized = normalized[1:].strip()
+    if normalized.startswith("Table sidecars:"):
+        return None
+    if TABLE_CAPTION_RE.match(normalized):
+        return normalized
+    return None
+
+
 def detect_markdown_alerts(markdown: str) -> list[dict]:
     lines = markdown.splitlines()
     alerts: list[dict] = []
@@ -20,11 +31,11 @@ def detect_markdown_alerts(markdown: str) -> list[dict]:
             index += 1
             continue
 
-        if not TABLE_CAPTION_RE.match(line) or line.startswith("Table sidecars:"):
+        caption = _caption_text(line)
+        if caption is None:
             index += 1
             continue
 
-        caption = line
         lookahead = index + 1
         found_table_rows = False
         found_sidecar = False
@@ -33,9 +44,11 @@ def detect_markdown_alerts(markdown: str) -> list[dict]:
         while lookahead < len(lines):
             candidate = lines[lookahead].strip()
 
-            if "<!-- page_break -->" in candidate or candidate.startswith("## "):
+            if "<!-- page_break -->" in candidate:
                 break
-            if TABLE_CAPTION_RE.match(candidate) and not candidate.startswith("Table sidecars:"):
+            if _caption_text(candidate) is not None:
+                break
+            if candidate.startswith("## "):
                 break
             if not candidate:
                 lookahead += 1

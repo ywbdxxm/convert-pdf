@@ -406,3 +406,4 @@
 2026-04-12 开始实现 conversion signature cache：缓存现在会区分解析参数，避免配置变化时误复用窗口结果。
 2026-04-12 已接入 document.html 导出，并把路径写入 manifest，作为更适合人工核对宽表/图片的阅读副产物。
 2026-04-12 已增加 markdown 告警检测：对“表题后跟图片且无结构化 sidecar”的情况输出 alerts.json，显式标注标准 Docling 管线的局限。
+2026-04-12 修正 alerts 检测器：现在能识别 `## Table ...` 这类 heading 形式的表题，不再漏报图片退化表格。
