@@ -275,6 +275,7 @@ agent 使用最终 bundle 时，推荐顺序是：
 ## 文档入口
 
 - [项目报告](项目报告.md)
+- [四份产物详细对比分析](四份产物详细对比分析.md)
 - [Docs Index](docs/README.md)
 - [Project Structure](docs/architecture/2026-04-15-project-structure.md)
 - [Parser Status And Next Steps](docs/architecture/2026-04-15-parser-status-and-next-steps.md)

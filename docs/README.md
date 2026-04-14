@@ -9,6 +9,10 @@ This directory has been pruned to the current active document set.
 - [项目报告](../项目报告.md)
   - 根目录中文正式汇报材料
   - 面向老板/管理层的项目定义、方案、架构、实现、对比与结论
+- [四份产物详细对比分析](../四份产物详细对比分析.md)
+  - 四份实际 bundle 的逐项对比
+  - 明确指出每份产物具体哪里做得不好
+  - 总结优缺点与后续值得做的改动
 - [Executive Project Report](architecture/2026-04-15-executive-project-report.md)
   - 面向老板的完整中文汇报
   - 需求、方案、架构、实现、对比、使用方式、后续建议
