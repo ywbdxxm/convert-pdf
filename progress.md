@@ -102,6 +102,8 @@
   - `docs/architecture/2026-04-15-project-structure.md`
 - Updated `docs/README.md` and the root `README.md` to point at the new structure doc.
 - Reached a practical plateau: current parser/bundle outputs are good enough for real use, and the next likely changes are higher-cost experiments rather than obvious wins.
+- Wrote a formal Chinese executive report for stakeholders:
+  - `docs/architecture/2026-04-15-executive-project-report.md`
 
 ## Next Action
 

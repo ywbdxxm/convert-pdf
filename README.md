@@ -122,6 +122,7 @@ manuals/raw/st/stm32h7/stm32h743vi.pdf
 ## 文档
 
 - [Docs Index](docs/README.md)
+- [Executive Project Report](docs/architecture/2026-04-15-executive-project-report.md)
 - [Project Structure](docs/architecture/2026-04-15-project-structure.md)
 - [Parser Status And Next Steps](docs/architecture/2026-04-15-parser-status-and-next-steps.md)
 - [Parser Optimization Roadmap](docs/superpowers/plans/2026-04-15-parser-optimization-roadmap.md)

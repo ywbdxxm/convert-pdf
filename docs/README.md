@@ -6,6 +6,9 @@ This directory has been pruned to the current active document set.
 
 ### Current
 
+- [Executive Project Report](architecture/2026-04-15-executive-project-report.md)
+  - 面向老板的完整中文汇报
+  - 需求、方案、架构、实现、对比、使用方式、后续建议
 - [Project Structure](architecture/2026-04-15-project-structure.md)
   - top-level repository roles
   - processed bundle layout
