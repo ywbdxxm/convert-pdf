@@ -6,6 +6,10 @@ This directory has been pruned to the current active document set.
 
 ### Current
 
+- [Project Structure](architecture/2026-04-15-project-structure.md)
+  - top-level repository roles
+  - processed bundle layout
+  - where to start reading
 - [Parser Status And Next Steps](architecture/2026-04-15-parser-status-and-next-steps.md)
   - current Docling vs OpenDataLoader comparison
   - current verdict

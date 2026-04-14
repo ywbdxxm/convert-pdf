@@ -98,6 +98,9 @@
 - Improved `docling_bundle` quality summaries so alert entries now include page references and captions/details.
 - Verified on the ESP32-S3 datasheet bundle that `quality-summary.md` now surfaces:
   - `table_caption_followed_by_image_without_sidecar p.27: Table 2-9. Peripheral Pin Assignment`
+- Added a dedicated current project layout document:
+  - `docs/architecture/2026-04-15-project-structure.md`
+- Updated `docs/README.md` and the root `README.md` to point at the new structure doc.
 
 ## Next Action
 

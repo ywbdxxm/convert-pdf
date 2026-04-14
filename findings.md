@@ -675,6 +675,23 @@ So the current judgment is:
 - keep this optimization wave
 - only continue with a larger wave if we accept more complexity and more uncertain returns
 
+## Project Structure Clarification
+
+The project now has a current structure document:
+
+- `docs/architecture/2026-04-15-project-structure.md`
+
+This is useful because the repository now has a clear split between:
+
+- parser overlay environments
+- parser-side bundle builders
+- raw PDFs
+- final processed bundles
+- temporary staging data
+- current docs vs superseded docs
+
+That structure is now explicit instead of being inferred from scattered notes.
+
 ## Deferred
 
 - OpenDataLoader + LlamaIndex
