@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
 from types import SimpleNamespace
@@ -481,9 +480,7 @@ def export_document_bundle(
 
 
 def build_run_summary(results: list[dict], output_root: Path) -> dict:
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    summary = {
-        "generated_at": timestamp,
+    return {
         "output_root": str(output_root),
         "total_documents": len(results),
         "success_count": sum(1 for item in results if item["status"] == "success"),
@@ -491,11 +488,6 @@ def build_run_summary(results: list[dict], output_root: Path) -> dict:
         "failure_count": sum(1 for item in results if item["status"] == "failure"),
         "documents": results,
     }
-    run_path = output_root / "_runs" / f"{timestamp}.json"
-    write_json(run_path, summary)
-    summary["run_summary_path"] = str(run_path)
-    write_json(run_path, summary)
-    return summary
 
 
 def run_batch(config: RuntimeConfig) -> dict:
