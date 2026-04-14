@@ -59,9 +59,9 @@ Key responsibilities:
 - conversion orchestration
 - chunk / section indexes
 - table sidecars
-- page slices
-- quality summary and entry files
-- runtime cache layout
+- single entry file generation
+- agent-facing bundle reduction
+- cache routing outside the final bundle
 
 ### `opendataloader/`
 
@@ -91,10 +91,9 @@ Key responsibilities:
 
 - native file selection
 - `elements.index.jsonl`
-- page slices
 - structured table exports
-- runtime/native preservation
-- runtime report generation
+- single entry file generation
+- agent-facing bundle reduction
 - quality alerts for hard pages
 
 ### `manuals/raw/`
@@ -134,43 +133,43 @@ Real generated bundles are local outputs and are intentionally not committed.
 
 Typical contents:
 
-- `README.generated.md`
-- `quality-summary.md`
+- `README.md`
+- `manifest.json`
+- `alerts.json`
 - `document.json`
 - `document.md`
 - `document.html`
 - `sections.jsonl`
 - `chunks.jsonl`
 - `tables.index.jsonl`
-- `pages/`
 - `tables/`
-- `artifacts/`
-- `alerts.json`
-- `runtime/cache/`
+- `assets/`
 
 #### `manuals/processed/opendataloader_hybrid/<doc_id>/`
 
 Typical contents:
 
-- `README.generated.md`
-- `quality-summary.md`
+- `README.md`
+- `manifest.json`
+- `alerts.json`
 - `document.json`
 - `document.md`
 - `document.html`
 - `elements.index.jsonl`
 - `tables.index.jsonl`
-- `pages/`
 - `tables/`
-- `figures/`
-- `alerts.json`
-- `runtime/report.json`
-- `runtime/native/`
+- `assets/`
 
 ### `tmp/`
 
 Optional non-final staging area.
 
 It is used only when an intermediate native dump is worth keeping locally for inspection.
+
+Current important uses:
+
+- `tmp/opendataloader_hybrid-*-native/`
+- `tmp/docling_bundle-cache/`
 
 It may be absent in a clean working tree.
 

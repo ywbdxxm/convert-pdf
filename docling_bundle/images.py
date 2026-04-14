@@ -9,7 +9,7 @@ IMAGE_REF_RE = re.compile(r"!\[Image\]\(([^)]+)\)")
 
 def resolve_artifacts_dir(document_path: Path) -> Path:
     del document_path
-    return Path("artifacts")
+    return Path("assets")
 
 
 def _page_dimensions(page) -> tuple[float, float]:

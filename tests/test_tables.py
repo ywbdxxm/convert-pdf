@@ -40,7 +40,6 @@ class TableExportTests(unittest.TestCase):
             page_start=64,
             page_end=64,
             csv_path=Path("tables/table_0001.csv"),
-            html_path=Path("tables/table_0001.html"),
             label="table",
             caption="Table 5-1. Absolute Maximum Ratings",
         )
@@ -48,7 +47,6 @@ class TableExportTests(unittest.TestCase):
         self.assertEqual(record["table_id"], "esp32-s3-datasheet-en:table:0001")
         self.assertEqual(record["page_start"], 64)
         self.assertEqual(record["csv_path"], "tables/table_0001.csv")
-        self.assertEqual(record["html_path"], "tables/table_0001.html")
         self.assertEqual(record["label"], "table")
         self.assertEqual(record["caption"], "Table 5-1. Absolute Maximum Ratings")
 
@@ -75,7 +73,6 @@ class TableExportTests(unittest.TestCase):
 
             self.assertEqual(len(records), 1)
             self.assertTrue((tables_dir / "table_0001.csv").exists())
-            self.assertTrue((tables_dir / "table_0001.html").exists())
             self.assertEqual(records[0].record["label"], "table")
             self.assertEqual(records[0].record["caption"], "Table 5-1. Absolute Maximum Ratings")
 
@@ -95,7 +92,6 @@ class TableExportTests(unittest.TestCase):
                     "page_start": 64,
                     "page_end": 64,
                     "csv_path": "tables/table_0001.csv",
-                    "html_path": "tables/table_0001.html",
                     "label": "table",
                     "caption": "Table 5-1. Absolute Maximum Ratings",
                 },
@@ -111,12 +107,12 @@ class TableExportTests(unittest.TestCase):
         updated = inject_table_sidecars_into_markdown(markdown, exported_tables)
 
         self.assertIn(
-            "Table sidecars: [HTML](tables/table_0001.html) | [CSV](tables/table_0001.csv) | `esp32:table:0001`",
+            "Table sidecar: [CSV](tables/table_0001.csv) | `esp32:table:0001`",
             updated,
         )
         self.assertLess(
             updated.index("| VDD    | 3.0 |"),
-            updated.index("Table sidecars: [HTML](tables/table_0001.html)"),
+            updated.index("Table sidecar: [CSV](tables/table_0001.csv)"),
         )
 
     def test_inject_table_sidecars_into_markdown_appends_appendix_for_unmatched_tables(self):
@@ -128,7 +124,6 @@ class TableExportTests(unittest.TestCase):
                     "page_start": 13,
                     "page_end": 13,
                     "csv_path": "tables/table_0007.csv",
-                    "html_path": "tables/table_0007.html",
                     "label": "table",
                     "caption": "Table 1-1. ESP32-S3 Series Comparison",
                 },
@@ -140,7 +135,7 @@ class TableExportTests(unittest.TestCase):
 
         self.assertIn("## Table Sidecars Appendix", updated)
         self.assertIn(
-            "- p.13 `esp32:table:0007` Table 1-1. ESP32-S3 Series Comparison [HTML](tables/table_0007.html) [CSV](tables/table_0007.csv)",
+            "- p.13 `esp32:table:0007` Table 1-1. ESP32-S3 Series Comparison [CSV](tables/table_0007.csv)",
             updated,
         )
 
@@ -159,7 +154,6 @@ class TableExportTests(unittest.TestCase):
                     "page_start": 40,
                     "page_end": 40,
                     "csv_path": "tables/table_0019.csv",
-                    "html_path": "tables/table_0019.html",
                     "label": "table",
                     "caption": "",
                 },

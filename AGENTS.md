@@ -144,12 +144,14 @@ When using a processed manual for embedded development:
 
 1. Start with `manuals/processed/docling_bundle/<doc_id>/manifest.json` for Docling outputs, or `manuals/processed/opendataloader_hybrid/<doc_id>/manifest.json` for OpenDataLoader outputs.
 2. If `alert_count > 0`, read `alerts.json` before trusting table-heavy or figure-heavy content.
-3. Use `sections.jsonl` for navigation by topic/chapter/page range.
-4. Use `chunks.jsonl` for retrieval and page-aware citations.
+3. Read `README.md` as the single entry file.
+4. Use the navigation index available for that bundle:
+   - `sections.jsonl` / `chunks.jsonl` for `docling_bundle`
+   - `elements.index.jsonl` for `opendataloader_hybrid`
 5. Use `document.md` for local reading context.
-6. Use `document.html` for human inspection of wide tables and images.
-7. Use `tables/*.csv` or `tables/*.html` to verify table values.
-8. Use `artifacts/` and the original PDF for timing diagrams, register bit diagrams, block diagrams, and visual tables.
+6. Use `document.html` for wide tables and visual inspection when needed.
+7. Use `tables/*.csv` to verify table values.
+8. Use `assets/` and the original PDF for timing diagrams, register bit diagrams, block diagrams, and visual tables.
 9. For register values, bit definitions, timing limits, pin mappings, and electrical characteristics, cross-check the processed artifact against the original PDF page before presenting a final engineering conclusion.
 
 ### Known Docling Boundaries

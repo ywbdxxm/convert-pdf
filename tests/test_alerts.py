@@ -30,7 +30,7 @@ class MarkdownAlertTests(unittest.TestCase):
             "| Parameter | Min |\n"
             "|-----------|-----|\n"
             "| VDD       | 3.0 |\n\n"
-            "Table sidecars: [HTML](tables/table_0031.html) | [CSV](tables/table_0031.csv) | `doc:table:0031`\n"
+            "Table sidecar: [CSV](tables/table_0031.csv) | `doc:table:0031`\n"
         )
 
         alerts = detect_markdown_alerts(markdown)
@@ -53,14 +53,12 @@ class MarkdownAlertTests(unittest.TestCase):
             tables_dir = root / "tables"
             tables_dir.mkdir()
             (tables_dir / "table_0001.csv").write_text("", encoding="utf-8")
-            (tables_dir / "table_0001.html").write_text("<table></table>", encoding="utf-8")
             table_records = [
                 {
                     "table_id": "doc:table:0001",
                     "page_start": 42,
                     "page_end": 42,
                     "csv_path": "tables/table_0001.csv",
-                    "html_path": "tables/table_0001.html",
                     "caption": "Figure 1. Timing diagram",
                 }
             ]
@@ -71,4 +69,3 @@ class MarkdownAlertTests(unittest.TestCase):
             self.assertEqual(alerts[0]["kind"], "empty_table_sidecar")
             self.assertEqual(alerts[0]["table_id"], "doc:table:0001")
             self.assertTrue(alerts[0]["empty_csv"])
-            self.assertFalse(alerts[0]["empty_html"])

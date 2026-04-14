@@ -29,7 +29,7 @@ OpenDataLoader native staging files are no longer exposed as a top-level paralle
 They now live inside:
 
 ```text
-manuals/processed/opendataloader_hybrid/<doc_id>/runtime/native/
+tmp/opendataloader_hybrid-*-native/
 ```
 
 ## What Was Proven
@@ -83,7 +83,7 @@ Observed strengths:
 
 - calmer reading experience
 - table sidecar workflow is more obvious
-- `README.generated.md`, `quality-summary.md`, `pages/`, `tables.index.jsonl`, and alerts form a strong verification bundle
+- `README.md`, `tables.index.jsonl`, and alerts form a stronger, lower-noise verification bundle
 - large-manual run completed without parser crash in this round
 
 Observed limits:
@@ -174,10 +174,10 @@ Goal:
 
 Highest-value next steps:
 
-1. add explicit page-level or section-level summaries in `README.generated.md`
+1. keep `README.md` as the only entry file and make it stronger
 2. add quality alerts for pages where a key table appears as `image + paragraph fragments` rather than as a native `table`
-3. surface table/image/figure entrypoints more prominently in `quality-summary.md`
-4. add a small runtime report documenting when fallback was triggered
+3. continue reducing low-value artifacts that do not help agent lookup
+4. decide whether remaining runtime state should disappear completely from the final bundle
 
 ### Priority 2: Docling bundle refinement
 
@@ -187,10 +187,10 @@ Goal:
 
 Highest-value next steps:
 
-1. add better page-level entrypoints for alert pages
-2. make `quality-summary.md` include page numbers for each alert, not just counts
-3. trim low-value tables such as repeated index/TOC tables from first-class emphasis
-4. optionally add a lightweight page-evidence index for hard pages, without trying to recreate full bbox semantics
+1. keep `README.md` as the only entry file and surface alert pages there
+2. trim low-value tables such as repeated index/TOC tables from first-class emphasis
+3. continue reducing default artifact count where benefit is unproven
+4. optionally unify navigation into a single long-term locator layer
 
 ### Priority 3: Comparative task harness
 

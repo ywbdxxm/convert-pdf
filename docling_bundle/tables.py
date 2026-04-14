@@ -20,7 +20,6 @@ def build_table_manifest_records(
     page_start: int | None,
     page_end: int | None,
     csv_path: Path,
-    html_path: Path,
     label: str,
     caption: str,
 ) -> dict:
@@ -29,7 +28,6 @@ def build_table_manifest_records(
         "page_start": page_start,
         "page_end": page_end,
         "csv_path": str(csv_path),
-        "html_path": str(html_path),
         "label": label,
         "caption": caption,
     }
@@ -82,10 +80,7 @@ def _format_page_span(page_start: int | None, page_end: int | None) -> str:
 
 
 def _build_table_sidecars_line(record: dict) -> str:
-    return (
-        f"Table sidecars: [HTML]({record['html_path']}) | "
-        f"[CSV]({record['csv_path']}) | `{record['table_id']}`"
-    )
+    return f"Table sidecar: [CSV]({record['csv_path']}) | `{record['table_id']}`"
 
 
 def _extract_context_caption(lines: list[str], sidecar_index: int) -> str:
@@ -172,7 +167,7 @@ def inject_table_sidecars_into_markdown(markdown: str, exported_tables: list[Exp
                 f"- {_format_page_span(record.get('page_start'), record.get('page_end'))} "
                 f"`{record['table_id']}`"
                 + (f" {caption}" if caption else "")
-                + f" [HTML]({record['html_path']}) [CSV]({record['csv_path']})"
+                + f" [CSV]({record['csv_path']})"
             )
         updated = f"{updated}\n\n" + "\n".join(appendix_lines)
 
@@ -186,14 +181,11 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
     records: list[ExportedTable] = []
     for index, table in enumerate(tables, start=1):
         csv_name = Path(f"table_{index:04d}.csv")
-        html_name = Path(f"table_{index:04d}.html")
         csv_path = tables_dir / csv_name
-        html_path = tables_dir / html_name
 
         dataframe = table.export_to_dataframe(doc=doc)
         dataframe.to_csv(csv_path, index=False)
         table_html = table.export_to_html(doc=doc)
-        html_path.write_text(table_html, encoding="utf-8")
         table_markdown = table.export_to_markdown(doc=doc).strip()
 
         pages = [prov.page_no for prov in getattr(table, "prov", []) or [] if getattr(prov, "page_no", None) is not None]
@@ -207,7 +199,6 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
                     page_start=page_start,
                     page_end=page_end,
                     csv_path=Path("tables") / csv_name,
-                    html_path=Path("tables") / html_name,
                     label=_stringify_label(getattr(table, "label", None)),
                     caption=extract_table_caption(table_markdown, table_html),
                 ),

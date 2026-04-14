@@ -24,11 +24,10 @@ class OpenDataLoaderBundleTests(unittest.TestCase):
                 out_dir=out_dir,
             )
 
-            self.assertTrue((out_dir / "README.generated.md").exists())
+            self.assertTrue((out_dir / "README.md").exists())
             self.assertTrue((out_dir / "manifest.json").exists())
-            self.assertTrue((out_dir / "quality-summary.md").exists())
 
-    def test_build_bundle_creates_pages_and_element_index(self):
+    def test_build_bundle_creates_element_index_without_pages(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             native_dir = root / "native"
@@ -60,7 +59,7 @@ class OpenDataLoaderBundleTests(unittest.TestCase):
             )
 
             self.assertTrue((out_dir / "elements.index.jsonl").exists())
-            self.assertTrue((out_dir / "pages" / "page_0002.md").exists())
+            self.assertFalse((out_dir / "pages").exists())
 
     def test_build_bundle_copies_native_image_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -82,7 +81,61 @@ class OpenDataLoaderBundleTests(unittest.TestCase):
                 out_dir=out_dir,
             )
 
-            self.assertTrue((out_dir / "figures" / "image1.png").exists())
+            self.assertTrue((out_dir / "assets" / "image1.png").exists())
+
+    def test_build_bundle_rewrites_markdown_image_paths_to_figures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            native_dir = root / "native"
+            native_dir.mkdir()
+            (native_dir / "sample_doc.json").write_text(json.dumps({"kids": []}), encoding="utf-8")
+            (native_dir / "sample_doc.md").write_text(
+                "![image 1](sample_doc_images/imageFile1.png)\n",
+                encoding="utf-8",
+            )
+            (native_dir / "sample_doc.html").write_text("<p>hello</p>", encoding="utf-8")
+            image_dir = native_dir / "sample_doc_images"
+            image_dir.mkdir()
+            (image_dir / "imageFile1.png").write_bytes(b"png")
+
+            out_dir = root / "bundle"
+            build_bundle(
+                doc_id="sample-doc",
+                source_pdf_path="manuals/raw/vendor/sample_doc.pdf",
+                native_dir=native_dir,
+                out_dir=out_dir,
+            )
+
+            markdown = (out_dir / "document.md").read_text(encoding="utf-8")
+            self.assertIn("![image 1](assets/imageFile1.png)", markdown)
+            self.assertNotIn("sample_doc_images/", markdown)
+
+    def test_build_bundle_rewrites_html_image_paths_to_figures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            native_dir = root / "native"
+            native_dir.mkdir()
+            (native_dir / "sample_doc.json").write_text(json.dumps({"kids": []}), encoding="utf-8")
+            (native_dir / "sample_doc.md").write_text("hello\n", encoding="utf-8")
+            (native_dir / "sample_doc.html").write_text(
+                '<img src="sample_doc_images/imageFile1.png" alt="figure1">\n',
+                encoding="utf-8",
+            )
+            image_dir = native_dir / "sample_doc_images"
+            image_dir.mkdir()
+            (image_dir / "imageFile1.png").write_bytes(b"png")
+
+            out_dir = root / "bundle"
+            build_bundle(
+                doc_id="sample-doc",
+                source_pdf_path="manuals/raw/vendor/sample_doc.pdf",
+                native_dir=native_dir,
+                out_dir=out_dir,
+            )
+
+            html = (out_dir / "document.html").read_text(encoding="utf-8")
+            self.assertIn('src="assets/imageFile1.png"', html)
+            self.assertNotIn("sample_doc_images/", html)
 
     def test_build_bundle_supports_spaced_metadata_keys(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -203,39 +256,8 @@ class OpenDataLoaderBundleTests(unittest.TestCase):
             table_csv = (out_dir / "tables" / "table_0001.csv").read_text(encoding="utf-8")
             self.assertIn("A,B", table_csv)
             self.assertIn("C,D", table_csv)
-            readme = (out_dir / "README.generated.md").read_text(encoding="utf-8")
+            readme = (out_dir / "README.md").read_text(encoding="utf-8")
             self.assertIn("Tables index", readme)
-
-    def test_build_bundle_cleans_stale_pages_from_previous_run(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            native_dir = root / "native"
-            native_dir.mkdir()
-            out_dir = root / "bundle"
-
-            (native_dir / "document.json").write_text(
-                json.dumps({"kids": [{"type": "paragraph", "page number": 2, "bounding box": [0, 0, 1, 1], "content": "first"}]}),
-                encoding="utf-8",
-            )
-            (native_dir / "document.md").write_text("first\n", encoding="utf-8")
-            (native_dir / "document.html").write_text("<p>first</p>", encoding="utf-8")
-            build_bundle(
-                doc_id="sample-doc",
-                source_pdf_path="manuals/raw/example.pdf",
-                native_dir=native_dir,
-                out_dir=out_dir,
-            )
-            self.assertTrue((out_dir / "pages" / "page_0002.md").exists())
-
-            (native_dir / "document.json").write_text(json.dumps({"kids": []}), encoding="utf-8")
-            build_bundle(
-                doc_id="sample-doc",
-                source_pdf_path="manuals/raw/example.pdf",
-                native_dir=native_dir,
-                out_dir=out_dir,
-            )
-
-            self.assertFalse((out_dir / "pages" / "page_0002.md").exists())
 
     def test_build_bundle_selects_native_files_by_source_stem(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -263,10 +285,9 @@ class OpenDataLoaderBundleTests(unittest.TestCase):
             self.assertEqual(manifest["page_numbers"], [2])
             markdown = (out_dir / "document.md").read_text(encoding="utf-8")
             self.assertIn("right", markdown)
-            self.assertFalse((out_dir / "runtime" / "native" / "other_doc.json").exists())
-            self.assertTrue((out_dir / "runtime" / "native" / "target_doc.json").exists())
+            self.assertFalse((out_dir / "runtime").exists())
 
-    def test_build_bundle_copies_native_inputs_under_runtime_native(self):
+    def test_build_bundle_runtime_keeps_only_run_log(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             native_dir = root / "native"
@@ -275,6 +296,7 @@ class OpenDataLoaderBundleTests(unittest.TestCase):
             (native_dir / "sample_doc.json").write_text(json.dumps({"kids": []}), encoding="utf-8")
             (native_dir / "sample_doc.md").write_text("hello\n", encoding="utf-8")
             (native_dir / "sample_doc.html").write_text("<p>hello</p>", encoding="utf-8")
+            (native_dir / "run.log").write_text("INFO: Triage summary: JAVA=1, BACKEND=2\n", encoding="utf-8")
             image_dir = native_dir / "sample_doc_images"
             image_dir.mkdir()
             (image_dir / "image1.png").write_bytes(b"png")
@@ -287,8 +309,7 @@ class OpenDataLoaderBundleTests(unittest.TestCase):
                 out_dir=out_dir,
             )
 
-            self.assertTrue((out_dir / "runtime" / "native" / "sample_doc.json").exists())
-            self.assertTrue((out_dir / "runtime" / "native" / "sample_doc_images" / "image1.png").exists())
+            self.assertFalse((out_dir / "runtime").exists())
 
     def test_build_bundle_writes_runtime_report_from_log(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -313,10 +334,29 @@ class OpenDataLoaderBundleTests(unittest.TestCase):
                 out_dir=out_dir,
             )
 
-            report = json.loads((out_dir / "runtime" / "report.json").read_text(encoding="utf-8"))
-            self.assertEqual(report["triage_summary"], "JAVA=18, BACKEND=69")
-            self.assertTrue(report["fallback_detected"])
-            self.assertTrue(report["backend_failure_detected"])
+            manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["triage_summary"], "JAVA=18, BACKEND=69")
+            self.assertTrue(manifest["fallback_detected"])
+            self.assertTrue(manifest["backend_failure_detected"])
+
+    def test_build_bundle_manifest_does_not_expose_native_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            native_dir = root / "native"
+            native_dir.mkdir()
+            (native_dir / "sample_doc.json").write_text(json.dumps({"kids": []}), encoding="utf-8")
+            (native_dir / "sample_doc.md").write_text("hello\n", encoding="utf-8")
+            (native_dir / "sample_doc.html").write_text("<p>hello</p>", encoding="utf-8")
+
+            out_dir = root / "bundle"
+            manifest = build_bundle(
+                doc_id="sample-doc",
+                source_pdf_path="manuals/raw/vendor/sample_doc.pdf",
+                native_dir=native_dir,
+                out_dir=out_dir,
+            )
+
+            self.assertNotIn("native_dir", manifest)
 
     def test_build_bundle_emits_alert_for_image_backed_table_page(self):
         with tempfile.TemporaryDirectory() as tmp:

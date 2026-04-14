@@ -12,7 +12,7 @@ def _caption_text(line: str) -> str | None:
     normalized = line.strip()
     while normalized.startswith("#"):
         normalized = normalized[1:].strip()
-    if normalized.startswith("Table sidecars:"):
+    if normalized.startswith("Table sidecar:"):
         return None
     if TABLE_CAPTION_RE.match(normalized):
         return normalized
@@ -57,7 +57,7 @@ def detect_markdown_alerts(markdown: str) -> list[dict]:
             if candidate.startswith("|"):
                 found_table_rows = True
                 break
-            if candidate.startswith("Table sidecars:"):
+            if candidate.startswith("Table sidecar:"):
                 found_sidecar = True
                 break
             image_match = IMAGE_REF_RE.search(candidate)
@@ -92,10 +92,8 @@ def detect_table_sidecar_alerts(doc_dir: Path, table_records: list[dict]) -> lis
     alerts: list[dict] = []
     for table in table_records:
         csv_path = doc_dir / table["csv_path"]
-        html_path = doc_dir / table["html_path"]
         empty_csv = _is_missing_or_empty(csv_path)
-        empty_html = _is_missing_or_empty(html_path)
-        if not empty_csv and not empty_html:
+        if not empty_csv:
             continue
 
         alerts.append(
@@ -106,9 +104,7 @@ def detect_table_sidecar_alerts(doc_dir: Path, table_records: list[dict]) -> lis
                 "page_end": table.get("page_end"),
                 "caption": table.get("caption") or "",
                 "csv_path": table["csv_path"],
-                "html_path": table["html_path"],
                 "empty_csv": empty_csv,
-                "empty_html": empty_html,
             }
         )
 

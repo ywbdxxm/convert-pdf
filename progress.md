@@ -105,6 +105,94 @@
 - Wrote a formal Chinese executive report for stakeholders:
   - `docs/architecture/2026-04-15-executive-project-report.md`
 
+2026-04-14 / 2026-04-15 clean rerun wave:
+
+- Began a clean regeneration wave focused only on `ESP32-S3 datasheet` and `ESP32-S3 TRM`.
+- Verified that the long-running `OpenDataLoader PDF hybrid` TRM job completed successfully in the current workspace.
+- Confirmed the real runtime behavior for the TRM rerun:
+  - triage summary: `JAVA=173, BACKEND=1,358`
+  - backend processing later failed with `Comparison method violates its general contract!`
+  - `--hybrid-fallback` then allowed the run to finish and export final `json/md/html`
+- Identified a bundle integrity gap:
+  - `runtime/report.json` could be generated from `native_dir/run.log`
+  - but the final bundle did not always preserve `run.log` under `runtime/native/`
+- Fixed the gap in `opendataloader_hybrid.bundle` so `run.log` is copied into the final bundle when present.
+- Added a regression assertion to `tests/test_opendataloader_bundle.py` for `runtime/native/run.log`.
+- Re-ran `python3 -m unittest tests.test_opendataloader_bundle -v` and confirmed all `10` tests pass.
+- Tried to clean-rerun `OpenDataLoader` datasheet and TRM in parallel with separate native staging directories.
+- Found a real execution hazard:
+  - both invocations started `docling-fast` backend on the default port `5002`
+  - the second backend could not bind the port
+  - the datasheet run still completed cleanly
+  - the TRM run later lost backend connectivity and fell back heavily to Java
+- Decision:
+  - keep the clean datasheet rerun
+  - discard the contaminated TRM rerun
+  - rerun the TRM alone so the hybrid backend has exclusive control and the final output is trustworthy
+- User reviewed the generated `OpenDataLoader` bundle directly and identified a more fundamental quality failure:
+  - `document.md` still points at native `*_images/` paths that do not exist inside the final bundle
+  - the final bundle also still contains a full native-output duplicate under `runtime/native/`
+- Root-cause conclusion:
+  - this is not just a small bug
+  - the bundle design drifted toward “debug/export convenience” instead of “agent-first final product”
+- Locked new `OpenDataLoader` bundle principles with failing tests:
+  - final `document.md` and `document.html` must only reference bundle-local `figures/`
+  - final `runtime/` must keep only minimal execution evidence, not a full native duplicate
+  - `manifest.json` must not expose transient `native_dir` / staging paths
+- Confirmed `docling_bundle` has the same class of design issue at the architecture level:
+  - current implementation always points window-cache writes at `runtime/cache/` inside the final bundle
+  - current `manifest.json` mixes document identity with parser/runtime/cache details and output file paths
+  - unlike the current `OpenDataLoader` bug, `docling_bundle` appears more self-consistent on image paths, but it still violates the same agent-first bundle boundary principle
+- Reassessment correction:
+  - the earlier conclusion that the project was already near the optimization ceiling was wrong
+  - the real mistake was treating “currently usable” as “already close to best practice for Codex / Claude Code”
+  - the bundle audit only became strict enough after direct user review of concrete outputs
+- Current corrected position:
+  - both output lines still had meaningful, not marginal, agent-first design defects
+  - `OpenDataLoader` had self-consistency failures in the final product
+  - `docling_bundle` had bundle-boundary failures by mixing final artifacts with runtime/cache concerns
+- Continued stricter bundle reduction based on the agent-first audit:
+  - switched `OpenDataLoader` to a single entry file `README.md`
+  - removed default `pages/` generation from the `OpenDataLoader` bundle
+  - kept only `document.{md,json,html}`, one navigation layer, table sidecars, visual assets, alerts, and minimal runtime evidence
+  - switched `docling_bundle` to a single entry file `README.md`
+  - removed default `pages/` generation from `docling_bundle`
+  - moved `docling_bundle` window cache fully out of `manuals/processed/` into `tmp/docling_bundle-cache`
+  - began reducing `docling_bundle` default table sidecars toward a single default format
+- Re-ran repository tests against the updated agent-first structure in `docling/.venv` and confirmed the currently updated suite passes before the next clean regeneration wave.
+- Continued the second reduction wave:
+  - unified the visual asset directory name toward `assets/`
+  - reduced `docling_bundle` default table sidecars to a single default CSV sidecar format
+  - removed `OpenDataLoader` runtime files from the default final bundle and folded the needed state into `README.md` / `manifest.json`
+- Re-ran the broader structural test set and confirmed it passes after the newer reductions.
+- Cleared old generated outputs again and started a clean regeneration wave using the newest bundle structure.
+- Rebuilt `OpenDataLoader` datasheet and TRM bundles with the newer default structure.
+- Confirmed the regenerated `OpenDataLoader` datasheet bundle now has:
+  - single entry file `README.md`
+  - no `pages/`
+  - no `runtime/`
+  - unified `assets/`
+  - only CSV table sidecars
+- Rebuilt `docling_bundle` datasheet bundle with the newer default structure and confirmed it now has:
+  - single entry file `README.md`
+  - no `pages/`
+  - no `quality-summary.md`
+  - no `runtime/cache/`
+  - unified `assets/`
+  - only CSV table sidecars
+- Rebuilt `docling_bundle` TRM bundle with the same reduced default structure.
+- Measured regenerated bundle reality after the reduction wave:
+  - `opendataloader_hybrid` datasheet: `5.2M`
+  - `opendataloader_hybrid` TRM: `53M`
+  - `docling_bundle` datasheet: `16M`
+  - `docling_bundle` TRM: `203M`
+- The next clear optimization target is no longer `pages/`.
+- Even though `assets/` dominates bundle size for some bundles, the project now explicitly keeps full extracted visual evidence by default rather than applying heuristic pruning.
+- So the next optimization focus shifts to:
+  - reducing remaining consumption-layer noise
+  - converging agent-facing navigation/entry behavior
+  - preserving evidence completeness while lowering decision overhead for the agent
+
 ## Next Action
 
 1. Use the current bundles for real manual work.

@@ -10,6 +10,7 @@ from docling_core.types.doc import DoclingDocument
 
 from docling_bundle.converter import (
     aggregate_conversion_statuses,
+    build_window_cache_root,
     build_conversion_signature,
     compute_page_windows,
     convert_pdf_in_windows,
@@ -24,6 +25,11 @@ from docling_bundle.converter import (
 
 
 class WorkflowHelpersTests(unittest.TestCase):
+    def test_build_window_cache_root_uses_tmp_outside_processed_bundle(self):
+        root = build_window_cache_root(Path("/home/qcgg/workspace/convert-pdf/manuals/processed"))
+
+        self.assertEqual(root, Path("/home/qcgg/workspace/convert-pdf/tmp/docling_bundle-cache"))
+
     def test_make_doc_id_normalizes_filename(self):
         self.assertEqual(make_doc_id(Path("STM32F4 Reference Manual.pdf")), "stm32f4-reference-manual")
 

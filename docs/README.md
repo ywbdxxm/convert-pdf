@@ -6,6 +6,9 @@ This directory has been pruned to the current active document set.
 
 ### Current
 
+- [项目报告](../项目报告.md)
+  - 根目录中文正式汇报材料
+  - 面向老板/管理层的项目定义、方案、架构、实现、对比与结论
 - [Executive Project Report](architecture/2026-04-15-executive-project-report.md)
   - 面向老板的完整中文汇报
   - 需求、方案、架构、实现、对比、使用方式、后续建议
@@ -36,3 +39,10 @@ The current policy is:
 - keep only the documents needed to understand the current system
 - record current state in the latest status doc
 - record future work in the latest roadmap doc
+
+Current bundle direction:
+
+- single entry file `README.md`
+- no default `pages/`
+- no default runtime/native/cache layer inside final bundles
+- unified visual asset directory `assets/`

@@ -231,6 +231,14 @@ Manual Output Architecture Reassessment
 - [x] 将报告加入 docs 入口
 - **Status:** complete
 
+### Phase 35: Clean Regeneration Of ESP32-S3 Outputs
+- [ ] 用 `opendataloader_hybrid` 完整重跑 `ESP32-S3 datasheet`
+- [ ] 用 `opendataloader_hybrid` 完整重跑 `ESP32-S3 TRM`
+- [ ] 用 `docling_bundle` 完整重跑 `ESP32-S3 datasheet`
+- [ ] 用 `docling_bundle` 完整重跑 `ESP32-S3 TRM`
+- [ ] 记录本轮重跑结果与输出状态
+- **Status:** in_progress
+
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
 2. 对嵌入式 datasheet / app note，什么场景本地方案更优，什么场景云端/远程增强更优？
@@ -288,6 +296,13 @@ Manual Output Architecture Reassessment
 | `OpenDataLoader` 运行前缺少 `java` | 1 | 已确认 Ubuntu 24.04 系统层未安装 Java，且当前 `sudo` 需要密码，等待用户决定是否手动安装系统级 JRE |
 | OpenDataLoader 首次 bootstrap 试图在 overlay 中重复安装 `torch 2.11.0` | 1 | 已停止安装，保留半成品 `.venv.partial-no-shared-base` 供对照，并将 bootstrap 改为复用 shared AI base |
 | OpenDataLoader hybrid 在 ESP32-S3 TRM 上触发 `Comparison method violates its general contract!` | 1 | 已确认这是 backend transform/sort 阶段的真实工具 bug；默认关闭 fallback 会导致整本失败，现已改为默认开启 `--hybrid-fallback` |
+| `opendataloader_hybrid` bundler 未把 `run.log` 复制进最终 bundle 的 `runtime/native/` | 1 | 已补测试并修复复制逻辑，保证 `runtime/report.json` 与原始运行日志可互相追溯 |
+| 并行重跑 `OpenDataLoader` datasheet/TRM 时共用了默认 `5002` 端口 | 1 | datasheet 干净成功，但 TRM 后续 backend chunk 因连接中断大面积回退到 Java；该次 TRM 结果作废，改为独占端口顺序重跑 |
+| `OpenDataLoader` 最终 bundle 把调试/原生副本层混进了成品目录 | 1 | 已确认这违背“agent-first 最终产物”原则；必须改成自洽成品目录，只保留最小运行证据 |
+| `docling_bundle` 也把运行/缓存层混进了最终 bundle | 1 | 已确认 `run_batch()` 无条件把窗口缓存写进 `runtime/cache/`，且 `manifest.json` 混入大量运行态字段；后续与 ODL 一起收缩 |
+| 之前“按最高原则已无明显优化空间”的判断不成立 | 1 | 直接查看最终 bundle 后已确认该判断是误判；后续一律以 concrete outputs 的 agent 使用效果为准，不再以主观“差不多够好”作结论 |
+| 默认 `pages/`、双入口文件、双份 table sidecar 仍然过重 | 1 | 已确认这是当前继续偏离最佳实践的主要冗余来源；后续以“单入口、单导航、单默认 table format”为收敛目标 |
+| 默认视觉资产保留策略仍然过重，尤其 `docling_bundle` TRM | 1 | 新一轮 clean rerun 后已确认 `assets/` 已成为主要体积来源；后续应按“高价值图保留、低价值图降级”为下一轮主优化方向 |
 
 ## Notes
 - 当前系统为 `Ubuntu 24.04.4 LTS / WSL2`

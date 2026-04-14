@@ -80,21 +80,36 @@ def _reset_bundle_root(paths) -> None:
     paths.root.mkdir(parents=True, exist_ok=True)
 
 
-def _copy_native_inputs(native_dir: Path, runtime_native_dir: Path, source_stem: str) -> None:
-    if runtime_native_dir.exists():
-        shutil.rmtree(runtime_native_dir)
-    runtime_native_dir.mkdir(parents=True, exist_ok=True)
+def _copy_runtime_log(native_dir: Path, runtime_log: Path) -> None:
+    runtime_log.parent.mkdir(parents=True, exist_ok=True)
+    if runtime_log.exists():
+        runtime_log.unlink()
+    log_path = native_dir / "run.log"
+    if log_path.exists():
+        shutil.copy2(log_path, runtime_log)
 
-    for child in native_dir.iterdir():
-        if child.is_file() and child.stem != source_stem:
-            continue
-        if child.is_dir() and child.name not in {f"{source_stem}_images", f"{source_stem}_assets"}:
-            continue
-        target = runtime_native_dir / child.name
-        if child.is_dir():
-            shutil.copytree(child, target)
-        else:
-            shutil.copy2(child, target)
+
+def _rewrite_media_paths(text: str, source_stem: str) -> str:
+    if not text:
+        return text
+
+    patterns = [
+        rf"{re.escape(source_stem)}_images/",
+        rf"{re.escape(source_stem)}_assets/",
+    ]
+    rewritten = text
+    for pattern in patterns:
+        rewritten = re.sub(pattern, "assets/", rewritten)
+    return rewritten
+
+
+def _copy_rewritten_text(src: Path, dst: Path, source_stem: str) -> bool:
+    if not src.exists():
+        return False
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    text = src.read_text(encoding="utf-8")
+    dst.write_text(_rewrite_media_paths(text, source_stem=source_stem), encoding="utf-8")
+    return True
 
 
 def _parse_runtime_report(native_dir: Path) -> dict:
@@ -108,7 +123,7 @@ def _parse_runtime_report(native_dir: Path) -> dict:
     if not log_path.exists():
         return report
 
-    report["log_path"] = str(Path("runtime") / "native" / "run.log")
+    report["log_path"] = str(Path("runtime") / "run.log")
     text = log_path.read_text(encoding="utf-8")
     triage_match = re.search(r"Triage summary:\s*(.+)", text)
     if triage_match:
@@ -224,27 +239,6 @@ def _flatten_elements(node, rows: list[dict], parent_id: str = "root", counter: 
             _flatten_elements(child, rows, parent_id=parent_id, counter=counter)
 
 
-def _write_page_slices(paths, doc_id: str, element_rows: list[dict]) -> None:
-    by_page: dict[int, list[dict]] = {}
-    for row in element_rows:
-        page = row.get("page")
-        if page is None:
-            continue
-        by_page.setdefault(page, []).append(row)
-
-    paths.pages_dir.mkdir(parents=True, exist_ok=True)
-    for page, rows in sorted(by_page.items()):
-        page_path = paths.pages_dir / f"page_{page:04d}.md"
-        lines = [f"# {doc_id} page {page}", ""]
-        for row in rows:
-            text = row.get("text") or ""
-            bbox = row.get("bbox")
-            lines.append(f"- `{row['type']}`" + (f" bbox={bbox}" if bbox else ""))
-            if text:
-                lines.append(f"  {text}")
-        page_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-
-
 def _collect_text_from_kids(kids) -> str:
     parts: list[str] = []
     for kid in kids or []:
@@ -300,19 +294,35 @@ def _export_tables(document: dict, paths, doc_id: str) -> list[dict]:
     return table_records
 
 
-def _write_quality_summary(paths, manifest: dict, alerts: list[dict]) -> None:
+def _write_readme(paths, manifest: dict, alerts: list[dict]) -> None:
     lines = [
-        "# Quality Summary",
+        f"# {manifest['doc_id']}",
         "",
-        f"- Doc ID: `{manifest['doc_id']}`",
+        "## Summary",
+        "",
         f"- Source PDF: `{manifest['source_pdf_path']}`",
         f"- Element count: `{manifest['element_count']}`",
         f"- Pages with extracted elements: `{manifest['page_count']}`",
         f"- Table count: `{manifest['table_count']}`",
         f"- Alert count: `{len(alerts)}`",
-        f"- Fallback detected: `{manifest['runtime_report']['fallback_detected']}`",
+        f"- Fallback detected: `{manifest['fallback_detected']}`",
+        f"- Triage summary: `{manifest['triage_summary']}`",
         "",
-        "Open `README.generated.md` first, then use `elements.index.jsonl`, `tables.index.jsonl`, or `pages/` for targeted inspection.",
+        "## Start Here",
+        "",
+        "1. Read `document.md` for the broad reading view.",
+        "2. Use `elements.index.jsonl` to jump by page/type/bbox-aware elements.",
+        "3. Use `tables.index.jsonl` and `tables/` for structured table verification.",
+        "4. Return to the original PDF for final engineering verification.",
+        "",
+        "## Key Files",
+        "",
+        f"- JSON: `{paths.document_json.name}`",
+        f"- Markdown: `{paths.document_markdown.name}`",
+        f"- HTML: `{paths.document_html.name}`",
+        f"- Elements index: `{paths.elements_index.name}`",
+        f"- Tables index: `{paths.tables_index.name}`",
+        f"- Alerts: `{paths.alerts.name}`",
     ]
     if alerts:
         lines.extend(["", "## Alerts", ""])
@@ -322,70 +332,41 @@ def _write_quality_summary(paths, manifest: dict, alerts: list[dict]) -> None:
                 suffix += f" p.{alert['page']}"
             detail = alert.get("detail", "")
             lines.append(f"- {alert['kind']}{suffix}" + (f": {detail}" if detail else ""))
-    paths.quality_summary.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-
-
-def _write_readme(paths, manifest: dict) -> None:
-    lines = [
-        f"# {manifest['doc_id']}",
-        "",
-        "## Start Here",
-        "",
-        "1. Read `quality-summary.md`.",
-        "2. Read `document.md` for the broad reading view.",
-        "3. Use `elements.index.jsonl` to jump by page/type/bbox-aware elements.",
-        "4. Use `pages/` when you already know the target page.",
-        "5. Return to the original PDF for final engineering verification.",
-        "",
-        "## Key Paths",
-        "",
-        f"- Source PDF: `{manifest['source_pdf_path']}`",
-        f"- JSON: `{paths.document_json.name}`",
-        f"- Markdown: `{paths.document_markdown.name}`",
-        f"- HTML: `{paths.document_html.name}`",
-        f"- Elements index: `{paths.elements_index.name}`",
-        f"- Tables index: `{paths.tables_index.name}`",
-        f"- Alerts: `{paths.alerts.name}`",
-        f"- Runtime report: `{paths.runtime_report.relative_to(paths.root)}`",
-    ]
     paths.readme.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
 def build_bundle(doc_id: str, source_pdf_path: str, native_dir: Path, out_dir: Path) -> dict:
     paths = build_bundle_paths(out_dir)
     _reset_bundle_root(paths)
-    paths.pages_dir.mkdir(parents=True, exist_ok=True)
     paths.tables_dir.mkdir(parents=True, exist_ok=True)
-    paths.figures_dir.mkdir(parents=True, exist_ok=True)
-    paths.runtime_dir.mkdir(parents=True, exist_ok=True)
+    paths.assets_dir.mkdir(parents=True, exist_ok=True)
 
     source_stem = Path(source_pdf_path).stem
-    _copy_native_inputs(native_dir=native_dir, runtime_native_dir=paths.runtime_native_dir, source_stem=source_stem)
     native_json = _resolve_native_file(native_dir, "document.json", (".json",), source_stem=source_stem)
     native_md = _resolve_native_file(native_dir, "document.md", (".md", ".markdown"), source_stem=source_stem)
     native_html = _resolve_native_file(native_dir, "document.html", (".html", ".htm"), source_stem=source_stem)
 
     _copy_if_exists(native_json, paths.document_json)
-    _copy_if_exists(native_md, paths.document_markdown)
-    _copy_if_exists(native_html, paths.document_html)
+    _copy_rewritten_text(native_md, paths.document_markdown, source_stem=source_stem)
+    _copy_rewritten_text(native_html, paths.document_html, source_stem=source_stem)
 
-    copied_figures = False
-    for dirname, dst in (("tables", paths.tables_dir), ("figures", paths.figures_dir), ("images", paths.figures_dir), ("assets", paths.figures_dir)):
+    copied_assets = False
+    for dirname, dst in (("tables", paths.tables_dir), ("figures", paths.assets_dir), ("images", paths.assets_dir), ("assets", paths.assets_dir)):
         copied = _copy_tree_if_exists(native_dir / dirname, dst)
-        copied_figures = copied_figures or (copied and dst == paths.figures_dir)
+        copied_assets = copied_assets or (copied and dst == paths.assets_dir)
 
-    if not copied_figures:
+    if not copied_assets:
         for child in native_dir.iterdir():
             if child.is_dir() and child.name in {f"{source_stem}_images", f"{source_stem}_assets"}:
-                _copy_tree_if_exists(child, paths.figures_dir)
-                copied_figures = True
+                _copy_tree_if_exists(child, paths.assets_dir)
+                copied_assets = True
                 break
 
-    if not copied_figures:
+    if not copied_assets:
         for child in native_dir.iterdir():
             if child.is_dir() and child.name.endswith("_images"):
-                _copy_tree_if_exists(child, paths.figures_dir)
-                copied_figures = True
+                _copy_tree_if_exists(child, paths.assets_dir)
+                copied_assets = True
                 break
 
     document = _read_json(native_json)
@@ -395,18 +376,15 @@ def build_bundle(doc_id: str, source_pdf_path: str, native_dir: Path, out_dir: P
     for row in element_rows:
         indexed_rows.append({"doc_id": doc_id, **row})
     _write_jsonl(paths.elements_index, indexed_rows)
-    _write_page_slices(paths, doc_id=doc_id, element_rows=indexed_rows)
     table_records = _export_tables(document=document, paths=paths, doc_id=doc_id)
 
     page_numbers = sorted({row["page"] for row in indexed_rows if row.get("page") is not None})
     alerts = _detect_quality_alerts(document=document, table_records=table_records, page_numbers=page_numbers, element_rows=indexed_rows)
     runtime_report = _parse_runtime_report(native_dir)
-    _write_json(paths.runtime_report, runtime_report)
 
     manifest = {
         "doc_id": doc_id,
         "source_pdf_path": source_pdf_path,
-        "native_dir": str(native_dir),
         "element_count": len(indexed_rows),
         "page_count": len(page_numbers),
         "page_numbers": page_numbers,
@@ -417,11 +395,12 @@ def build_bundle(doc_id: str, source_pdf_path: str, native_dir: Path, out_dir: P
         "tables_index": paths.tables_index.name,
         "table_count": len(table_records),
         "alerts_path": paths.alerts.name,
-        "runtime_report": runtime_report,
+        "fallback_detected": runtime_report["fallback_detected"],
+        "backend_failure_detected": runtime_report["backend_failure_detected"],
+        "triage_summary": runtime_report["triage_summary"],
     }
 
     _write_json(paths.manifest, manifest)
     _write_json(paths.alerts, alerts)
-    _write_quality_summary(paths, manifest=manifest, alerts=alerts)
-    _write_readme(paths, manifest=manifest)
+    _write_readme(paths, manifest=manifest, alerts=alerts)
     return manifest

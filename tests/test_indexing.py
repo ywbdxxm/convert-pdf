@@ -179,7 +179,6 @@ class IndexingTests(unittest.TestCase):
                 "page_start": 64,
                 "page_end": 64,
                 "csv_path": "tables/table_0001.csv",
-                "html_path": "tables/table_0001.html",
             }
         ]
 

@@ -292,6 +292,213 @@ Implication:
 - `OpenDataLoader hybrid` should be packaged according to its own strengths and weaknesses
 - only after both are built and tested should cross-tool common patterns be extracted
 
+## 2026-04-15 Stricter Agent-First Bundle Audit
+
+Direct inspection of the regenerated `ESP32-S3 datasheet` bundles shows the project was still not at best practice.
+
+### 1. `pages/` is currently over-produced by default
+
+Observed on the datasheet:
+
+- `opendataloader_hybrid` bundle: `235` files total
+- `docling_bundle` bundle: `324` files total
+- `pages/` alone adds `87` extra markdown files for each bundle
+
+This is a large file-count increase for a weakly justified benefit.
+
+For agent use, `pages/` is only useful when:
+
+- the agent already knows the exact page number
+- and the page-local markdown slice is materially better than using `document.md` plus indexes
+
+That benefit has not been proven strong enough to justify default generation.
+
+Current conclusion:
+
+- `pages/` should be downgraded from default artifact to optional artifact
+
+### 2. `README.generated.md` and `quality-summary.md` partially overlap
+
+Current pattern in both bundle families:
+
+- `README.generated.md` explains how to start
+- `quality-summary.md` repeats bundle identity plus alert/count summary
+
+This creates two small entry files that both must be read first.
+
+Current conclusion:
+
+- there should likely be a single primary entrypoint file for agents
+- the split between `README.generated.md` and `quality-summary.md` is probably too fine-grained
+
+### 3. `docling_bundle` still over-preserves table sidecars by default
+
+Observed on the datasheet:
+
+- each table is exported twice:
+  - `tables/table_xxxx.csv`
+  - `tables/table_xxxx.html`
+
+This may be justified for some hard wide tables, but it doubles sidecar count immediately.
+
+Current conclusion:
+
+- `docling_bundle` should re-evaluate whether both formats are needed by default
+- one format may become the default, with the other only opt-in
+
+### 4. `manifest.json` is cleaner now, but can still shrink further
+
+Recent cleanup removed the worst runtime/staging leakage, but the manifest still mixes:
+
+- identity
+- entrypoint references
+- counts
+- parser-specific bookkeeping
+
+Current conclusion:
+
+- the best agent-facing manifest should be a small stable entrypoint, not a wide export ledger
+
+### Current bundle-layer judgment
+
+Likely default keepers:
+
+- one primary entry file (`ENTRY.md` / `index.md`)
+- `manifest.json` (minimal)
+- `alerts.json`
+- `document.md`
+- `document.json`
+- one structured navigation/index layer
+- one default table sidecar format
+- visual assets (`figures/` or `artifacts/`)
+
+Likely optional/off-by-default:
+
+- `document.html`
+- `pages/`
+- secondary entry file if README/summary remain split
+- duplicate table sidecar format
+- extra runtime/debug layers beyond minimal evidence
+
+### Stronger best-practice conclusion
+
+Best practice is not:
+
+- "export every representation that might someday help"
+
+Best practice is:
+
+- "export the smallest stable bundle that lets Codex / Claude Code read, navigate, verify, and know when to distrust the parse"
+
+That implies:
+
+1. parser internals may differ, but the agent-facing shell should converge where it improves the same consumer workflow
+2. debug/runtime/cache/raw layers should move out of the final bundle by default
+3. a bundle profile system is justified:
+   - default: `agent-minimal`
+   - optional: `agent-extended` / `debug`
+4. `README.generated.md` and `quality-summary.md` should likely collapse into a single primary entry file
+
+### Best-practice target shape from first principles
+
+The final bundle should behave like a small local reference appliance for agents, not like a parser lab dump.
+
+More appropriate default shape:
+
+```text
+<doc_id>/
+  README.md
+  manifest.json
+  alerts.json
+  document.md
+  document.html
+  document.json
+  locator.index.jsonl
+  tables.index.jsonl
+  tables/
+  assets/
+```
+
+Where:
+
+- `README.md` is the only entrypoint file
+- `manifest.json` is minimal and stable
+- `locator.index.jsonl` is the preferred long-term single navigation layer
+- `assets/` is the preferred long-term neutral visual asset directory name across parser families
+
+Default removals / off-by-default artifacts:
+
+- `pages/`
+- `runtime/`
+- `native/` / `raw/` / `cache/` leakage
+- multiple competing entry files
+- duplicate table sidecar formats unless proven necessary
+
+## 2026-04-15 Regenerated Bundle Reality Check
+
+After the latest reduction wave and clean reruns, the default bundle shape is materially cleaner:
+
+- single `README.md`
+- no default `pages/`
+- no default runtime/native/cache layer inside final bundles
+- unified visual asset directory `assets/`
+- single default CSV table sidecar format
+
+However, the regenerated bundles are still not at a final optimum.
+
+### Current file-count / size reality
+
+Current regenerated bundle sizes:
+
+- `opendataloader_hybrid` datasheet: `5.2M`
+- `opendataloader_hybrid` TRM: `53M`
+- `docling_bundle` datasheet: `16M`
+- `docling_bundle` TRM: `203M`
+
+Breakdown shows the next major issue is no longer `pages/`; it is the visual asset layer:
+
+- `odl-ds`: `assets` about `0.48M`
+- `odl-trm`: `assets` about `0.58M`
+- `doc-ds`: `assets` about `2.66M`
+- `doc-trm`: `assets` about `48.3M`
+
+### Revised image-policy conclusion
+
+The project should preserve full extracted image evidence by default.
+
+Reason:
+
+- heuristic image filtering can misjudge what later becomes important engineering evidence
+- timing diagrams, block diagrams, pin matrices, register visuals, and odd figure-tables are exactly the content most likely to be needed later
+- for this project, information loss is a bigger risk than bundle size growth
+
+So the right conclusion is:
+
+- keep `assets/` complete by default
+- do not apply heuristic image pruning in the final bundle
+- accept larger bundle size as the cost of preserving visual evidence
+
+### Refined keep / optional judgment
+
+Likely default keepers:
+
+- `README.md`
+- `manifest.json`
+- `alerts.json`
+- `document.md`
+- `document.json`
+- `document.html` for now
+- one navigation layer
+- `tables.index.jsonl`
+- `tables/*.csv`
+- full `assets/`
+
+Likely next optional candidates:
+
+- extra derived navigation layers that duplicate existing ones
+- redundant sidecar formats
+- extra runtime/debug layers
+
 ## OpenDataLoader Hybrid First Real Run
 
 The first real OpenDataLoader hybrid run on `esp32-s3_datasheet_en.pdf` has now completed.

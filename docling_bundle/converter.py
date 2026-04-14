@@ -23,7 +23,7 @@ from docling_bundle.images import filter_markdown_image_refs, picture_keep_flags
 from docling_bundle.indexing import attach_table_references, build_chunk_records, build_section_records
 from docling_bundle.models import RuntimeConfig
 from docling_bundle.paths import build_document_paths
-from docling_bundle.reading_bundle import build_quality_summary, build_readme, write_page_slices
+from docling_bundle.reading_bundle import build_readme
 from docling_bundle.tables import export_tables, inject_table_sidecars_into_markdown
 
 
@@ -270,6 +270,11 @@ def normalize_errors(errors) -> list[str]:
     return normalized
 
 
+def build_window_cache_root(output_root: Path) -> Path:
+    repo_root = output_root.resolve().parents[1]
+    return repo_root / "tmp" / "docling_bundle-cache"
+
+
 def concatenate_documents(docs: list[DoclingDocument]) -> DoclingDocument | None:
     if not docs:
         return None
@@ -389,40 +394,19 @@ def export_document_bundle(
         "doc_id": doc_id,
         "title": source_path.stem,
         "source_pdf_path": str(source_path),
-        "source_pdf_sha256": sha256_file(source_path),
         "source_filename": source_path.name,
         "page_count": getattr(first_result.input, "page_count", None),
-        "docling_version": version("docling"),
         "status": status,
-        "page_window_size": config.page_window_size,
-        "page_window_min_pages": config.page_window_min_pages,
-        "conversion_signature": build_conversion_signature(config),
-        "window_count": len(results),
-        "windows": windows,
-        "ocr_enabled": config.enable_ocr,
-        "ocr_engine": config.ocr_engine,
-        "force_full_page_ocr": config.force_full_page_ocr,
-        "accelerator_device": config.device,
-        "chunker_type": "hybrid",
-        "tokenizer": config.tokenizer,
-        "max_chunk_tokens": config.max_chunk_tokens,
-        "image_mode": config.image_mode,
-        "generate_picture_images": config.generate_picture_images,
-        "generate_page_images": config.generate_page_images,
-        "image_scale": config.image_scale,
         "errors": all_errors,
-        "document_json": str(paths.document_json),
-        "document_markdown": str(paths.document_markdown),
-        "document_html": str(paths.document_html),
-        "readme": str(paths.readme),
-        "quality_summary": str(paths.quality_summary),
-        "alerts_path": str(paths.alerts),
-        "sections_index": str(paths.sections),
-        "chunks_index": str(paths.chunks),
-        "tables_index": str(paths.tables_index),
-        "pages_dir": str(paths.pages_dir),
-        "tables_dir": str(paths.tables_dir),
-        "runtime_dir": str(paths.runtime_dir),
+        "document_json": paths.document_json.name,
+        "document_markdown": paths.document_markdown.name,
+        "document_html": paths.document_html.name,
+        "readme": paths.readme.name,
+        "alerts_path": paths.alerts.name,
+        "sections_index": paths.sections.name,
+        "chunks_index": paths.chunks.name,
+        "tables_index": paths.tables_index.name,
+        "tables_dir": paths.tables_dir.name,
     }
 
     if aggregate_status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} or combined_doc is None:
@@ -466,7 +450,6 @@ def export_document_bundle(
         )
     markdown_text = inject_table_sidecars_into_markdown(markdown_text, exported_tables)
     paths.document_markdown.write_text(markdown_text, encoding="utf-8")
-    write_page_slices(markdown=markdown_text, pages_dir=paths.pages_dir, doc_id=doc_id)
     alerts = detect_markdown_alerts(markdown_text)
     alerts.extend(detect_table_sidecar_alerts(paths.doc_dir, table_records))
     manifest["alert_count"] = len(alerts)
@@ -479,6 +462,10 @@ def export_document_bundle(
         build_readme(
             doc_id=doc_id,
             source_pdf_path=str(source_path),
+            page_count=manifest["page_count"],
+            table_count=manifest["table_count"],
+            alert_count=manifest["alert_count"],
+            alerts=alerts,
             document_json=paths.document_json.name,
             document_markdown=paths.document_markdown.name,
             document_html=paths.document_html.name,
@@ -486,17 +473,6 @@ def export_document_bundle(
             chunks_index=paths.chunks.name,
             tables_index=paths.tables_index.name,
             alerts_path=paths.alerts.name,
-        ),
-        encoding="utf-8",
-    )
-    paths.quality_summary.write_text(
-        build_quality_summary(
-            doc_id=doc_id,
-            source_pdf_path=str(source_path),
-            page_count=manifest["page_count"],
-            table_count=manifest["table_count"],
-            alert_count=manifest["alert_count"],
-            alerts=alerts,
         ),
         encoding="utf-8",
     )
@@ -535,12 +511,15 @@ def run_batch(config: RuntimeConfig) -> dict:
 
     for source_path in pdf_paths:
         paths = build_document_paths(config.output_root, make_doc_id(source_path))
+        window_cache_dir = None
+        if config.resume_windows:
+            window_cache_dir = build_window_cache_root(config.output_root) / make_doc_id(source_path)
         results = convert_pdf_in_windows(
             source_path=source_path,
             converter=converter,
             page_window_size=config.page_window_size,
             page_window_min_pages=config.page_window_min_pages,
-            window_cache_dir=paths.windows_dir,
+            window_cache_dir=window_cache_dir,
             resume_windows=config.resume_windows,
             config=config,
         )
