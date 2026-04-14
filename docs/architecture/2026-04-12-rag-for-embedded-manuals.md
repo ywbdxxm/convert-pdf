@@ -272,7 +272,7 @@ Implement a small module or CLI that loads processed manuals and returns evidenc
 Suggested command shape:
 
 ```sh
-docling/.venv/bin/python -m docling_batch search \
+docling/.venv/bin/python -m docling_bundle search \
   --manual manuals/processed/esp32-s3-technical-reference-manual-en \
   --query "I2C SCL low period register"
 ```

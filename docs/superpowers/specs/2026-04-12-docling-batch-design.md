@@ -43,7 +43,7 @@
 - Visual-grounding sidecars beyond placeholder-ready hooks.
 
 ## File Layout
-- `docling_batch/`
+- `docling_bundle/`
   - Python package for CLI, config, conversion, indexing, and serialization.
 - `tests/`
   - Unit tests and a minimal smoke-style test using synthetic data.

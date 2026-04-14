@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from docling_batch.reading_bundle import (
+from docling_bundle.reading_bundle import (
     build_quality_summary,
     build_readme,
     split_markdown_pages,

@@ -17,14 +17,14 @@ from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTok
 import pypdfium2 as pdfium
 from docling.pipeline.threaded_standard_pdf_pipeline import ThreadedStandardPdfPipeline
 
-from docling_batch.alerts import detect_markdown_alerts, detect_table_sidecar_alerts
-from docling_batch.config import build_pdf_pipeline_options
-from docling_batch.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
-from docling_batch.indexing import attach_table_references, build_chunk_records, build_section_records
-from docling_batch.models import RuntimeConfig
-from docling_batch.paths import build_document_paths
-from docling_batch.reading_bundle import build_quality_summary, build_readme, write_page_slices
-from docling_batch.tables import export_tables, inject_table_sidecars_into_markdown
+from docling_bundle.alerts import detect_markdown_alerts, detect_table_sidecar_alerts
+from docling_bundle.config import build_pdf_pipeline_options
+from docling_bundle.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
+from docling_bundle.indexing import attach_table_references, build_chunk_records, build_section_records
+from docling_bundle.models import RuntimeConfig
+from docling_bundle.paths import build_document_paths
+from docling_bundle.reading_bundle import build_quality_summary, build_readme, write_page_slices
+from docling_bundle.tables import export_tables, inject_table_sidecars_into_markdown
 
 
 def make_doc_id(path: Path) -> str:

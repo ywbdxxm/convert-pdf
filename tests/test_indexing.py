@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from docling_batch.indexing import (
+from docling_bundle.indexing import (
     attach_table_references,
     build_chunk_record,
     build_chunk_records,

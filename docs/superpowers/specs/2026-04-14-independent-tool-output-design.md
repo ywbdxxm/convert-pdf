@@ -6,7 +6,7 @@ Date: 2026-04-14
 
 Define how this project should evaluate and package the two active manual-processing candidates:
 
-- `docling_batch`
+- `docling_bundle`
 - `OpenDataLoader PDF hybrid`
 
 The design target is not parser purity or schema elegance.
@@ -31,7 +31,7 @@ Rules:
 
 - Do not build a universal schema before evidence exists.
 - Do not add RAG, embeddings, vector databases, or chat UI.
-- Do not turn `docling_batch` into a generic multi-tool orchestration framework.
+- Do not turn `docling_bundle` into a generic multi-tool orchestration framework.
 - Do not compress OpenDataLoader's rich metadata into a weaker Docling-shaped abstraction.
 - Do not treat "native vs custom" separation as a goal by itself.
 
@@ -60,7 +60,7 @@ Processed outputs should live under tool-specific roots:
 
 ```text
 manuals/processed/
-  docling_batch/<doc_id>/
+  docling_bundle/<doc_id>/
   opendataloader_hybrid/<doc_id>/
 ```
 
@@ -68,18 +68,18 @@ This is the only required cross-tool convention.
 
 Everything below each `<doc_id>` should be decided tool-by-tool.
 
-## `docling_batch` Bundle Design
+## `docling_bundle` Bundle Design
 
 ### Design intent
 
-`docling_batch` is already close to a Codex-facing bundle, but its current folder mixes too many responsibilities and duplicates table metadata too aggressively.
+`docling_bundle` is already close to a Codex-facing bundle, but its current folder mixes too many responsibilities and duplicates table metadata too aggressively.
 
 The goal is to improve the bundle as a product for Codex use, not to purify it into "native vs wrapper" layers.
 
 ### Recommended bundle shape
 
 ```text
-manuals/processed/docling_batch/<doc_id>/
+manuals/processed/docling_bundle/<doc_id>/
   README.generated.md
   quality-summary.md
   document.json
@@ -118,7 +118,7 @@ manuals/processed/docling_batch/<doc_id>/
 6. Add `quality-summary.md` with alert counts, suspicious pages, and verification guidance.
 7. Move `_windows/` under `runtime/cache/` so run-state no longer pollutes the stable document bundle.
 
-### `docling_batch` verdict before implementation
+### `docling_bundle` verdict before implementation
 
 Current output is useful, but not yet best practice for Codex.
 
@@ -234,7 +234,7 @@ For each task, record:
 
 Possible outcomes:
 
-1. `docling_batch` remains better overall.
+1. `docling_bundle` remains better overall.
 2. `OpenDataLoader hybrid` becomes the new mainline.
 3. They are each better for different manual classes, so the project keeps both with explicit routing guidance.
 
@@ -242,7 +242,7 @@ This decision should be made only after empirical bundle use, not before.
 
 ## Immediate Next Steps
 
-1. Implement the improved `docling_batch` bundle shape.
+1. Implement the improved `docling_bundle` bundle shape.
 2. Install and run `OpenDataLoader PDF hybrid` on the same sample manuals.
 3. Build the best Codex-facing OpenDataLoader bundle from the actual outputs.
 4. Run the comparison protocol and record findings.

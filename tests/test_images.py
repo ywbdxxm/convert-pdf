@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from docling_batch.images import resolve_artifacts_dir
+from docling_bundle.images import resolve_artifacts_dir
 
 
 class ImagePathTests(unittest.TestCase):

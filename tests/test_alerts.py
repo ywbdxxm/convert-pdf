@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from docling_batch.alerts import detect_markdown_alerts, detect_table_sidecar_alerts
+from docling_bundle.alerts import detect_markdown_alerts, detect_table_sidecar_alerts
 
 
 class MarkdownAlertTests(unittest.TestCase):

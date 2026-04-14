@@ -8,7 +8,7 @@ from docling.datamodel.base_models import ConversionStatus
 from importlib.metadata import version
 from docling_core.types.doc import DoclingDocument
 
-from docling_batch.converter import (
+from docling_bundle.converter import (
     aggregate_conversion_statuses,
     build_conversion_signature,
     compute_page_windows,
@@ -269,9 +269,9 @@ class WorkflowHelpersTests(unittest.TestCase):
                 def convert_all(self, *args, **kwargs):
                     raise AssertionError("converter should not run when every window is cached")
 
-            with patch("docling_batch.converter.get_pdf_page_count", return_value=1001), patch(
-                "docling_batch.converter.sha256_file", return_value="cached-hash"
-            ), patch("docling_batch.converter.version", return_value=version("docling")):
+            with patch("docling_bundle.converter.get_pdf_page_count", return_value=1001), patch(
+                "docling_bundle.converter.sha256_file", return_value="cached-hash"
+            ), patch("docling_bundle.converter.version", return_value=version("docling")):
                 results = convert_pdf_in_windows(
                     source_path=source_path,
                     converter=FailingConverter(),

@@ -1,4 +1,4 @@
-from docling_batch.cli import main
+from docling_bundle.cli import main
 
 
 if __name__ == "__main__":

@@ -2,8 +2,8 @@ import unittest
 
 from argparse import Namespace
 
-from docling_batch.cli import build_runtime_config
-from docling_batch.config import build_pdf_pipeline_options
+from docling_bundle.cli import build_runtime_config
+from docling_bundle.config import build_pdf_pipeline_options
 from docling.datamodel.pipeline_options import ThreadedPdfPipelineOptions
 
 

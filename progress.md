@@ -4,15 +4,15 @@
 
 2026-04-13:
 
-- Mainline comparison reduced to `docling_batch`, `Docling` native output, and `OpenDataLoader PDF`.
+- Mainline comparison reduced to `docling_bundle`, `Docling` native output, and `OpenDataLoader PDF`.
 - `OpenDataLoader` hybrid mode is included because it may improve hard table pages while staying local.
 - `OpenDataLoader + LangChain` and `Docling + LlamaIndex/LangChain` are kept only as metadata spot-checks.
 - All other parser/UI/RAG tools are deferred.
-- Added a dedicated architecture note for `docling_batch` future optimization boundaries.
+- Added a dedicated architecture note for `docling_bundle` future optimization boundaries.
 - OpenDataLoader output handling is now clarified as `raw native output + thin overlay`, not full forced alignment to the current `manuals/processed` schema.
 - Added a dedicated architecture note clarifying which `manuals/processed` artifacts are native Docling outputs and which are custom packaging.
-- Re-opened the project question from first principles: not "how to extend `docling_batch`", but "what stable output shape best serves future embedded-manual lookup by an agent."
-- Audited the current `docling_batch` implementation and the `esp32-s3-technical-reference-manual-en` sample bundle directly.
+- Re-opened the project question from first principles: not "how to extend `docling_bundle`", but "what stable output shape best serves future embedded-manual lookup by an agent."
+- Audited the current `docling_bundle` implementation and the `esp32-s3-technical-reference-manual-en` sample bundle directly.
 - Confirmed a concrete structural issue: `manifest.json` currently mixes entrypoint, runtime config, cache status, full table catalog, and full alert payload.
 - Confirmed another structural issue: overlapping table records are copied into both `chunks.jsonl` and `sections.jsonl`, creating avoidable duplication.
 - Added a new in-progress planning phase focused on reassessing the best-practice output architecture for Docling and OpenDataLoader.
@@ -24,7 +24,7 @@
 
 - User clarified the evaluation rule: do not optimize for native-vs-wrapper purity; optimize for the final folder shape that is easiest for Codex to inspect, cite, and verify.
 - User narrowed the active comparison set to exactly two production candidates:
-  - `docling_batch`
+  - `docling_bundle`
   - `OpenDataLoader PDF hybrid`
 - User wants each candidate to have its own method-specific output directory, then be built, improved, compared, and tested end to end.
 - User further clarified that each tool must be reconsidered from zero; the previous tool's structure must not implicitly define the next tool's best practice.
@@ -68,19 +68,19 @@
   - `element_count = 30290`
   - `table_count = 2467`
   - `alert_count = 0`
-- Reworked `docling_batch` output layout to live under `manuals/processed/docling_batch/<doc_id>/`.
-- Added `README.generated.md`, `quality-summary.md`, `pages/`, `tables.index.jsonl`, and `runtime/cache` support to `docling_batch`.
-- Reduced `docling_batch` chunk/section table duplication by switching from embedded table objects to `table_ids`.
-- Re-ran `docling_batch` on the datasheet and the ESP32-S3 TRM with the new bundle layout.
-- Confirmed `docling_batch` large-TRM run completed successfully with window cache and the new output layout.
+- Reworked `docling_bundle` output layout to live under `manuals/processed/docling_bundle/<doc_id>/`.
+- Added `README.generated.md`, `quality-summary.md`, `pages/`, `tables.index.jsonl`, and `runtime/cache` support to `docling_bundle`.
+- Reduced `docling_bundle` chunk/section table duplication by switching from embedded table objects to `table_ids`.
+- Re-ran `docling_bundle` on the datasheet and the ESP32-S3 TRM with the new bundle layout.
+- Confirmed `docling_bundle` large-TRM run completed successfully with window cache and the new output layout.
 - Reached the current comparison verdict:
   - OpenDataLoader hybrid is the stronger extraction/evidence path.
-  - `docling_batch` is the calmer and more immediately usable reading bundle.
-  - `docling_batch` rename should be deferred.
+  - `docling_bundle` is the calmer and more immediately usable reading bundle.
+  - `docling_batch` has now been renamed to `docling_bundle`.
 
 ## Next Action
 
-1. If we continue iterating, next highest-value work is to port the best bundle conventions from the improved `docling_batch` reading layer into the OpenDataLoader bundle without losing OpenDataLoader-native evidence strength.
+1. If we continue iterating, next highest-value work is to port the best bundle conventions from the improved `docling_bundle` reading layer into the OpenDataLoader bundle without losing OpenDataLoader-native evidence strength.
 
 ## Verification Focus
 

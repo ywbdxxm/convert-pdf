@@ -8,19 +8,19 @@ Build a framework for comparing embedded-manual processing approaches without pr
 
 The framework must answer:
 
-- What is the best way to use Docling itself, beyond the current `docling_batch` wrapper?
+- What is the best way to use Docling itself, beyond the current `docling_bundle` wrapper?
 - Which parts of the current workflow are already handled better by existing tools?
 - Which output shape actually helps AI/human lookup of chip manuals?
 - Which tool should become the mainline after evidence-based A/B testing?
 
-The first implementation must not add a new RAG stack, install heavy tools, or extend `docling_batch` behavior. It should create the framework for comparing tools and preserving evidence.
+The first implementation must not add a new RAG stack, install heavy tools, or extend `docling_bundle` behavior. It should create the framework for comparing tools and preserving evidence.
 
 ## Non-Goals
 
 - Do not build a new universal PDF processing pipeline.
 - Do not force every tool into `manuals/processed/<doc_id>`.
 - Do not implement embeddings, vector search, re-ranking, or chat UI in this phase.
-- Do not add more heuristics to `docling_batch`.
+- Do not add more heuristics to `docling_bundle`.
 - Do not delete existing processed outputs until replacements are proven.
 - Do not install Marker, MinerU, RAGFlow, Kotaemon, or other heavy tools in the framework skeleton phase.
 
@@ -41,7 +41,7 @@ For register values, bit definitions, pin mappings, timing limits, and electrica
 
 ## Current Baseline
 
-The current `docling_batch` pipeline is a useful baseline, but not the architecture standard.
+The current `docling_bundle` pipeline is a useful baseline, but not the architecture standard.
 
 It currently provides:
 
@@ -59,7 +59,7 @@ This baseline should be frozen for comparison. It should not receive new feature
 
 ## Docling Best-Practice Baselines
 
-Docling should be evaluated in multiple native-first modes, not only through `docling_batch`.
+Docling should be evaluated in multiple native-first modes, not only through `docling_bundle`.
 
 ### `docling-cli-native`
 
@@ -124,7 +124,7 @@ This mode should not become the default bulk conversion mode.
 
 ### `docling-current-bundle`
 
-Purpose: preserve the current `docling_batch` output as a historical baseline.
+Purpose: preserve the current `docling_bundle` output as a historical baseline.
 
 It should be copied or referenced into evaluation runs as one candidate, not treated as the desired schema.
 
@@ -397,7 +397,7 @@ No heavy external tool tests in the first implementation.
 
 Keep existing:
 
-- `docling_batch/`
+- `docling_bundle/`
 - `manuals/processed/`
 - current tests
 - current architecture docs
@@ -410,8 +410,8 @@ Add new framework alongside it:
 
 After A/B results:
 
-- freeze `docling_batch` permanently if external tools are better
-- shrink `docling_batch` into a thin Docling adapter if useful
+- freeze `docling_bundle` permanently if external tools are better
+- shrink `docling_bundle` into a thin Docling adapter if useful
 - remove only after scorecards prove it is redundant
 
 ## Open Questions
@@ -425,7 +425,7 @@ After A/B results:
 
 Start with a conservative framework skeleton:
 
-- keep `docling_batch` frozen
+- keep `docling_bundle` frozen
 - add `manual_eval` as evaluation scaffolding
 - define Docling CLI/API native baselines
 - create scorecard templates

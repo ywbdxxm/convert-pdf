@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from docling_batch.tables import (
+from docling_bundle.tables import (
     ExportedTable,
     backfill_table_captions_from_markdown,
     extract_table_caption,

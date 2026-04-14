@@ -4,13 +4,13 @@ Date: 2026-04-13
 
 ## Purpose
 
-This document records how `docling_batch` should be understood now that the project has narrowed its mainline comparison to `Docling` and `OpenDataLoader PDF`.
+This document records how `docling_bundle` should be understood now that the project has narrowed its mainline comparison to `Docling` and `OpenDataLoader PDF`.
 
 The key clarification is:
 
-> `docling_batch` is not a different parser from Docling. It is mostly a productized packaging layer on top of Docling's native APIs.
+> `docling_bundle` is not a different parser from Docling. It is mostly a productized packaging layer on top of Docling's native APIs.
 
-That means future changes to `docling_batch` should be judged as:
+That means future changes to `docling_bundle` should be judged as:
 
 - helping agents read the generated folder more effectively
 - reducing confusion between native Docling output and our custom packaging
@@ -22,9 +22,9 @@ and not as:
 - building a new RAG framework
 - endlessly patching parse imperfections with fragile heuristics
 
-## What `docling_batch` Actually Adds
+## What `docling_bundle` Actually Adds
 
-Compared with plain Docling outputs, `docling_batch` currently adds:
+Compared with plain Docling outputs, `docling_bundle` currently adds:
 
 - stable `doc_id` path layout
 - `manifest.json`
@@ -48,11 +48,11 @@ The underlying parser, chunker, and document export path still come from Docling
 
 So the user's intuition is basically correct:
 
-> `docling_batch` is very close to "Docling native output plus some extra packaging and file-oriented convenience."
+> `docling_bundle` is very close to "Docling native output plus some extra packaging and file-oriented convenience."
 
 ## Why Keep It At All
 
-Even if it is not the final winner, `docling_batch` still has value:
+Even if it is not the final winner, `docling_bundle` still has value:
 
 - It is the current baseline already validated on real manuals.
 - It gives a concrete example of what an agent-friendly output bundle can look like.
@@ -61,9 +61,9 @@ Even if it is not the final winner, `docling_batch` still has value:
 
 ## Optimization Boundary
 
-If `docling_batch` stays frozen, use it only as baseline.
+If `docling_bundle` stays frozen, use it only as baseline.
 
-If `docling_batch` is explicitly unfrozen, only make thin, high-value, file-oriented improvements.
+If `docling_bundle` is explicitly unfrozen, only make thin, high-value, file-oriented improvements.
 
 ### Allowed Directions
 
@@ -175,7 +175,7 @@ The default direction should be toward simpler, more explicit behavior, not more
 
 ## Disallowed Directions
 
-These should not be built inside `docling_batch`.
+These should not be built inside `docling_bundle`.
 
 ### 1. Search / Retrieval / Vector Index
 
@@ -209,7 +209,7 @@ Reason:
 
 ### 3. VLM Rescue Pipelines
 
-Do not turn `docling_batch` into:
+Do not turn `docling_bundle` into:
 
 - page screenshot + VLM repair
 - multimodal fallback orchestrator
@@ -223,7 +223,7 @@ Reason:
 
 ### 4. Multi-Tool Orchestration
 
-Do not make `docling_batch` responsible for:
+Do not make `docling_bundle` responsible for:
 
 - running Marker
 - running OpenDataLoader
@@ -250,7 +250,7 @@ Reason:
 
 ## Recommended Use Going Forward
 
-Treat `docling_batch` as one of two things:
+Treat `docling_bundle` as one of two things:
 
 ### Option A: Frozen Baseline
 
@@ -264,7 +264,7 @@ This is the safest path if external tools quickly outperform or match it.
 
 ### Option B: Thin Agent-Friendly Wrapper
 
-If we later decide the Docling family remains the best parser path, keep `docling_batch` but reduce its ambition:
+If we later decide the Docling family remains the best parser path, keep `docling_bundle` but reduce its ambition:
 
 - preserve only file-navigation improvements
 - expose native-vs-custom outputs clearly
@@ -274,11 +274,11 @@ This is the only acceptable "unfrozen" direction.
 
 ## Practical Decision Rule
 
-Before making any future `docling_batch` change, ask:
+Before making any future `docling_bundle` change, ask:
 
 1. Does this help Codex inspect the folder more directly?
 2. Does this improve evidence visibility without hiding parser behavior?
 3. Can this be explained as packaging rather than parser invention?
 4. Would this still make sense if OpenDataLoader becomes the winner?
 
-If the answer to any of these is "no", the change probably does not belong in `docling_batch`.
+If the answer to any of these is "no", the change probably does not belong in `docling_bundle`.

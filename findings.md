@@ -4,7 +4,7 @@
 
 The mainline is intentionally narrow:
 
-1. `docling_batch` existing output as frozen baseline
+1. `docling_bundle` existing output as frozen baseline
 2. `Docling` native output
 3. `OpenDataLoader PDF` local mode
 4. `OpenDataLoader PDF` hybrid mode with local `docling-fast`
@@ -32,7 +32,7 @@ PDF -> parser -> structured files -> Codex reads the folder -> original PDF veri
 
 ## Baseline
 
-`docling_batch` is useful only as a baseline:
+`docling_bundle` is useful only as a baseline:
 
 - existing outputs already exist
 - no new features should be added
@@ -70,7 +70,7 @@ The current `manuals/processed/<doc_id>` layout is not a universal best practice
 
 It is better understood as:
 
-- a good `docling_batch`-specific bundle
+- a good `docling_bundle`-specific bundle
 - a useful example of agent-friendly affordances
 - not a schema every parser should be forced into immediately
 
@@ -116,7 +116,7 @@ This means:
 - parts of the current architecture remain useful as design inspiration
 - the likely best practice is `raw native output + thin overlay`, not a full schema rewrite
 
-## Current `docling_batch` Bundle Weak Points
+## Current `docling_bundle` Bundle Weak Points
 
 Fresh code + sample inspection on `2026-04-13` shows a few concrete problems in the current bundle shape.
 
@@ -187,7 +187,7 @@ The likely better separation is:
 The current design is optimized for immediate use, but it obscures tool comparison because it hides where:
 
 - Docling ends
-- `docling_batch` packaging begins
+- `docling_bundle` packaging begins
 - heuristics and filtering affect the result
 
 For A/B parser evaluation, native/raw preservation should be explicit.
@@ -288,7 +288,7 @@ to:
 
 Implication:
 
-- `docling_batch` should be improved according to its own strengths and weaknesses
+- `docling_bundle` should be improved according to its own strengths and weaknesses
 - `OpenDataLoader hybrid` should be packaged according to its own strengths and weaknesses
 - only after both are built and tested should cross-tool common patterns be extracted
 
@@ -316,7 +316,7 @@ For the ESP32-S3 datasheet, OpenDataLoader wrote:
 - `esp32-s3_datasheet_en.html`
 - `esp32-s3_datasheet_en_images/`
 
-This is materially different from `docling_batch`.
+This is materially different from `docling_bundle`.
 
 Key implication:
 
@@ -493,7 +493,7 @@ For the datasheet bundle:
 - the JSON tree already contains structured `table` elements for many pages.
 - the current OpenDataLoader bundler now exports 68 CSV table sidecars from those structured tables.
 
-This is a real advantage over the current `docling_batch` layout when Codex needs:
+This is a real advantage over the current `docling_bundle` layout when Codex needs:
 
 - exact page-local element inspection
 - element-level spatial metadata
@@ -514,7 +514,7 @@ That means:
 - OpenDataLoader can still expose the evidence on the page
 - but it does not automatically yield a neat CSV sidecar for this specific hard table
 
-By contrast, the current `docling_batch` output also does not provide a clean sidecar for this exact page, but its reading layer already has a stronger established pattern for sidecar-linked tables on pages where Docling does structure them.
+By contrast, the current `docling_bundle` output also does not provide a clean sidecar for this exact page, but its reading layer already has a stronger established pattern for sidecar-linked tables on pages where Docling does structure them.
 
 ### Current takeaway
 
@@ -523,7 +523,7 @@ The current early evidence suggests:
 - OpenDataLoader is stronger on page-local spatial evidence
 - OpenDataLoader's structured tables are highly valuable when present
 - OpenDataLoader still has hard-table failure modes where the best artifact is page evidence rather than a table sidecar
-- `docling_batch` remains stronger on the current human-readable bundle conventions
+- `docling_bundle` remains stronger on the current human-readable bundle conventions
 
 So the likely comparison direction is not:
 
@@ -539,57 +539,35 @@ After the TRM run, the more specific comparison is:
 - Docling still has the more mature current reading bundle and table-sidecar conventions
 - OpenDataLoader is faster/lighter on GPU, but presently less stable without explicit fallback on huge manuals
 
-## `docling_batch` Rename Assessment
+## `docling_bundle` Rename Outcome
 
-Current evidence says the name probably should change eventually, but not yet.
+The rename has now been executed.
 
-### Why it feels off now
+Old name:
 
-The code is narrowing toward:
+- `docling_batch`
 
-- a Docling-specific bundle builder
-- Codex-facing reading and verification assets
-- optional resilience features such as window cache
+New name:
 
-and not toward:
+- `docling_bundle`
 
-- a generic "batch tool" that should keep growing
+Reason:
 
-So semantically, names like `docling_bundle` or `docling_manual_bundle` would likely be cleaner.
+- the package is now primarily a Docling-specific bundle builder
+- the new output tree is explicitly Codex-facing
+- the old `batch` label no longer describes the main value of the code well
 
-### Why renaming now is a bad trade
+What changed:
 
-Current repository text references containing `docling_batch` are still very broad:
+- Python package directory renamed to `docling_bundle/`
+- CLI entry moved to `python -m docling_bundle convert`
+- output root moved to `manuals/processed/docling_bundle/<doc_id>/`
+- active docs, tests, and instructions updated to the new name
 
-- package imports
-- tests
-- plans
-- specs
-- architecture notes
-- README / AGENTS instructions
+What did not change:
 
-The current rough count is `125` textual references.
-
-That means an immediate rename right now would:
-
-- create high churn
-- blur the comparison work with a naming migration
-- make it harder to review what changed for actual behavior
-
-### Current recommendation
-
-Do not rename yet.
-
-First:
-
-1. finish the OpenDataLoader vs Docling output comparison
-2. settle the final Docling bundle shape
-3. then decide whether the remaining code still deserves the old name
-
-So the current position is:
-
-- rename later if Docling remains in the project as a long-lived bundle builder
-- do not rename during the active comparison phase
+- some historical plan/spec/architecture filenames still contain `docling-batch`
+- those are retained as historical records, not active product naming
 
 ## Final Comparison Snapshot
 
@@ -616,7 +594,7 @@ Weaknesses:
 - some hard tables still degrade into `image + positioned text` rather than clean table exports
 - page views are information-rich but less pleasant for quick reading
 
-### `docling_batch` bundle
+### `docling_bundle` bundle
 
 Strengths:
 
@@ -642,19 +620,19 @@ Weaknesses:
 If forced to choose one parser/output family today:
 
 - **best evidence extractor:** `OpenDataLoader PDF hybrid` with `--device cuda --hybrid-fallback`
-- **best reading bundle:** improved `docling_batch`
+- **best reading bundle:** improved `docling_bundle`
 
 If forced to choose one **overall Codex-facing bundle** today:
 
-- `docling_batch` is still slightly better for direct reading and verification workflow because the bundle is calmer and more self-explanatory
+- `docling_bundle` is still slightly better for direct reading and verification workflow because the bundle is calmer and more self-explanatory
 - `OpenDataLoader` is stronger when the task depends on page-local spatial evidence, bbox-aware debugging, or very high table coverage
 
 So the practical decision is:
 
 - keep both for now
 - treat `OpenDataLoader hybrid` as the stronger extraction/evidence path
-- treat `docling_batch` as the stronger current reading/verifier path
-- do not rename `docling_batch` until we decide whether it remains a long-lived bundle product or gets replaced by an OpenDataLoader-first bundle later
+- treat `docling_bundle` as the stronger current reading/verifier path
+- keep `docling_bundle` as the current Docling-side product name while the broader parser comparison continues
 
 ## Deferred
 

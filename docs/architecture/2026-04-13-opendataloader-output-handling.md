@@ -4,7 +4,7 @@ Date: 2026-04-13
 
 ## Question
 
-When using `OpenDataLoader PDF`, should its final outputs be forced to match the current `manuals/processed/<doc_id>` structure produced by `docling_batch`?
+When using `OpenDataLoader PDF`, should its final outputs be forced to match the current `manuals/processed/<doc_id>` structure produced by `docling_bundle`?
 
 ## Short Answer
 
@@ -22,7 +22,7 @@ raw native output + thin agent-friendly overlay
 
 ## Why Not Force Full Alignment
 
-The current `manuals/processed/<doc_id>` tree was built around `docling_batch`.
+The current `manuals/processed/<doc_id>` tree was built around `docling_bundle`.
 
 It mixes together:
 
@@ -39,7 +39,7 @@ This is fine for the current baseline, but if we force `OpenDataLoader PDF` into
 - losing native OpenDataLoader metadata
 - hiding where parser behavior differs from our wrapper behavior
 - spending time on format conversion instead of quality evaluation
-- accidentally biasing the comparison toward the existing `docling_batch` worldview
+- accidentally biasing the comparison toward the existing `docling_bundle` worldview
 
 ## What Is Good In The Current Layout
 
@@ -104,9 +104,9 @@ If the answer to all three is yes, keep it.
 
 If not, defer it.
 
-## Comparison With `docling_batch`
+## Comparison With `docling_bundle`
 
-`docling_batch` can stay as:
+`docling_bundle` can stay as:
 
 - a historical baseline
 - an example of file packaging
@@ -116,7 +116,7 @@ But OpenDataLoader should not be forced to become a byte-for-byte imitation of i
 
 Instead:
 
-- compare OpenDataLoader raw outputs against the current `docling_batch` bundle
+- compare OpenDataLoader raw outputs against the current `docling_bundle` bundle
 - if OpenDataLoader wins, add only the thinnest overlay needed for agentic file retrieval
 - if the same overlay ideas later make sense for both parsers, they can be generalized later
 
@@ -134,6 +134,6 @@ not:
 
 ```text
 OpenDataLoader raw output
--> reshape everything into docling_batch schema
+-> reshape everything into docling_bundle schema
 -> only then evaluate
 ```

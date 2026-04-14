@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build and run an independent `OpenDataLoader PDF hybrid` pipeline first, package its output into a Codex-facing bundle under `manuals/processed/opendataloader_hybrid/`, then use what we learned to scope `docling_batch` optimization and decide whether `docling_batch` should be renamed.
+**Goal:** Build and run an independent `OpenDataLoader PDF hybrid` pipeline first, package its output into a Codex-facing bundle under `manuals/processed/opendataloader_hybrid/`, then use what we learned to scope `docling_bundle` optimization and decide whether `docling_bundle` should be renamed.
 
-**Architecture:** Keep tool bundles independent. Create a dedicated OpenDataLoader workspace and runner scripts, add a thin Python bundler that turns OpenDataLoader outputs into a Codex-facing folder without forcing Docling semantics, then inspect the real output before touching `docling_batch`.
+**Architecture:** Keep tool bundles independent. Create a dedicated OpenDataLoader workspace and runner scripts, add a thin Python bundler that turns OpenDataLoader outputs into a Codex-facing folder without forcing Docling semantics, then inspect the real output before touching `docling_bundle`.
 
 **Tech Stack:** Python 3.12, shell scripts, Java 11+, `opendataloader-pdf[hybrid]`, `unittest`
 
@@ -251,12 +251,12 @@ Expected: `OK`
 - [ ] **Step 1: Write the assessment question**
 
 ```text
-Does the current name `docling_batch` still describe the code after OpenDataLoader is added and after Docling responsibilities are reduced to a Codex-facing bundle builder?
+Does the current name `docling_bundle` still describe the code after OpenDataLoader is added and after Docling responsibilities are reduced to a Codex-facing bundle builder?
 ```
 
 - [ ] **Step 2: Inspect code and responsibilities**
 
-Run: `rg -n "docling_batch" docling_batch tests docs README.md AGENTS.md`
+Run: `rg -n "docling_bundle" docling_bundle tests docs README.md AGENTS.md`
 Expected: an inventory of package, doc, and command references.
 
 - [ ] **Step 3: Record a decision, not a rename yet**
@@ -271,4 +271,4 @@ Possible decisions:
 - [ ] **Step 4: Update the implementation queue**
 
 Run: `sed -n '1,240p' task_plan.md`
-Expected: a next phase that starts `docling_batch` optimization only after OpenDataLoader output inspection.
+Expected: a next phase that starts `docling_bundle` optimization only after OpenDataLoader output inspection.

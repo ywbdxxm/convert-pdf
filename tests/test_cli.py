@@ -1,6 +1,6 @@
 import unittest
 
-from docling_batch.cli import build_parser
+from docling_bundle.cli import build_parser
 
 
 class BuildParserTests(unittest.TestCase):

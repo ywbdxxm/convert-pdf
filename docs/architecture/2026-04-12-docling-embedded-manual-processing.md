@@ -274,7 +274,7 @@ If conversion settings change, the cache is invalidated.
 Use this for most PDFs:
 
 ```sh
-docling/.venv/bin/python -m docling_batch convert \
+docling/.venv/bin/python -m docling_bundle convert \
   --input manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf \
   --output manuals/processed \
   --device cuda \
@@ -294,7 +294,7 @@ This keeps the pipeline simple:
 Use this for very large manuals or long-running experiments:
 
 ```sh
-docling/.venv/bin/python -m docling_batch convert \
+docling/.venv/bin/python -m docling_bundle convert \
   --input manuals/raw/espressif/esp32s3/esp32-s3_technical_reference_manual_en.pdf \
   --output manuals/processed \
   --device cuda \
@@ -310,7 +310,7 @@ This is not expected to speed up the first run. It is used so a failure after se
 Only enable OCR when the PDF actually needs it:
 
 ```sh
-docling/.venv/bin/python -m docling_batch convert \
+docling/.venv/bin/python -m docling_bundle convert \
   --input manuals/raw/vendor/chip/scanned_manual.pdf \
   --output manuals/processed \
   --device cuda \

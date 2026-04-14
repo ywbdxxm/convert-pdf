@@ -1,11 +1,11 @@
 import argparse
 from pathlib import Path
 
-from docling_batch.models import RuntimeConfig
+from docling_bundle.models import RuntimeConfig
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="docling-batch")
+    parser = argparse.ArgumentParser(prog="docling-bundle")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     convert = subparsers.add_parser("convert")
@@ -100,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"unsupported command: {args.command}")
 
     config = build_runtime_config(args)
-    from docling_batch.converter import run_batch
+    from docling_bundle.converter import run_batch
 
     summary = run_batch(config)
     print(

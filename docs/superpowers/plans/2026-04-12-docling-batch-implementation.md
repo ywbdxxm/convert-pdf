@@ -13,9 +13,9 @@
 ### Task 1: Create Package Skeleton And CLI Contract
 
 **Files:**
-- Create: `docling_batch/__init__.py`
-- Create: `docling_batch/cli.py`
-- Create: `docling_batch/config.py`
+- Create: `docling_bundle/__init__.py`
+- Create: `docling_bundle/cli.py`
+- Create: `docling_bundle/config.py`
 - Test: `tests/test_cli.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -23,7 +23,7 @@
 ```python
 import unittest
 
-from docling_batch.cli import build_parser
+from docling_bundle.cli import build_parser
 
 
 class BuildParserTests(unittest.TestCase):
@@ -62,7 +62,7 @@ Expected: FAIL with `ModuleNotFoundError` or missing parser symbols.
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# docling_batch/cli.py
+# docling_bundle/cli.py
 import argparse
 
 
@@ -86,8 +86,8 @@ Expected: PASS
 ### Task 2: Add Output Planning And Manifest Models
 
 **Files:**
-- Create: `docling_batch/models.py`
-- Create: `docling_batch/paths.py`
+- Create: `docling_bundle/models.py`
+- Create: `docling_bundle/paths.py`
 - Test: `tests/test_paths.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -96,7 +96,7 @@ Expected: PASS
 import unittest
 from pathlib import Path
 
-from docling_batch.paths import build_document_paths
+from docling_bundle.paths import build_document_paths
 
 
 class BuildDocumentPathsTests(unittest.TestCase):
@@ -119,7 +119,7 @@ Expected: FAIL because path helpers do not exist.
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# docling_batch/paths.py
+# docling_bundle/paths.py
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -154,7 +154,7 @@ Expected: PASS
 ### Task 3: Add Section/Chunk Record Builders
 
 **Files:**
-- Create: `docling_batch/indexing.py`
+- Create: `docling_bundle/indexing.py`
 - Test: `tests/test_indexing.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -163,7 +163,7 @@ Expected: PASS
 import unittest
 from types import SimpleNamespace
 
-from docling_batch.indexing import build_chunk_record, section_key_from_headings
+from docling_bundle.indexing import build_chunk_record, section_key_from_headings
 
 
 class IndexingTests(unittest.TestCase):
@@ -206,7 +206,7 @@ Expected: FAIL because indexing helpers are not implemented.
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# docling_batch/indexing.py
+# docling_bundle/indexing.py
 def section_key_from_headings(headings):
     if not headings:
         return "root"
@@ -252,8 +252,8 @@ Expected: PASS
 ### Task 4: Implement Docling Configuration And Batch Execution
 
 **Files:**
-- Modify: `docling_batch/config.py`
-- Create: `docling_batch/converter.py`
+- Modify: `docling_bundle/config.py`
+- Create: `docling_bundle/converter.py`
 - Test: `tests/test_config.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -261,7 +261,7 @@ Expected: PASS
 ```python
 import unittest
 
-from docling_batch.config import build_pdf_pipeline_options
+from docling_bundle.config import build_pdf_pipeline_options
 
 
 class ConfigTests(unittest.TestCase):
@@ -286,7 +286,7 @@ Expected: FAIL because configuration builder does not exist.
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# docling_batch/config.py
+# docling_bundle/config.py
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
     AcceleratorOptions,
@@ -315,9 +315,9 @@ Expected: PASS
 ### Task 5: Wire CLI To Export Assets And Run Summary
 
 **Files:**
-- Modify: `docling_batch/cli.py`
-- Modify: `docling_batch/converter.py`
-- Modify: `docling_batch/indexing.py`
+- Modify: `docling_bundle/cli.py`
+- Modify: `docling_bundle/converter.py`
+- Modify: `docling_bundle/indexing.py`
 - Create: `tests/test_workflow.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -327,7 +327,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from docling_batch.converter import make_doc_id
+from docling_bundle.converter import make_doc_id
 
 
 class WorkflowHelpersTests(unittest.TestCase):
@@ -360,7 +360,7 @@ Expected: PASS
 
 **Files:**
 - Modify: `README.md`
-- Create: `docling_batch/__main__.py`
+- Create: `docling_bundle/__main__.py`
 
 - [ ] **Step 1: Add a runnable module entrypoint**
 - [ ] **Step 2: Document CLI usage and output layout in `README.md`**
@@ -369,5 +369,5 @@ Expected: PASS
 Run: `docling/.venv/bin/python -m unittest discover -s tests -v`
 Expected: all tests pass
 
-Run: `docling/.venv/bin/python -m docling_batch --help`
+Run: `docling/.venv/bin/python -m docling_bundle --help`
 Expected: exit 0 and CLI help output

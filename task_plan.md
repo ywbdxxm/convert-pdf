@@ -124,7 +124,7 @@ Manual Output Architecture Reassessment
 - **Status:** complete
 
 ### Phase 19: Refactor Replacement Analysis
-- [x] 按 `docling_batch` 模块拆分职责
+- [x] 按 `docling_bundle` 模块拆分职责
 - [x] 对照现成工具能力，标记可替代、应保留、应冻结/删除的部分
 - [x] 给出第一性原理下的重构方向和推荐路线
 - **Status:** complete
@@ -166,23 +166,23 @@ Manual Output Architecture Reassessment
 ### Phase 25: Agentic Tool Candidate Expansion
 - [x] 继续探索适合 Agentic 文件检索的本地/免费 PDF 转换器和文件资产生成工具
 - [x] 纳入 LiteParse、MarkItDown、PaperFlow、PaddleOCR-VL、HURIDOCS、Markdrop/pdfmd 等候选
-- [x] 将当前 `docling_batch` 明确纳入冻结 baseline 对比
+- [x] 将当前 `docling_bundle` 明确纳入冻结 baseline 对比
 - **Status:** complete
 
 ### Phase 26: Optional Docling Batch Unfreeze Boundaries
-- [x] 分析如果不冻结 `docling_batch`，哪些优化仍符合 Agentic 文件检索方向
+- [x] 分析如果不冻结 `docling_bundle`，哪些优化仍符合 Agentic 文件检索方向
 - [x] 明确只允许 page slices、folder index、quality summary、hard-page images、native chunk comparison 等薄改动
-- [x] 明确禁止继续在 `docling_batch` 中构建 RAG/search/table 修复/VLM/多工具框架
+- [x] 明确禁止继续在 `docling_bundle` 中构建 RAG/search/table 修复/VLM/多工具框架
 - **Status:** complete
 
 ### Phase 27: OpenDataLoader Docling Comparison Planning
-- [x] 将下一轮范围收敛到 `docling_batch` baseline、OpenDataLoader local、OpenDataLoader hybrid
+- [x] 将下一轮范围收敛到 `docling_bundle` baseline、OpenDataLoader local、OpenDataLoader hybrid
 - [x] 仅保留 OpenDataLoader LangChain 与 Docling LlamaIndex/LangChain 作为 metadata spot-check；Docling 原生输出只在需要区分 core vs wrapper 时临时启用
 - [x] 明确比较重点是文件资产质量、metadata、页码、bbox、表格和原 PDF 回溯能力
 - **Status:** complete
 
 ### Phase 28: Docling Batch Optimization Documentation
-- [x] 记录 `docling_batch` 相对 Docling 原生输出的额外包装层
+- [x] 记录 `docling_bundle` 相对 Docling 原生输出的额外包装层
 - [x] 记录允许解冻后可做的薄优化方向
 - [x] 记录禁止继续做的方向，防止再次回到 NIH / 自研 RAG 路线
 - **Status:** complete
@@ -200,14 +200,14 @@ Manual Output Architecture Reassessment
 - **Status:** complete
 
 ### Phase 31: Manual Output Architecture Reassessment
-- [x] 复核 `docling_batch` 当前代码与 `manuals/processed` 样本的职责边界
+- [x] 复核 `docling_bundle` 当前代码与 `manuals/processed` 样本的职责边界
 - [x] 识别当前 bundle 中入口层、证据层、运行层、缓存层的混杂与冗余
 - [x] 调研 `OpenDataLoader PDF` 官方仓库与 hybrid mode 官方输出/元数据设计
 - [x] 基于“只看 Codex 查阅效果”的标准形成两条产线的最终目录方案
 - [x] 向用户展示收敛方案并获得“各跑各的、各自从零思考最佳实践”的方向确认
 - [x] 安装 OpenDataLoader 所需的 Java 11+ WSL 系统依赖
 - [x] 实跑 `OpenDataLoader PDF` hybrid mode 并把输出放入独立目录
-- [x] 完善 `docling_batch` 输出目录并与 `OpenDataLoader` 做最终对比测试
+- [x] 完善 `docling_bundle` 输出目录并与 `OpenDataLoader` 做最终对比测试
 - [x] 写出最终设计文档并等待用户审阅
 - **Status:** complete
 
@@ -244,7 +244,7 @@ Manual Output Architecture Reassessment
 | 下一阶段最高价值增强不是更换主解析器，而是补 `visual grounding / page images / figure metadata` 和“疑难页二级补救” | 这更直接解决嵌入式手册中的时序图、框图、宽矩阵表问题 |
 | 缓存机制默认关闭，仅作为显式可选的容错功能 | 这更符合“多数手册只处理一次”的真实工作流，避免普通单次转换承担额外复杂度和时间成本 |
 | 当前产物评价标准改为“是否最利于 Codex 直接调用、查阅、回溯原 PDF” | 这是用户在 2026-04-14 的明确要求，优先级高于区分原生与包装层 |
-| 本阶段只保留两条主线：`docling_batch` 与 `OpenDataLoader PDF hybrid` | 用户明确要求目前只构建、完善、对比、测试这两种方式 |
+| 本阶段只保留两条主线：`docling_bundle` 与 `OpenDataLoader PDF hybrid` | 用户明确要求目前只构建、完善、对比、测试这两种方式 |
 | 两条主线各自放在独立方式目录下，不强行统一成 raw/native 术语 | 用户明确表示不需要刻意区分原生与追加层，只看最终查阅效果 |
 | 每一个工具都必须从零思考其最佳实践，不允许被前一个工具的目录或抽象强行约束 | 用户在 2026-04-14 明确要求避免历史设计污染下一种工具的最佳实践判断 |
 | 最终由 Codex 基于实际文件查阅、定位、引用、验证体验裁决哪种输出更好用 | 用户明确要求以真实使用效果而非架构纯度为最终评价标准 |

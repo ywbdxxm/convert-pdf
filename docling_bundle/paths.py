@@ -22,7 +22,7 @@ class DocumentPaths:
 
 
 def build_document_paths(output_root: Path, doc_id: str) -> DocumentPaths:
-    doc_dir = output_root / "docling_batch" / doc_id
+    doc_dir = output_root / "docling_bundle" / doc_id
     return DocumentPaths(
         doc_dir=doc_dir,
         document_json=doc_dir / "document.json",

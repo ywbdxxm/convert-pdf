@@ -115,7 +115,7 @@ Use Docling as the default local mainline for digital embedded manuals.
 Default command shape:
 
 ```sh
-docling/.venv/bin/python -m docling_batch convert \
+docling/.venv/bin/python -m docling_bundle convert \
   --input manuals/raw/<vendor>/<chip>/<manual>.pdf \
   --output manuals/processed \
   --device cuda \
@@ -127,7 +127,7 @@ Do not enable OCR by default for digital datasheets/manuals. Enable OCR only for
 Window cache is opt-in. Use it only for very large PDFs, unstable long runs, or repeated experiments:
 
 ```sh
-docling/.venv/bin/python -m docling_batch convert \
+docling/.venv/bin/python -m docling_bundle convert \
   --input manuals/raw/<vendor>/<chip>/<manual>.pdf \
   --output manuals/processed \
   --device cuda \
@@ -142,7 +142,7 @@ Do not treat window cache as a first-run speed optimization.
 
 When using a processed manual for embedded development:
 
-1. Start with `manuals/processed/<doc_id>/manifest.json`.
+1. Start with `manuals/processed/docling_bundle/<doc_id>/manifest.json` for Docling outputs, or `manuals/processed/opendataloader_hybrid/<doc_id>/manifest.json` for OpenDataLoader outputs.
 2. If `alert_count > 0`, read `alerts.json` before trusting table-heavy or figure-heavy content.
 3. Use `sections.jsonl` for navigation by topic/chapter/page range.
 4. Use `chunks.jsonl` for retrieval and page-aware citations.

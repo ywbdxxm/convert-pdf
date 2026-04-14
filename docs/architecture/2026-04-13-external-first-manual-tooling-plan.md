@@ -24,7 +24,7 @@ PDF -> generic RAG app -> opaque answer
 
 ## Mainline Comparison Set
 
-### 0. `docling_batch` Existing Output
+### 0. `docling_bundle` Existing Output
 
 Role:
 
@@ -37,7 +37,7 @@ Role:
 Role:
 
 - clean baseline for Docling itself
-- separates Docling core capability from `docling_batch` custom packaging
+- separates Docling core capability from `docling_bundle` custom packaging
 
 Outputs to inspect:
 
@@ -126,7 +126,7 @@ The original PDF remains final authority for register bits, pin mappings, timing
 
 ## Immediate Test Order
 
-1. Use existing `docling_batch` output as baseline.
+1. Use existing `docling_bundle` output as baseline.
 2. Generate `Docling` native output for the ESP32-S3 datasheet.
 3. Run `OpenDataLoader PDF` local mode on the same PDF.
 4. If local mode table quality is weak, run `OpenDataLoader PDF` hybrid mode with local `docling-fast`.
