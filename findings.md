@@ -950,3 +950,38 @@ That structure is now explicit instead of being inferred from scattered notes.
 - OpenDataLoader Hybrid Mode: https://opendataloader.org/docs/hybrid-mode
 - Docling LlamaIndex integration: https://docling-project.github.io/docling/integrations/llamaindex/
 - LangChain Docling loader: https://docs.langchain.com/oss/python/integrations/document_loaders/docling
+
+## 2026-04-15 Documentation Noise Cleanup
+
+Active documentation had started to drift in two ways:
+
+1. some files still described deleted bundle layers such as `README.generated.md`, `quality-summary.md`, `pages/`, and `runtime/native`
+2. some active status/roadmap docs still described already-completed cleanup work as if it were still the next plan
+
+The cleanup rule for this repository should now be:
+
+- active docs describe only the current production bundle shape
+- deleted structures are mentioned only when strictly necessary to explain a current design rule
+- historical reports that still teach obsolete structure should be removed from the active doc set instead of kept around as quasi-current references
+
+Concrete cleanup completed:
+
+- removed `docs/architecture/2026-04-15-executive-project-report.md`
+- updated `docs/README.md` to keep the active doc set explicit
+- corrected current facts in `docs/architecture/2026-04-15-parser-status-and-next-steps.md`
+- rewrote the roadmap so it reflects the post-reduction baseline rather than re-planning already-finished cleanup
+- corrected `docs/architecture/2026-04-15-project-structure.md` wording and link text
+- corrected `docs/architecture/2026-04-12-docling-embedded-manual-processing.md` to the real processed path and current downstream framing
+
+Current verified facts used for the cleanup:
+
+- `opendataloader_hybrid` datasheet alerts: `1`
+- `opendataloader_hybrid` TRM alerts: `0`
+- `docling_bundle` datasheet alerts: `1`
+- `docling_bundle` TRM alerts: `9`
+- current local bundle sizes are approximately `4.7M`, `40.4M`, `15.2M`, and `197.3M`
+
+Verification after cleanup:
+
+- grep confirmed no active doc still presents deleted bundle layers as current defaults
+- the structural test suite still passes

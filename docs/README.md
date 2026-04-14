@@ -13,9 +13,6 @@ This directory has been pruned to the current active document set.
   - 四份实际 bundle 的逐项对比
   - 明确指出每份产物具体哪里做得不好
   - 总结优缺点与后续值得做的改动
-- [Executive Project Report](architecture/2026-04-15-executive-project-report.md)
-  - 面向老板的完整中文汇报
-  - 需求、方案、架构、实现、对比、使用方式、后续建议
 - [Project Structure](architecture/2026-04-15-project-structure.md)
   - top-level repository roles
   - processed bundle layout
@@ -38,11 +35,14 @@ This directory has been pruned to the current active document set.
 
 Obsolete exploratory docs and superseded plans have been deleted.
 
+Historical reports that still described deleted bundle layers have also been removed from the active docs set.
+
 The current policy is:
 
 - keep only the documents needed to understand the current system
 - record current state in the latest status doc
 - record future work in the latest roadmap doc
+- archive or stop referencing documents that still describe deleted structures
 
 Current bundle direction:
 

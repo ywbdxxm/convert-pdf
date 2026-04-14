@@ -239,6 +239,13 @@ Manual Output Architecture Reassessment
 - [ ] 记录本轮重跑结果与输出状态
 - **Status:** in_progress
 
+### Phase 36: Active Documentation Noise Cleanup
+- [x] 审计活动文档中仍描述旧 bundle 结构的内容
+- [x] 删除仍会误导当前使用者的历史长报告
+- [x] 统一 README、项目报告、架构说明、状态文档、roadmap 到当前真实产物
+- [x] 用真实 bundle facts 和测试结果复核文档
+- **Status:** complete
+
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
 2. 对嵌入式 datasheet / app note，什么场景本地方案更优，什么场景云端/远程增强更优？

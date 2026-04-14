@@ -195,13 +195,13 @@ Current test coverage focuses on:
 - bundle generation
 - parser runner assumptions
 - indexing behavior
-- quality summary / reading helpers
+- alerts and reading helpers
 
 ### `docs/`
 
 Current project documentation set.
 
-Use [docs/README.md](../README.md) from the repository root, or this directory's own [index](../README.md) for navigation.
+Use [docs/README.md](../README.md) for navigation.
 
 The current active docs are intentionally small:
 

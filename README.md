@@ -41,7 +41,7 @@
 
 - `manuals/raw/`
 
-中间 staging / cache 在：
+非最终产物的 staging / cache 在：
 
 - `tmp/opendataloader_hybrid-*-native/`
 - `tmp/docling_bundle-cache/`
@@ -84,16 +84,7 @@
 - 时序图、框图、寄存器图、视觉化表格经常是后续真正需要的证据
 - 误删图片的风险，高于 bundle 变大的代价
 
-### 4. 最终 bundle 只暴露 agent 真正会用的层
-
-当前已经从默认 bundle 中移除：
-
-- `pages/`
-- `runtime/`
-- `native/`
-- `cache/`
-- 多入口文件并存
-- Docling 默认双份 table sidecar
+### 4. 最终 bundle 只保留 agent 真正会用的层
 
 当前默认保留的是：
 
@@ -107,6 +98,8 @@
 - `tables.index.jsonl`
 - `tables/*.csv`
 - `assets/`
+
+运行期 staging、native dump、cache 统一留在 `tmp/`，不再混入最终 bundle。
 
 ## 当前两条产线
 
@@ -174,6 +167,7 @@ ESP32-S3 datasheet：
 - `87` 页
 - `3187` 个元素
 - `68` 张结构化表
+- `1` 个 alert
 - `triage_summary = JAVA=18, BACKEND=69`
 - `fallback_detected = false`
 
@@ -236,7 +230,7 @@ ESP32-S3 TRM：
 这说明：
 
 - 结构层冗余已经大幅收掉
-- 当前新的主要体积来源不再是 `pages/`
+- 当前新的主要体积来源已经不在结构冗余层
 - 而是 `assets/` 和主文件本身
 
 但由于我们已经明确保留完整图片证据，因此当前不把“继续删图片”当成默认优化方向。

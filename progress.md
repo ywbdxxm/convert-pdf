@@ -206,3 +206,15 @@
 - Markdown / JSON / HTML usefulness
 - ability to return to the original PDF
 - whether Codex direct folder inspection is already sufficient
+
+2026-04-15 documentation cleanup wave:
+
+- re-anchored the session with `planning-with-files` and catchup output before editing docs
+- audited active docs for stale references to deleted bundle layers and obsolete names
+- removed the archived executive report that still contained large amounts of obsolete structure guidance
+- updated root docs and active architecture/status/roadmap docs to describe only the current production bundle shape
+- corrected measured alert counts in the status doc from the real local manifests/alerts files
+- reduced repeated “old structure” language in the root Chinese report and comparison doc
+- ran the structural test suite again:
+  - `docling/.venv/bin/python -m unittest tests.test_opendataloader_bundle tests.test_docling_reading_bundle tests.test_paths tests.test_workflow tests.test_tables tests.test_images tests.test_alerts tests.test_indexing -v`
+  - result: `49` tests passed

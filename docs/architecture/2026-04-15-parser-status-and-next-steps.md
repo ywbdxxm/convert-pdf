@@ -12,8 +12,8 @@ Record the current state of the two active parser-output paths:
 This document is the current source of truth for:
 
 - what has already been proven
-- what is still weak
-- what should be optimized next
+- what remains weak
+- what still looks worth improving
 
 ## Current Output Trees
 
@@ -65,7 +65,7 @@ Measured examples:
   - `87` pages
   - `3187` elements
   - `68` structured tables
-  - `0` alerts
+  - `1` alert
 - ESP32-S3 TRM:
   - `1531` pages
   - `30290` elements
@@ -101,8 +101,8 @@ Measured examples:
   - `1` alert
 - ESP32-S3 TRM:
   - `1531` pages
-  - `668` tables
-  - `10` alerts
+  - `667` tables
+  - `9` alerts
 
 ## Current Verdict
 
@@ -129,12 +129,13 @@ That judgment is based on four facts:
    - ESP32-S3 datasheet
    - ESP32-S3 TRM
 2. Both paths now produce stable, Codex-facing bundles rather than ad hoc experiment dumps.
-3. The highest-value obvious bundle improvements have already been implemented:
-   - page slices
-   - entry README files
-   - quality summaries
+3. The highest-value obvious bundle cleanups have already been implemented:
+   - single entry `README.md`
+   - no default `pages/`
+   - no default runtime/native/cache layer in final bundles
+   - unified `assets/`
+   - default CSV table sidecars
    - explicit alerts
-   - runtime visibility for OpenDataLoader
 4. The remaining likely improvements are no longer obvious wins.
 
 Current practical conclusion:
@@ -177,7 +178,7 @@ Highest-value next steps:
 1. keep `README.md` as the only entry file and make it stronger
 2. add quality alerts for pages where a key table appears as `image + paragraph fragments` rather than as a native `table`
 3. continue reducing low-value artifacts that do not help agent lookup
-4. decide whether remaining runtime state should disappear completely from the final bundle
+4. evaluate whether a second, reading-oriented locator layer is worth the added complexity
 
 ### Priority 2: Docling bundle refinement
 
@@ -206,15 +207,3 @@ Highest-value next steps:
    - time to locate evidence
    - whether page-aware citation survived
    - whether the final answer still required opening the original PDF
-
-## Rename Decision
-
-The package rename is now complete:
-
-- old name: `docling_batch`
-- new name: `docling_bundle`
-
-Current recommendation:
-
-- keep this new name
-- do not do more naming churn until the parser strategy itself changes

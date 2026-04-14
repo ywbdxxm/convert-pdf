@@ -16,7 +16,7 @@ The design target is therefore:
 - Build page-aware retrieval indexes for fast lookup.
 - Export table sidecars for electrical tables, register summaries, pin maps, and timing data.
 - Record quality alerts instead of silently hiding Docling limitations.
-- Keep the pipeline framework-independent so later RAG software can consume the outputs without forcing a specific vector database or agent framework today.
+- Keep the pipeline framework-independent so later agent tools or other downstream consumers can use the outputs without forcing a specific stack today.
 
 ## Design Principles
 
@@ -83,18 +83,19 @@ manuals/
   raw/
     <vendor>/<chip>/<manual>.pdf
   processed/
-    <doc_id>/
-      README.md
-      manifest.json
-      alerts.json
-      document.md
-      document.json
-      document.html
-      sections.jsonl
-      chunks.jsonl
-      tables.index.jsonl
-      assets/
-      tables/
+    docling_bundle/
+      <doc_id>/
+        README.md
+        manifest.json
+        alerts.json
+        document.md
+        document.json
+        document.html
+        sections.jsonl
+        chunks.jsonl
+        tables.index.jsonl
+        assets/
+        tables/
 ```
 
 Examples currently used:
@@ -116,7 +117,7 @@ Use it when:
 - downstream code needs the structured Docling representation
 - a derived index needs to be regenerated
 - Markdown is insufficient to understand document structure
-- later RAG tooling needs a richer source than plain Markdown
+- later derived analysis needs a richer source than plain Markdown
 
 Do not edit this by hand.
 
@@ -512,7 +513,7 @@ Assessment:
 - Handles many register summary and electrical tables well enough to be useful.
 - Supports image sidecars, table sidecars, and page-aware metadata.
 - Works with GPU acceleration through the configured pipeline.
-- Avoids locking the project into one RAG framework.
+- Avoids locking the project into one downstream consumer.
 
 ## Docling Weaknesses Observed
 
