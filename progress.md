@@ -101,14 +101,12 @@
 - Added a dedicated current project layout document:
   - `docs/architecture/2026-04-15-project-structure.md`
 - Updated `docs/README.md` and the root `README.md` to point at the new structure doc.
+- Reached a practical plateau: current parser/bundle outputs are good enough for real use, and the next likely changes are higher-cost experiments rather than obvious wins.
 
 ## Next Action
 
-1. Commit and push this optimization wave.
-2. If we keep iterating, the next changes are larger and less obviously beneficial:
-   - OpenDataLoader reconstruction of image-backed hard tables
-   - richer Docling alert-page routing in `README.generated.md`
-3. Only take the next wave if it still clearly improves Codex workflow more than it increases complexity.
+1. Use the current bundles for real manual work.
+2. Reopen parser-output engineering only when a concrete failure or new manual class creates a clear need.
 
 ## Verification Focus
 

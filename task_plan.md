@@ -222,8 +222,8 @@ Manual Output Architecture Reassessment
 - [x] 为 `OpenDataLoader` 增加更强的 quality alerts / runtime report / README 引导
 - [x] 为 `docling_bundle` 增加更强的 alert page surfacing 和 quality summary
 - [x] 用真实 datasheet 产物复测新 bundle 行为，确认改动确实提升 Codex 使用效果
-- [ ] 在每一波稳定改动后提交并推送
-- **Status:** in_progress
+- [x] 在每一波稳定改动后提交并推送
+- **Status:** complete
 
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？

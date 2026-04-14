@@ -675,6 +675,29 @@ So the current judgment is:
 - keep this optimization wave
 - only continue with a larger wave if we accept more complexity and more uncertain returns
 
+## Diminishing Returns Assessment
+
+For the current repository goal, we are now in diminishing-returns territory.
+
+That means:
+
+- the current outputs are already good enough for real Codex use
+- further parser-output work is still possible
+- but the next changes are no longer obvious improvements
+
+The remaining likely work items are things like:
+
+- reconstructing image-backed hard tables in OpenDataLoader
+- adding more aggressive Docling-side alert routing or prioritization
+- building a more formal comparison harness
+
+All of these may help, but none of them is a clear "must-have before using the system".
+
+So the current recommendation is:
+
+- treat the current parser/bundle state as sufficiently mature
+- only reopen parser-output engineering when a new manual class or a concrete failure justifies it
+
 ## Project Structure Clarification
 
 The project now has a current structure document:
