@@ -29,10 +29,16 @@ def _candidate_files(native_dir: Path, suffixes: tuple[str, ...]) -> list[Path]:
     return sorted(path for path in native_dir.iterdir() if path.is_file() and path.suffix.lower() in suffixes)
 
 
-def _resolve_native_file(native_dir: Path, preferred_name: str, suffixes: tuple[str, ...]) -> Path:
+def _resolve_native_file(native_dir: Path, preferred_name: str, suffixes: tuple[str, ...], source_stem: str | None = None) -> Path:
     preferred = native_dir / preferred_name
     if preferred.exists():
         return preferred
+
+    if source_stem:
+        for suffix in suffixes:
+            candidate = native_dir / f"{source_stem}{suffix}"
+            if candidate.exists():
+                return candidate
 
     candidates = _candidate_files(native_dir, suffixes)
     if not candidates:
@@ -55,6 +61,39 @@ def _copy_tree_if_exists(src: Path, dst: Path) -> bool:
         shutil.rmtree(dst)
     shutil.copytree(src, dst)
     return True
+
+
+def _reset_bundle_root(paths) -> None:
+    if not paths.root.exists():
+        paths.root.mkdir(parents=True, exist_ok=True)
+        return
+
+    for child in paths.root.iterdir():
+        if child == paths.runtime_dir:
+            continue
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+
+    paths.root.mkdir(parents=True, exist_ok=True)
+
+
+def _copy_native_inputs(native_dir: Path, runtime_native_dir: Path, source_stem: str) -> None:
+    if runtime_native_dir.exists():
+        shutil.rmtree(runtime_native_dir)
+    runtime_native_dir.mkdir(parents=True, exist_ok=True)
+
+    for child in native_dir.iterdir():
+        if child.is_file() and child.stem != source_stem:
+            continue
+        if child.is_dir() and child.name not in {f"{source_stem}_images", f"{source_stem}_assets"}:
+            continue
+        target = runtime_native_dir / child.name
+        if child.is_dir():
+            shutil.copytree(child, target)
+        else:
+            shutil.copy2(child, target)
 
 
 def _normalize_page(value) -> int | None:
@@ -245,18 +284,18 @@ def _write_readme(paths, manifest: dict) -> None:
 
 
 def build_bundle(doc_id: str, source_pdf_path: str, native_dir: Path, out_dir: Path) -> dict:
-    if out_dir.exists():
-        shutil.rmtree(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
     paths = build_bundle_paths(out_dir)
+    _reset_bundle_root(paths)
     paths.pages_dir.mkdir(parents=True, exist_ok=True)
     paths.tables_dir.mkdir(parents=True, exist_ok=True)
     paths.figures_dir.mkdir(parents=True, exist_ok=True)
     paths.runtime_dir.mkdir(parents=True, exist_ok=True)
 
-    native_json = _resolve_native_file(native_dir, "document.json", (".json",))
-    native_md = _resolve_native_file(native_dir, "document.md", (".md", ".markdown"))
-    native_html = _resolve_native_file(native_dir, "document.html", (".html", ".htm"))
+    source_stem = Path(source_pdf_path).stem
+    _copy_native_inputs(native_dir=native_dir, runtime_native_dir=paths.runtime_native_dir, source_stem=source_stem)
+    native_json = _resolve_native_file(native_dir, "document.json", (".json",), source_stem=source_stem)
+    native_md = _resolve_native_file(native_dir, "document.md", (".md", ".markdown"), source_stem=source_stem)
+    native_html = _resolve_native_file(native_dir, "document.html", (".html", ".htm"), source_stem=source_stem)
 
     _copy_if_exists(native_json, paths.document_json)
     _copy_if_exists(native_md, paths.document_markdown)
@@ -266,6 +305,13 @@ def build_bundle(doc_id: str, source_pdf_path: str, native_dir: Path, out_dir: P
     for dirname, dst in (("tables", paths.tables_dir), ("figures", paths.figures_dir), ("images", paths.figures_dir), ("assets", paths.figures_dir)):
         copied = _copy_tree_if_exists(native_dir / dirname, dst)
         copied_figures = copied_figures or (copied and dst == paths.figures_dir)
+
+    if not copied_figures:
+        for child in native_dir.iterdir():
+            if child.is_dir() and child.name in {f"{source_stem}_images", f"{source_stem}_assets"}:
+                _copy_tree_if_exists(child, paths.figures_dir)
+                copied_figures = True
+                break
 
     if not copied_figures:
         for child in native_dir.iterdir():

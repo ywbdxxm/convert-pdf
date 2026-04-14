@@ -205,8 +205,8 @@ Manual Output Architecture Reassessment
 - [x] 调研 `OpenDataLoader PDF` 官方仓库与 hybrid mode 官方输出/元数据设计
 - [x] 基于“只看 Codex 查阅效果”的标准形成两条产线的最终目录方案
 - [x] 向用户展示收敛方案并获得“各跑各的、各自从零思考最佳实践”的方向确认
- - [x] 安装 OpenDataLoader 所需的 Java 11+ WSL 系统依赖
-- [ ] 实跑 `OpenDataLoader PDF` hybrid mode 并把输出放入独立目录
+- [x] 安装 OpenDataLoader 所需的 Java 11+ WSL 系统依赖
+- [x] 实跑 `OpenDataLoader PDF` hybrid mode 并把输出放入独立目录
 - [ ] 完善 `docling_batch` 输出目录并与 `OpenDataLoader` 做最终对比测试
 - [x] 写出最终设计文档并等待用户审阅
 - **Status:** in_progress
@@ -250,6 +250,8 @@ Manual Output Architecture Reassessment
 | 最终由 Codex 基于实际文件查阅、定位、引用、验证体验裁决哪种输出更好用 | 用户明确要求以真实使用效果而非架构纯度为最终评价标准 |
 | `OpenDataLoader` 的 Java 11+ 依赖属于 WSL 系统层，不放进项目 venv 或 `docling` overlay 里凑合 | 这是基于 `ai-workstation-architecture` 和仓库分层规则收敛出的当前执行边界 |
 | `OpenDataLoader` overlay 必须独立，但应复用 shared AI base，而不是重新安装 `torch` | 这是在 2026-04-14 的真实安装尝试中验证出的最佳实践 |
+| `OpenDataLoader` 的最终可见输出树不应再分裂成顶层 `opendataloader_hybrid` 与 `opendataloader_hybrid-native` 两棵并列目录 | 用户在执行过程中明确指出这个结构违背了“每种方式一个输出树”的目标 |
+| `OpenDataLoader` 对超大 TRM 的当前最佳实践应启用 `--hybrid-fallback` | 这是在 2026-04-14 对 1531 页 ESP32-S3 TRM 的真实失败与重试中验证出来的 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -265,6 +267,7 @@ Manual Output Architecture Reassessment
 | `uv` 在 overlay venv 中未复用共享 base 的 `torch` | 1 | 已确认 `pip` 能正确识别 `--system-site-packages` 继承依赖，并将 overlay 安装脚本切换为 `pip` |
 | `OpenDataLoader` 运行前缺少 `java` | 1 | 已确认 Ubuntu 24.04 系统层未安装 Java，且当前 `sudo` 需要密码，等待用户决定是否手动安装系统级 JRE |
 | OpenDataLoader 首次 bootstrap 试图在 overlay 中重复安装 `torch 2.11.0` | 1 | 已停止安装，保留半成品 `.venv.partial-no-shared-base` 供对照，并将 bootstrap 改为复用 shared AI base |
+| OpenDataLoader hybrid 在 ESP32-S3 TRM 上触发 `Comparison method violates its general contract!` | 1 | 已确认这是 backend transform/sort 阶段的真实工具 bug；默认关闭 fallback 会导致整本失败，现已改为默认开启 `--hybrid-fallback` |
 
 ## Notes
 - 当前系统为 `Ubuntu 24.04.4 LTS / WSL2`

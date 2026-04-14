@@ -185,5 +185,5 @@ class IndexingTests(unittest.TestCase):
 
         attach_table_references(chunk_records, section_records, table_records)
 
-        self.assertEqual(chunk_records[0]["tables"][0]["table_id"], "esp32:table:0001")
-        self.assertEqual(section_records[0]["tables"][0]["html_path"], "tables/table_0001.html")
+        self.assertEqual(chunk_records[0]["table_ids"], ["esp32:table:0001"])
+        self.assertEqual(section_records[0]["table_ids"], ["esp32:table:0001"])

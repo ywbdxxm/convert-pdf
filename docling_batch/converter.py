@@ -23,6 +23,7 @@ from docling_batch.images import filter_markdown_image_refs, picture_keep_flags,
 from docling_batch.indexing import attach_table_references, build_chunk_records, build_section_records
 from docling_batch.models import RuntimeConfig
 from docling_batch.paths import build_document_paths
+from docling_batch.reading_bundle import build_quality_summary, build_readme, write_page_slices
 from docling_batch.tables import export_tables, inject_table_sidecars_into_markdown
 
 
@@ -413,10 +414,15 @@ def export_document_bundle(
         "document_json": str(paths.document_json),
         "document_markdown": str(paths.document_markdown),
         "document_html": str(paths.document_html),
+        "readme": str(paths.readme),
+        "quality_summary": str(paths.quality_summary),
         "alerts_path": str(paths.alerts),
         "sections_index": str(paths.sections),
         "chunks_index": str(paths.chunks),
+        "tables_index": str(paths.tables_index),
+        "pages_dir": str(paths.pages_dir),
         "tables_dir": str(paths.tables_dir),
+        "runtime_dir": str(paths.runtime_dir),
     }
 
     if aggregate_status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} or combined_doc is None:
@@ -451,7 +457,6 @@ def export_document_bundle(
     table_records = [table.record for table in exported_tables]
     attach_table_references(chunk_records, section_records, table_records)
     manifest["table_count"] = len(table_records)
-    manifest["tables"] = table_records
 
     markdown_text = paths.document_markdown.read_text(encoding="utf-8")
     if config.image_filter == "heuristic":
@@ -461,14 +466,40 @@ def export_document_bundle(
         )
     markdown_text = inject_table_sidecars_into_markdown(markdown_text, exported_tables)
     paths.document_markdown.write_text(markdown_text, encoding="utf-8")
+    write_page_slices(markdown=markdown_text, pages_dir=paths.pages_dir, doc_id=doc_id)
     alerts = detect_markdown_alerts(markdown_text)
     alerts.extend(detect_table_sidecar_alerts(paths.doc_dir, table_records))
     manifest["alert_count"] = len(alerts)
-    manifest["alerts"] = alerts
     write_json(paths.alerts, alerts)
 
     write_jsonl(paths.chunks, chunk_records)
     write_jsonl(paths.sections, section_records)
+    write_jsonl(paths.tables_index, table_records)
+    paths.readme.write_text(
+        build_readme(
+            doc_id=doc_id,
+            source_pdf_path=str(source_path),
+            document_json=paths.document_json.name,
+            document_markdown=paths.document_markdown.name,
+            document_html=paths.document_html.name,
+            sections_index=paths.sections.name,
+            chunks_index=paths.chunks.name,
+            tables_index=paths.tables_index.name,
+            alerts_path=paths.alerts.name,
+        ),
+        encoding="utf-8",
+    )
+    paths.quality_summary.write_text(
+        build_quality_summary(
+            doc_id=doc_id,
+            source_pdf_path=str(source_path),
+            page_count=manifest["page_count"],
+            table_count=manifest["table_count"],
+            alert_count=manifest["alert_count"],
+            alerts=alerts,
+        ),
+        encoding="utf-8",
+    )
     write_json(paths.manifest, manifest)
     return manifest
 

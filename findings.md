@@ -432,6 +432,54 @@ Reason:
 
 The current in-flight retry will tell us whether fallback is enough to make OpenDataLoader viable on large TRMs.
 
+### Retry outcome
+
+The fallback-enabled retry did complete successfully.
+
+Observed behavior:
+
+- the same backend sorting bug was triggered again
+- `--hybrid-fallback` prevented total run failure
+- OpenDataLoader fell back to Java processing for the affected backend pages
+- final native outputs were written successfully
+
+This means the current best-practice reading is:
+
+- `hybrid` without fallback is not resilient enough for very large TRMs
+- `hybrid + fallback` is currently the only credible OpenDataLoader setting for this class of manual
+
+### TRM bundle facts
+
+The resulting Codex-facing TRM bundle now reports:
+
+- `page_count = 1531`
+- `element_count = 30290`
+- `table_count = 2467`
+- `alert_count = 0`
+
+It also now includes:
+
+- page-level slices for all 1,531 pages
+- `elements.index.jsonl`
+- `tables.index.jsonl`
+- `runtime/native/` with the original OpenDataLoader-native files for this document only
+
+### Structural conclusion
+
+This confirms a more precise statement about OpenDataLoader:
+
+- it is relatively light on GPU compared with a fully model-driven pipeline
+- it is often fast
+- but on very large TRMs it currently needs fallback enabled to be operationally reliable
+
+So its current best practice is not:
+
+- bare hybrid
+
+but:
+
+- `docling-fast hybrid + cuda + hybrid-fallback`
+
 ## Preliminary Datasheet Comparison: OpenDataLoader vs Current Docling Bundle
 
 This is an early comparison on `esp32-s3_datasheet_en.pdf`, not the final verdict.
@@ -484,6 +532,12 @@ So the likely comparison direction is not:
 but:
 
 - "which bundle helps Codex recover from each parser's failure modes more effectively"
+
+After the TRM run, the more specific comparison is:
+
+- OpenDataLoader currently looks stronger on large-scale page/bbox/table evidence volume
+- Docling still has the more mature current reading bundle and table-sidecar conventions
+- OpenDataLoader is faster/lighter on GPU, but presently less stable without explicit fallback on huge manuals
 
 ## Deferred
 

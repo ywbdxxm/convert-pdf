@@ -236,3 +236,56 @@ class OpenDataLoaderBundleTests(unittest.TestCase):
             )
 
             self.assertFalse((out_dir / "pages" / "page_0002.md").exists())
+
+    def test_build_bundle_selects_native_files_by_source_stem(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            native_dir = root / "native"
+            native_dir.mkdir()
+
+            (native_dir / "other_doc.json").write_text(json.dumps({"kids": [{"type": "paragraph", "page number": 1, "content": "wrong"}]}), encoding="utf-8")
+            (native_dir / "other_doc.md").write_text("wrong\n", encoding="utf-8")
+            (native_dir / "other_doc.html").write_text("<p>wrong</p>", encoding="utf-8")
+
+            (native_dir / "target_doc.json").write_text(json.dumps({"kids": [{"type": "paragraph", "page number": 2, "content": "right"}]}), encoding="utf-8")
+            (native_dir / "target_doc.md").write_text("right\n", encoding="utf-8")
+            (native_dir / "target_doc.html").write_text("<p>right</p>", encoding="utf-8")
+
+            out_dir = root / "bundle"
+            manifest = build_bundle(
+                doc_id="target-doc",
+                source_pdf_path="manuals/raw/vendor/target_doc.pdf",
+                native_dir=native_dir,
+                out_dir=out_dir,
+            )
+
+            self.assertEqual(manifest["page_count"], 1)
+            self.assertEqual(manifest["page_numbers"], [2])
+            markdown = (out_dir / "document.md").read_text(encoding="utf-8")
+            self.assertIn("right", markdown)
+            self.assertFalse((out_dir / "runtime" / "native" / "other_doc.json").exists())
+            self.assertTrue((out_dir / "runtime" / "native" / "target_doc.json").exists())
+
+    def test_build_bundle_copies_native_inputs_under_runtime_native(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            native_dir = root / "native"
+            native_dir.mkdir()
+
+            (native_dir / "sample_doc.json").write_text(json.dumps({"kids": []}), encoding="utf-8")
+            (native_dir / "sample_doc.md").write_text("hello\n", encoding="utf-8")
+            (native_dir / "sample_doc.html").write_text("<p>hello</p>", encoding="utf-8")
+            image_dir = native_dir / "sample_doc_images"
+            image_dir.mkdir()
+            (image_dir / "image1.png").write_bytes(b"png")
+
+            out_dir = root / "bundle"
+            build_bundle(
+                doc_id="sample-doc",
+                source_pdf_path="manuals/raw/vendor/sample_doc.pdf",
+                native_dir=native_dir,
+                out_dir=out_dir,
+            )
+
+            self.assertTrue((out_dir / "runtime" / "native" / "sample_doc.json").exists())
+            self.assertTrue((out_dir / "runtime" / "native" / "sample_doc_images" / "image1.png").exists())

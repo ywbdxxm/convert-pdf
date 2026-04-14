@@ -20,6 +20,7 @@ class BundlePaths:
     tables_dir: Path
     figures_dir: Path
     runtime_dir: Path
+    runtime_native_dir: Path
 
 
 def build_bundle_paths(root: Path) -> BundlePaths:
@@ -38,4 +39,5 @@ def build_bundle_paths(root: Path) -> BundlePaths:
         tables_dir=root / "tables",
         figures_dir=root / "figures",
         runtime_dir=root / "runtime",
+        runtime_native_dir=root / "runtime" / "native",
     )

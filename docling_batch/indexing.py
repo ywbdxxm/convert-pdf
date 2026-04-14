@@ -129,15 +129,15 @@ def _overlaps(page_start_a, page_end_a, page_start_b, page_end_b):
 
 def attach_table_references(chunk_records, section_records, table_records):
     for record in chunk_records:
-        record["tables"] = [
-            table
+        record["table_ids"] = [
+            table["table_id"]
             for table in table_records
             if _overlaps(record.get("page_start"), record.get("page_end"), table.get("page_start"), table.get("page_end"))
         ]
 
     for record in section_records:
-        record["tables"] = [
-            table
+        record["table_ids"] = [
+            table["table_id"]
             for table in table_records
             if _overlaps(record.get("page_start"), record.get("page_end"), table.get("page_start"), table.get("page_end"))
         ]

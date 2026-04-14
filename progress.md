@@ -56,13 +56,24 @@
   - `Comparison method violates its general contract!`
   - backend transform failure after substantial progress through the ESP32-S3 TRM
 - Updated the runner to enable `--hybrid-fallback` by default and started a second TRM attempt.
+- Second TRM attempt completed successfully because `--hybrid-fallback` prevented total run failure.
+- Reworked the OpenDataLoader directory strategy so the visible final tree is only:
+  - `manuals/processed/opendataloader_hybrid/<doc_id>/...`
+- Native raw files are now stored inside each document bundle under:
+  - `runtime/native/`
+- The previous top-level staging directory was moved out of `manuals/processed/` into `tmp/opendataloader_hybrid-native`.
+- Fixed another bundler bug: when a native staging directory contains multiple documents, bundle selection now follows `source_pdf_path` stem instead of filename sort order.
+- Built the TRM OpenDataLoader bundle successfully with:
+  - `page_count = 1531`
+  - `element_count = 30290`
+  - `table_count = 2467`
+  - `alert_count = 0`
 
 ## Next Action
 
-1. Let the fallback-enabled TRM retry complete.
-2. Package and inspect the resulting TRM bundle.
-3. Compare first-pass Codex usability of OpenDataLoader vs existing `docling_batch` outputs.
-4. Start `docling_batch` output optimization and rename assessment.
+1. Compare first-pass Codex usability of OpenDataLoader vs existing `docling_batch` outputs on the same tasks.
+2. Start `docling_batch` output optimization based on that evidence.
+3. Assess whether `docling_batch` should be renamed now that its role is narrowing toward a Docling-specific bundle builder.
 
 ## Verification Focus
 
