@@ -114,6 +114,7 @@ manuals/raw/st/stm32h7/stm32h743vi.pdf
 
 ## 文档
 
-- [Docling / OpenDataLoader Mainline Plan](docs/architecture/2026-04-13-external-first-manual-tooling-plan.md)
+- [Docs Index](docs/README.md)
+- [Parser Status And Next Steps](docs/architecture/2026-04-15-parser-status-and-next-steps.md)
+- [Parser Optimization Roadmap](docs/superpowers/plans/2026-04-15-parser-optimization-roadmap.md)
 - [Docling Embedded Manual Processing Architecture](docs/architecture/2026-04-12-docling-embedded-manual-processing.md)
-- [RAG For Embedded Manual Lookup](docs/architecture/2026-04-12-rag-for-embedded-manuals.md)

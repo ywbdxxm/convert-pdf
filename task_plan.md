@@ -211,6 +211,13 @@ Manual Output Architecture Reassessment
 - [x] 写出最终设计文档并等待用户审阅
 - **Status:** complete
 
+### Phase 32: Docs Consolidation And Mainline Sync
+- [x] 清理 `docs/` 下过时陈旧的文档
+- [x] 收敛当前有效文档集并建立新的 docs index
+- [x] 写出下一步 `OpenDataLoader` / `docling_bundle` 优化路线
+- [ ] 将功能分支同步回 `main`
+- **Status:** in_progress
+
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
 2. 对嵌入式 datasheet / app note，什么场景本地方案更优，什么场景云端/远程增强更优？
@@ -292,9 +299,12 @@ Manual Output Architecture Reassessment
   - 共享 `AI base` 中 `torch 2.5.1` 可见 GPU
   - `docling 2.86.0` 可在 `docling/.venv` 中正常导入
   - `docling/.venv` 中的 `torch` 实际来自共享 base，而不是项目层重复安装
-- 当前已补齐：
-  - `docs/architecture/2026-04-12-ai-workstation-design-audit.md`
-  - `docs/architecture/2026-04-12-ai-workstation-execution-plan.md`
+- 当前文档已收敛到：
+  - `docs/README.md`
+  - `docs/architecture/global-workstation-reference.md`
+  - `docs/architecture/2026-04-12-docling-embedded-manual-processing.md`
+  - `docs/architecture/2026-04-15-parser-status-and-next-steps.md`
+  - `docs/superpowers/plans/2026-04-15-parser-optimization-roadmap.md`
 - 当前已补齐可执行脚本：
   - `scripts/bootstrap_ai_base.sh`
   - `scripts/bootstrap_docling_env.sh`

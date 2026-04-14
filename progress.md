@@ -29,7 +29,7 @@
 - User wants each candidate to have its own method-specific output directory, then be built, improved, compared, and tested end to end.
 - User further clarified that each tool must be reconsidered from zero; the previous tool's structure must not implicitly define the next tool's best practice.
 - The new working rule is empirical rather than doctrinal: let Codex use both final bundles and decide which one is actually better to work with.
-- Wrote the design spec for this direction in `docs/superpowers/specs/2026-04-14-independent-tool-output-design.md`.
+- Wrote the initial design spec for the independent-bundle direction and later consolidated it into the current parser status + roadmap docs.
 - Self-reviewed the spec to ensure it preserves the "independent bundles first, empirical judgment later" rule.
 - Began inline execution in an isolated worktree at `.worktrees/opendataloader-hybrid`.
 - Wrote and passed the first OpenDataLoader TDD cycle for:
@@ -77,10 +77,18 @@
   - OpenDataLoader hybrid is the stronger extraction/evidence path.
   - `docling_bundle` is the calmer and more immediately usable reading bundle.
   - `docling_batch` has now been renamed to `docling_bundle`.
+- Pruned obsolete docs under `docs/` and reduced the active document set to:
+  - `docs/README.md`
+  - `docs/architecture/2026-04-15-parser-status-and-next-steps.md`
+  - `docs/architecture/2026-04-12-docling-embedded-manual-processing.md`
+  - `docs/architecture/global-workstation-reference.md`
+  - `docs/superpowers/plans/2026-04-15-parser-optimization-roadmap.md`
+- Updated the root README to point at the current docs only.
 
 ## Next Action
 
-1. If we continue iterating, next highest-value work is to port the best bundle conventions from the improved `docling_bundle` reading layer into the OpenDataLoader bundle without losing OpenDataLoader-native evidence strength.
+1. Merge the feature branch back to `main` and remove the worktree.
+2. If work continues later, follow `docs/superpowers/plans/2026-04-15-parser-optimization-roadmap.md`.
 
 ## Verification Focus
 
