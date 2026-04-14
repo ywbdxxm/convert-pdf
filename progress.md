@@ -68,12 +68,19 @@
   - `element_count = 30290`
   - `table_count = 2467`
   - `alert_count = 0`
+- Reworked `docling_batch` output layout to live under `manuals/processed/docling_batch/<doc_id>/`.
+- Added `README.generated.md`, `quality-summary.md`, `pages/`, `tables.index.jsonl`, and `runtime/cache` support to `docling_batch`.
+- Reduced `docling_batch` chunk/section table duplication by switching from embedded table objects to `table_ids`.
+- Re-ran `docling_batch` on the datasheet and the ESP32-S3 TRM with the new bundle layout.
+- Confirmed `docling_batch` large-TRM run completed successfully with window cache and the new output layout.
+- Reached the current comparison verdict:
+  - OpenDataLoader hybrid is the stronger extraction/evidence path.
+  - `docling_batch` is the calmer and more immediately usable reading bundle.
+  - `docling_batch` rename should be deferred.
 
 ## Next Action
 
-1. Compare first-pass Codex usability of OpenDataLoader vs existing `docling_batch` outputs on the same tasks.
-2. Start `docling_batch` output optimization based on that evidence.
-3. Assess whether `docling_batch` should be renamed now that its role is narrowing toward a Docling-specific bundle builder.
+1. If we continue iterating, next highest-value work is to port the best bundle conventions from the improved `docling_batch` reading layer into the OpenDataLoader bundle without losing OpenDataLoader-native evidence strength.
 
 ## Verification Focus
 

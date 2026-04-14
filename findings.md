@@ -539,6 +539,123 @@ After the TRM run, the more specific comparison is:
 - Docling still has the more mature current reading bundle and table-sidecar conventions
 - OpenDataLoader is faster/lighter on GPU, but presently less stable without explicit fallback on huge manuals
 
+## `docling_batch` Rename Assessment
+
+Current evidence says the name probably should change eventually, but not yet.
+
+### Why it feels off now
+
+The code is narrowing toward:
+
+- a Docling-specific bundle builder
+- Codex-facing reading and verification assets
+- optional resilience features such as window cache
+
+and not toward:
+
+- a generic "batch tool" that should keep growing
+
+So semantically, names like `docling_bundle` or `docling_manual_bundle` would likely be cleaner.
+
+### Why renaming now is a bad trade
+
+Current repository text references containing `docling_batch` are still very broad:
+
+- package imports
+- tests
+- plans
+- specs
+- architecture notes
+- README / AGENTS instructions
+
+The current rough count is `125` textual references.
+
+That means an immediate rename right now would:
+
+- create high churn
+- blur the comparison work with a naming migration
+- make it harder to review what changed for actual behavior
+
+### Current recommendation
+
+Do not rename yet.
+
+First:
+
+1. finish the OpenDataLoader vs Docling output comparison
+2. settle the final Docling bundle shape
+3. then decide whether the remaining code still deserves the old name
+
+So the current position is:
+
+- rename later if Docling remains in the project as a long-lived bundle builder
+- do not rename during the active comparison phase
+
+## Final Comparison Snapshot
+
+At the end of this execution round, both active candidates have been exercised on the fixed Espressif samples and packaged into Codex-facing bundles.
+
+### OpenDataLoader hybrid bundle
+
+Strengths:
+
+- faster initial throughput
+- lighter apparent GPU dependence because Java handles part of the pipeline
+- element-level page and bounding-box metadata
+- very large structured table yield
+- strong page-local forensic view via `elements.index.jsonl` and `pages/`
+
+Confirmed bundle facts:
+
+- datasheet: `87` pages, `3187` elements, `68` tables, `0` alerts
+- TRM: `1531` pages, `30290` elements, `2467` tables, `0` alerts
+
+Weaknesses:
+
+- large TRMs are not stable enough without `--hybrid-fallback`
+- some hard tables still degrade into `image + positioned text` rather than clean table exports
+- page views are information-rich but less pleasant for quick reading
+
+### `docling_batch` bundle
+
+Strengths:
+
+- cleaner reading experience in `document.md` and `pages/`
+- explicit table sidecar links embedded near reading context
+- explicit quality signaling through alert files and summaries
+- stable large-manual execution with window cache and no parser crash in this round
+
+Confirmed bundle facts:
+
+- datasheet: `87` pages, `71` tables, `1` alert
+- TRM: `1531` pages, `668` tables, `10` alerts
+
+Weaknesses:
+
+- heavier runtime profile on big manuals
+- much less spatial metadata than OpenDataLoader
+- lower structured-table coverage
+- figure-like tables can still become empty or weak sidecars
+
+### Codex verdict
+
+If forced to choose one parser/output family today:
+
+- **best evidence extractor:** `OpenDataLoader PDF hybrid` with `--device cuda --hybrid-fallback`
+- **best reading bundle:** improved `docling_batch`
+
+If forced to choose one **overall Codex-facing bundle** today:
+
+- `docling_batch` is still slightly better for direct reading and verification workflow because the bundle is calmer and more self-explanatory
+- `OpenDataLoader` is stronger when the task depends on page-local spatial evidence, bbox-aware debugging, or very high table coverage
+
+So the practical decision is:
+
+- keep both for now
+- treat `OpenDataLoader hybrid` as the stronger extraction/evidence path
+- treat `docling_batch` as the stronger current reading/verifier path
+- do not rename `docling_batch` until we decide whether it remains a long-lived bundle product or gets replaced by an OpenDataLoader-first bundle later
+
 ## Deferred
 
 - OpenDataLoader + LlamaIndex

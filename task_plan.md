@@ -207,9 +207,9 @@ Manual Output Architecture Reassessment
 - [x] 向用户展示收敛方案并获得“各跑各的、各自从零思考最佳实践”的方向确认
 - [x] 安装 OpenDataLoader 所需的 Java 11+ WSL 系统依赖
 - [x] 实跑 `OpenDataLoader PDF` hybrid mode 并把输出放入独立目录
-- [ ] 完善 `docling_batch` 输出目录并与 `OpenDataLoader` 做最终对比测试
+- [x] 完善 `docling_batch` 输出目录并与 `OpenDataLoader` 做最终对比测试
 - [x] 写出最终设计文档并等待用户审阅
-- **Status:** in_progress
+- **Status:** complete
 
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
