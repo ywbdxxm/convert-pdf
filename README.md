@@ -13,6 +13,7 @@
 - 两条产线当前都能产出独立可读的最终目录：
   - `manuals/processed/opendataloader_hybrid/<doc_id>/`
   - `manuals/processed/docling_bundle/<doc_id>/`
+- 当前 git 仓库里只跟踪这两个输出根目录的占位，不提交真实生成产物。
 
 ## 当前判断
 
@@ -40,6 +41,12 @@ manuals/processed/
   opendataloader_hybrid/<doc_id>/  # OpenDataLoader 最终 bundle
 tmp/opendataloader_hybrid-native/  # OpenDataLoader staging/native 中间落盘
 ```
+
+说明：
+
+- `manuals/processed/` 当前在 git 中只保留根目录占位
+- 真实 bundle 是本地生成物，不纳入版本控制
+- `tmp/` 只在需要保留中间 staging 产物时出现，干净工作树下可以不存在
 
 ## 当前架构
 

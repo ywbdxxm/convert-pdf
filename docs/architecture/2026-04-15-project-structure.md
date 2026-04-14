@@ -25,7 +25,6 @@ convert-pdf/
   task_plan.md
   tests/
   findings.md
-  tmp/
 ```
 
 ## Directory Roles
@@ -121,6 +120,16 @@ manuals/processed/opendataloader_hybrid/<doc_id>/
 
 These are the only processed roots that should matter to users.
 
+In the git repository itself, only the root placeholders are tracked:
+
+```text
+manuals/processed/.gitkeep
+manuals/processed/docling_bundle/.gitkeep
+manuals/processed/opendataloader_hybrid/.gitkeep
+```
+
+Real generated bundles are local outputs and are intentionally not committed.
+
 #### `manuals/processed/docling_bundle/<doc_id>/`
 
 Typical contents:
@@ -159,15 +168,11 @@ Typical contents:
 
 ### `tmp/`
 
-Explicitly non-final staging area.
+Optional non-final staging area.
 
-Current main use:
+It is used only when an intermediate native dump is worth keeping locally for inspection.
 
-- `tmp/opendataloader_hybrid-native/`
-
-This holds OpenDataLoader native intermediate files before bundling.
-
-It should not be treated as the final interface for Codex use.
+It may be absent in a clean working tree.
 
 ### `scripts/`
 
@@ -231,8 +236,8 @@ If starting fresh, read in this order:
 Stable:
 
 - `manuals/raw/`
-- `manuals/processed/docling_bundle/`
-- `manuals/processed/opendataloader_hybrid/`
+- `manuals/processed/docling_bundle/` as a tracked root placeholder
+- `manuals/processed/opendataloader_hybrid/` as a tracked root placeholder
 - `docling_bundle/`
 - `opendataloader_hybrid/`
 
