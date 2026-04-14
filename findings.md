@@ -399,6 +399,92 @@ For the ESP32-S3 datasheet:
 
 This means the first OpenDataLoader bundle is now minimally valid for Codex evaluation.
 
+## OpenDataLoader TRM Failure And Retry
+
+The first `OpenDataLoader PDF hybrid` run on `esp32-s3_technical_reference_manual_en.pdf` did not complete successfully.
+
+### Failure observed
+
+- document: 1,531 pages
+- triage summary: `JAVA=173, BACKEND=1,358`
+- failure point: backend processing after reaching pages in the `995-1050` region
+- exception:
+  - `java.lang.IllegalArgumentException: Comparison method violates its general contract!`
+  - thrown from `org.opendataloader.pdf.hybrid.DoclingSchemaTransformer.sortByReadingOrder(...)`
+
+### What this means
+
+This is not just a timeout or an environment issue.
+
+It is a real tool stability issue on a very large TRM under hybrid mode:
+
+- the backend can process many windows successfully
+- but the final transform/sort step can crash the whole run
+
+### Response
+
+The runner has now been changed to enable `--hybrid-fallback` by default.
+
+Reason:
+
+- for large manuals, a partial-quality fallback is better than a total run failure
+- this matches the project goal of maximizing Codex-usable output, not parser purity
+
+The current in-flight retry will tell us whether fallback is enough to make OpenDataLoader viable on large TRMs.
+
+## Preliminary Datasheet Comparison: OpenDataLoader vs Current Docling Bundle
+
+This is an early comparison on `esp32-s3_datasheet_en.pdf`, not the final verdict.
+
+### What OpenDataLoader is already better at
+
+For the datasheet bundle:
+
+- `elements.index.jsonl` exposes page-aware element records with actual bounding boxes.
+- `pages/page_0027.md` shows the full page as positioned text fragments plus the table image.
+- the JSON tree already contains structured `table` elements for many pages.
+- the current OpenDataLoader bundler now exports 68 CSV table sidecars from those structured tables.
+
+This is a real advantage over the current `docling_batch` layout when Codex needs:
+
+- exact page-local element inspection
+- element-level spatial metadata
+- structured table exports from the native parser tree
+
+### What is still weaker or ambiguous
+
+`Table 2-9. Peripheral Pin Assignment` is not represented as a native `table` element in OpenDataLoader.
+
+Instead, on page 27 it appears as:
+
+- one heading
+- one large image
+- many paragraph elements with bounding boxes for apparent cell text
+
+That means:
+
+- OpenDataLoader can still expose the evidence on the page
+- but it does not automatically yield a neat CSV sidecar for this specific hard table
+
+By contrast, the current `docling_batch` output also does not provide a clean sidecar for this exact page, but its reading layer already has a stronger established pattern for sidecar-linked tables on pages where Docling does structure them.
+
+### Current takeaway
+
+The current early evidence suggests:
+
+- OpenDataLoader is stronger on page-local spatial evidence
+- OpenDataLoader's structured tables are highly valuable when present
+- OpenDataLoader still has hard-table failure modes where the best artifact is page evidence rather than a table sidecar
+- `docling_batch` remains stronger on the current human-readable bundle conventions
+
+So the likely comparison direction is not:
+
+- "one parser always wins on every artifact"
+
+but:
+
+- "which bundle helps Codex recover from each parser's failure modes more effectively"
+
 ## Deferred
 
 - OpenDataLoader + LlamaIndex

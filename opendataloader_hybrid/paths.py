@@ -15,6 +15,7 @@ class BundlePaths:
     quality_summary: Path
     alerts: Path
     elements_index: Path
+    tables_index: Path
     pages_dir: Path
     tables_dir: Path
     figures_dir: Path
@@ -32,6 +33,7 @@ def build_bundle_paths(root: Path) -> BundlePaths:
         quality_summary=root / "quality-summary.md",
         alerts=root / "alerts.json",
         elements_index=root / "elements.index.jsonl",
+        tables_index=root / "tables.index.jsonl",
         pages_dir=root / "pages",
         tables_dir=root / "tables",
         figures_dir=root / "figures",

@@ -48,12 +48,18 @@
 - Fixed two real bundler bugs discovered from the first real sample:
   - support actual OpenDataLoader keys `page number` and `bounding box`
   - copy native `<stem>_images/` sidecar directories into `figures/`
+- Fixed a third real bundler bug:
+  - clean stale bundle files before rebuilding the same output directory
 - OpenDataLoader-specific tests now pass:
   - `python3 -m unittest tests.test_opendataloader_layout tests.test_opendataloader_bundle -v`
+- First TRM attempt with OpenDataLoader hybrid failed on a real tool bug:
+  - `Comparison method violates its general contract!`
+  - backend transform failure after substantial progress through the ESP32-S3 TRM
+- Updated the runner to enable `--hybrid-fallback` by default and started a second TRM attempt.
 
 ## Next Action
 
-1. Run `OpenDataLoader PDF hybrid` on `esp32-s3_technical_reference_manual_en.pdf`.
+1. Let the fallback-enabled TRM retry complete.
 2. Package and inspect the resulting TRM bundle.
 3. Compare first-pass Codex usability of OpenDataLoader vs existing `docling_batch` outputs.
 4. Start `docling_batch` output optimization and rename assessment.

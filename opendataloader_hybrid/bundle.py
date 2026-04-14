@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import shutil
 from pathlib import Path
@@ -143,6 +144,61 @@ def _write_page_slices(paths, doc_id: str, element_rows: list[dict]) -> None:
         page_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def _collect_text_from_kids(kids) -> str:
+    parts: list[str] = []
+    for kid in kids or []:
+        if isinstance(kid, dict):
+            text = _element_text(kid)
+            if text:
+                parts.append(text)
+            child_text = _collect_text_from_kids(kid.get("kids", []))
+            if child_text:
+                parts.append(child_text)
+    return " ".join(part for part in parts if part).strip()
+
+
+def _export_tables(document: dict, paths, doc_id: str) -> list[dict]:
+    table_records: list[dict] = []
+    table_index = 0
+
+    for node in document.get("kids", []):
+        if node.get("type") != "table":
+            continue
+
+        table_index += 1
+        row_count = int(node.get("number of rows") or 0)
+        col_count = int(node.get("number of columns") or 0)
+        if row_count <= 0 or col_count <= 0:
+            continue
+
+        matrix = [["" for _ in range(col_count)] for _ in range(row_count)]
+        for row in node.get("rows", []) or []:
+            for cell in row.get("cells", []) or []:
+                row_no = int(cell.get("row number") or 1) - 1
+                col_no = int(cell.get("column number") or 1) - 1
+                if 0 <= row_no < row_count and 0 <= col_no < col_count:
+                    matrix[row_no][col_no] = _collect_text_from_kids(cell.get("kids", []))
+
+        csv_name = f"table_{table_index:04d}.csv"
+        csv_path = paths.tables_dir / csv_name
+        with csv_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerows(matrix)
+
+        record = {
+            "table_id": f"{doc_id}:table:{table_index:04d}",
+            "page": _normalize_page(node.get("page number") or node.get("page")),
+            "bbox": _normalize_bbox(node.get("bounding box") or node.get("bbox")),
+            "csv_path": str(Path("tables") / csv_name),
+            "row_count": row_count,
+            "column_count": col_count,
+        }
+        table_records.append(record)
+
+    _write_jsonl(paths.tables_index, table_records)
+    return table_records
+
+
 def _write_quality_summary(paths, manifest: dict, alerts: list[dict]) -> None:
     lines = [
         "# Quality Summary",
@@ -151,9 +207,10 @@ def _write_quality_summary(paths, manifest: dict, alerts: list[dict]) -> None:
         f"- Source PDF: `{manifest['source_pdf_path']}`",
         f"- Element count: `{manifest['element_count']}`",
         f"- Pages with extracted elements: `{manifest['page_count']}`",
+        f"- Table count: `{manifest['table_count']}`",
         f"- Alert count: `{len(alerts)}`",
         "",
-        "Open `README.generated.md` first, then use `elements.index.jsonl` or `pages/` for targeted inspection.",
+        "Open `README.generated.md` first, then use `elements.index.jsonl`, `tables.index.jsonl`, or `pages/` for targeted inspection.",
     ]
     if alerts:
         lines.extend(["", "## Alerts", ""])
@@ -181,6 +238,7 @@ def _write_readme(paths, manifest: dict) -> None:
         f"- Markdown: `{paths.document_markdown.name}`",
         f"- HTML: `{paths.document_html.name}`",
         f"- Elements index: `{paths.elements_index.name}`",
+        f"- Tables index: `{paths.tables_index.name}`",
         f"- Alerts: `{paths.alerts.name}`",
     ]
     paths.readme.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -224,6 +282,7 @@ def build_bundle(doc_id: str, source_pdf_path: str, native_dir: Path, out_dir: P
         indexed_rows.append({"doc_id": doc_id, **row})
     _write_jsonl(paths.elements_index, indexed_rows)
     _write_page_slices(paths, doc_id=doc_id, element_rows=indexed_rows)
+    table_records = _export_tables(document=document, paths=paths, doc_id=doc_id)
 
     page_numbers = sorted({row["page"] for row in indexed_rows if row.get("page") is not None})
     alerts = []
@@ -243,6 +302,8 @@ def build_bundle(doc_id: str, source_pdf_path: str, native_dir: Path, out_dir: P
         "document_markdown": paths.document_markdown.name,
         "document_html": paths.document_html.name,
         "elements_index": paths.elements_index.name,
+        "tables_index": paths.tables_index.name,
+        "table_count": len(table_records),
         "alerts_path": paths.alerts.name,
     }
 

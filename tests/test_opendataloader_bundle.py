@@ -120,6 +120,92 @@ class OpenDataLoaderBundleTests(unittest.TestCase):
             self.assertIn('"page": 3', rows[0])
             self.assertIn('"bbox": [1, 2, 3, 4]', rows[0])
 
+    def test_build_bundle_exports_structured_tables(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            native_dir = root / "native"
+            native_dir.mkdir()
+            (native_dir / "document.json").write_text(
+                json.dumps(
+                    {
+                        "kids": [
+                            {
+                                "type": "table",
+                                "page number": 7,
+                                "bounding box": [0, 0, 10, 10],
+                                "number of rows": 2,
+                                "number of columns": 2,
+                                "rows": [
+                                    {
+                                        "type": "table row",
+                                        "row number": 1,
+                                        "cells": [
+                                            {
+                                                "type": "table cell",
+                                                "row number": 1,
+                                                "column number": 1,
+                                                "row span": 1,
+                                                "column span": 1,
+                                                "kids": [{"type": "paragraph", "content": "A"}],
+                                            },
+                                            {
+                                                "type": "table cell",
+                                                "row number": 1,
+                                                "column number": 2,
+                                                "row span": 1,
+                                                "column span": 1,
+                                                "kids": [{"type": "paragraph", "content": "B"}],
+                                            },
+                                        ],
+                                    },
+                                    {
+                                        "type": "table row",
+                                        "row number": 2,
+                                        "cells": [
+                                            {
+                                                "type": "table cell",
+                                                "row number": 2,
+                                                "column number": 1,
+                                                "row span": 1,
+                                                "column span": 1,
+                                                "kids": [{"type": "paragraph", "content": "C"}],
+                                            },
+                                            {
+                                                "type": "table cell",
+                                                "row number": 2,
+                                                "column number": 2,
+                                                "row span": 1,
+                                                "column span": 1,
+                                                "kids": [{"type": "paragraph", "content": "D"}],
+                                            },
+                                        ],
+                                    },
+                                ],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (native_dir / "document.md").write_text("hello\n", encoding="utf-8")
+            (native_dir / "document.html").write_text("<p>hello</p>", encoding="utf-8")
+
+            out_dir = root / "bundle"
+            build_bundle(
+                doc_id="sample-doc",
+                source_pdf_path="manuals/raw/example.pdf",
+                native_dir=native_dir,
+                out_dir=out_dir,
+            )
+
+            self.assertTrue((out_dir / "tables" / "table_0001.csv").exists())
+            self.assertTrue((out_dir / "tables.index.jsonl").exists())
+            table_csv = (out_dir / "tables" / "table_0001.csv").read_text(encoding="utf-8")
+            self.assertIn("A,B", table_csv)
+            self.assertIn("C,D", table_csv)
+            readme = (out_dir / "README.generated.md").read_text(encoding="utf-8")
+            self.assertIn("Tables index", readme)
+
     def test_build_bundle_cleans_stale_pages_from_previous_run(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
