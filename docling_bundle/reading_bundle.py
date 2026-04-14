@@ -46,7 +46,15 @@ def build_quality_summary(
     if alerts:
         lines.extend(["", "## Alerts", ""])
         for alert in alerts:
-            lines.append(f"- {alert.get('kind', 'unknown')}")
+            suffix = ""
+            page_start = alert.get("page_start", alert.get("page"))
+            page_end = alert.get("page_end", alert.get("page"))
+            if page_start is not None and page_end is not None:
+                suffix = f" p.{page_start}" if page_start == page_end else f" p.{page_start}-{page_end}"
+            elif page_start is not None:
+                suffix = f" p.{page_start}"
+            detail = alert.get("caption") or alert.get("detail") or ""
+            lines.append(f"- {alert.get('kind', 'unknown')}{suffix}" + (f": {detail}" if detail else ""))
     return "\n".join(lines).rstrip() + "\n"
 
 

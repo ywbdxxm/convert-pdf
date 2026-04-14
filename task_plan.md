@@ -215,7 +215,14 @@ Manual Output Architecture Reassessment
 - [x] 清理 `docs/` 下过时陈旧的文档
 - [x] 收敛当前有效文档集并建立新的 docs index
 - [x] 写出下一步 `OpenDataLoader` / `docling_bundle` 优化路线
-- [ ] 将功能分支同步回 `main`
+- [x] 将功能分支同步回 `main`
+- **Status:** complete
+
+### Phase 33: Final Bundle Optimization Waves
+- [x] 为 `OpenDataLoader` 增加更强的 quality alerts / runtime report / README 引导
+- [x] 为 `docling_bundle` 增加更强的 alert page surfacing 和 quality summary
+- [x] 用真实 datasheet 产物复测新 bundle 行为，确认改动确实提升 Codex 使用效果
+- [ ] 在每一波稳定改动后提交并推送
 - **Status:** in_progress
 
 ## Key Questions

@@ -23,6 +23,10 @@ class OpenDataLoaderLayoutTests(unittest.TestCase):
         script = Path("scripts/run_opendataloader_hybrid.sh").read_text(encoding="utf-8")
         self.assertIn("--hybrid-fallback", script)
 
+    def test_runner_writes_run_log(self):
+        script = Path("scripts/run_opendataloader_hybrid.sh").read_text(encoding="utf-8")
+        self.assertIn("run.log", script)
+
 
 class OpenDataLoaderOutputSmokeTests(unittest.TestCase):
     def test_processed_root_exists(self):

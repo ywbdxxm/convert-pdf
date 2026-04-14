@@ -45,6 +45,14 @@ artifacts/
 *.pdf
 manuals/processed/*
 !manuals/processed/.gitkeep
+!manuals/processed/docling_bundle/
+!manuals/processed/docling_bundle/.gitkeep
+manuals/processed/docling_bundle/**
+!manuals/processed/docling_bundle/.gitkeep
+!manuals/processed/opendataloader_hybrid/
+!manuals/processed/opendataloader_hybrid/.gitkeep
+manuals/processed/opendataloader_hybrid/**
+!manuals/processed/opendataloader_hybrid/.gitkeep
 
 # Large or local-only PDF samples
 samples/private/

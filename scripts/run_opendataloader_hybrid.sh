@@ -80,6 +80,7 @@ if [[ ! -x "$ODL_VENV_DIR/bin/opendataloader-pdf" || ! -x "$ODL_VENV_DIR/bin/ope
 fi
 
 mkdir -p "$OUTPUT_DIR"
+LOG_PATH="$OUTPUT_DIR/run.log"
 
 SERVER_ARGS=(--port "$PORT" --device "$DEVICE")
 if [[ "$FORCE_OCR" -eq 1 ]]; then
@@ -104,4 +105,4 @@ sleep 3
 
 "$ODL_VENV_DIR/bin/opendataloader-pdf" \
   "${CLIENT_ARGS[@]}" \
-  "${INPUTS[@]}"
+  "${INPUTS[@]}" 2>&1 | tee "$LOG_PATH"

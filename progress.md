@@ -85,10 +85,27 @@
   - `docs/superpowers/plans/2026-04-15-parser-optimization-roadmap.md`
 - Updated the root README to point at the current docs only.
 
+2026-04-15:
+
+- Started a fresh optimization worktree at `.worktrees/final-bundle-optimization`.
+- Added tracked empty output roots for `manuals/processed/docling_bundle/` and `manuals/processed/opendataloader_hybrid/`.
+- Added `OpenDataLoader` runtime reporting via `runtime/report.json`.
+- Updated the `OpenDataLoader` runner to persist `run.log` into native staging.
+- Added an `OpenDataLoader` alert for image-backed table pages without a native `table` element.
+- Verified on the ESP32-S3 datasheet bundle that:
+  - `runtime/report.json` exposes `JAVA=18, BACKEND=69`
+  - `alerts.json` flags `Table 2-9. Peripheral Pin Assignment` on page `27`
+- Improved `docling_bundle` quality summaries so alert entries now include page references and captions/details.
+- Verified on the ESP32-S3 datasheet bundle that `quality-summary.md` now surfaces:
+  - `table_caption_followed_by_image_without_sidecar p.27: Table 2-9. Peripheral Pin Assignment`
+
 ## Next Action
 
-1. Merge the feature branch back to `main` and remove the worktree.
-2. If work continues later, follow `docs/superpowers/plans/2026-04-15-parser-optimization-roadmap.md`.
+1. Commit and push this optimization wave.
+2. If we keep iterating, the next changes are larger and less obviously beneficial:
+   - OpenDataLoader reconstruction of image-backed hard tables
+   - richer Docling alert-page routing in `README.generated.md`
+3. Only take the next wave if it still clearly improves Codex workflow more than it increases complexity.
 
 ## Verification Focus
 

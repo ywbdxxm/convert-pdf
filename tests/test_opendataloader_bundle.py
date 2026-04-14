@@ -289,3 +289,63 @@ class OpenDataLoaderBundleTests(unittest.TestCase):
 
             self.assertTrue((out_dir / "runtime" / "native" / "sample_doc.json").exists())
             self.assertTrue((out_dir / "runtime" / "native" / "sample_doc_images" / "image1.png").exists())
+
+    def test_build_bundle_writes_runtime_report_from_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            native_dir = root / "native"
+            native_dir.mkdir()
+            (native_dir / "sample_doc.json").write_text(json.dumps({"kids": []}), encoding="utf-8")
+            (native_dir / "sample_doc.md").write_text("hello\n", encoding="utf-8")
+            (native_dir / "sample_doc.html").write_text("<p>hello</p>", encoding="utf-8")
+            (native_dir / "run.log").write_text(
+                "INFO: Triage summary: JAVA=18, BACKEND=69\n"
+                "WARNING: Backend processing failed: Comparison method violates its general contract!\n"
+                "INFO: Falling back to Java processing for backend pages\n",
+                encoding="utf-8",
+            )
+
+            out_dir = root / "bundle"
+            build_bundle(
+                doc_id="sample-doc",
+                source_pdf_path="manuals/raw/vendor/sample_doc.pdf",
+                native_dir=native_dir,
+                out_dir=out_dir,
+            )
+
+            report = json.loads((out_dir / "runtime" / "report.json").read_text(encoding="utf-8"))
+            self.assertEqual(report["triage_summary"], "JAVA=18, BACKEND=69")
+            self.assertTrue(report["fallback_detected"])
+            self.assertTrue(report["backend_failure_detected"])
+
+    def test_build_bundle_emits_alert_for_image_backed_table_page(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            native_dir = root / "native"
+            native_dir.mkdir()
+            (native_dir / "sample_doc.json").write_text(
+                json.dumps(
+                    {
+                        "kids": [
+                            {"type": "heading", "page number": 27, "content": "Table 2-9. Peripheral Pin Assignment"},
+                            {"type": "image", "page number": 27, "bounding box": [0, 0, 100, 100]},
+                            {"type": "paragraph", "page number": 27, "content": "GPIO0 (P3)"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (native_dir / "sample_doc.md").write_text("hello\n", encoding="utf-8")
+            (native_dir / "sample_doc.html").write_text("<p>hello</p>", encoding="utf-8")
+
+            out_dir = root / "bundle"
+            build_bundle(
+                doc_id="sample-doc",
+                source_pdf_path="manuals/raw/vendor/sample_doc.pdf",
+                native_dir=native_dir,
+                out_dir=out_dir,
+            )
+
+            alerts = json.loads((out_dir / "alerts.json").read_text(encoding="utf-8"))
+            kinds = {alert["kind"] for alert in alerts}
+            self.assertIn("table_heading_with_image_without_native_table", kinds)

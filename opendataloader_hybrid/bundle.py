@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -94,6 +95,67 @@ def _copy_native_inputs(native_dir: Path, runtime_native_dir: Path, source_stem:
             shutil.copytree(child, target)
         else:
             shutil.copy2(child, target)
+
+
+def _parse_runtime_report(native_dir: Path) -> dict:
+    report = {
+        "log_path": None,
+        "triage_summary": None,
+        "fallback_detected": False,
+        "backend_failure_detected": False,
+    }
+    log_path = native_dir / "run.log"
+    if not log_path.exists():
+        return report
+
+    report["log_path"] = str(Path("runtime") / "native" / "run.log")
+    text = log_path.read_text(encoding="utf-8")
+    triage_match = re.search(r"Triage summary:\s*(.+)", text)
+    if triage_match:
+        report["triage_summary"] = triage_match.group(1).strip()
+    if "Falling back to Java processing" in text:
+        report["fallback_detected"] = True
+    if "Backend processing failed" in text:
+        report["backend_failure_detected"] = True
+    return report
+
+
+def _detect_quality_alerts(document: dict, table_records: list[dict], page_numbers: list[int], element_rows: list[dict]) -> list[dict]:
+    alerts: list[dict] = []
+    if not page_numbers:
+        alerts.append({"kind": "no_page_metadata", "detail": "No page metadata found in flattened elements."})
+    if not any(row.get("bbox") for row in element_rows):
+        alerts.append({"kind": "no_bbox_metadata", "detail": "No bounding boxes found in flattened elements."})
+
+    table_pages = {record["page"] for record in table_records if record.get("page") is not None}
+    page_to_headings: dict[int, list[str]] = {}
+    page_to_images: dict[int, int] = {}
+    for node in document.get("kids", []):
+        page = _normalize_page(node.get("page number") or node.get("page"))
+        if page is None:
+            continue
+        if node.get("type") == "heading":
+            text = _element_text(node)
+            if text:
+                page_to_headings.setdefault(page, []).append(text)
+        if node.get("type") == "image":
+            page_to_images[page] = page_to_images.get(page, 0) + 1
+
+    for page, headings in page_to_headings.items():
+        if page in table_pages or page_to_images.get(page, 0) == 0:
+            continue
+        for heading in headings:
+            if heading.lower().startswith("table "):
+                alerts.append(
+                    {
+                        "kind": "table_heading_with_image_without_native_table",
+                        "page": page,
+                        "detail": heading,
+                    }
+                )
+                break
+
+    return alerts
 
 
 def _normalize_page(value) -> int | None:
@@ -248,13 +310,18 @@ def _write_quality_summary(paths, manifest: dict, alerts: list[dict]) -> None:
         f"- Pages with extracted elements: `{manifest['page_count']}`",
         f"- Table count: `{manifest['table_count']}`",
         f"- Alert count: `{len(alerts)}`",
+        f"- Fallback detected: `{manifest['runtime_report']['fallback_detected']}`",
         "",
         "Open `README.generated.md` first, then use `elements.index.jsonl`, `tables.index.jsonl`, or `pages/` for targeted inspection.",
     ]
     if alerts:
         lines.extend(["", "## Alerts", ""])
         for alert in alerts:
-            lines.append(f"- {alert['kind']}: {alert.get('detail', '')}".rstrip(": "))
+            suffix = ""
+            if alert.get("page") is not None:
+                suffix += f" p.{alert['page']}"
+            detail = alert.get("detail", "")
+            lines.append(f"- {alert['kind']}{suffix}" + (f": {detail}" if detail else ""))
     paths.quality_summary.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
@@ -279,6 +346,7 @@ def _write_readme(paths, manifest: dict) -> None:
         f"- Elements index: `{paths.elements_index.name}`",
         f"- Tables index: `{paths.tables_index.name}`",
         f"- Alerts: `{paths.alerts.name}`",
+        f"- Runtime report: `{paths.runtime_report.relative_to(paths.root)}`",
     ]
     paths.readme.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
@@ -331,11 +399,9 @@ def build_bundle(doc_id: str, source_pdf_path: str, native_dir: Path, out_dir: P
     table_records = _export_tables(document=document, paths=paths, doc_id=doc_id)
 
     page_numbers = sorted({row["page"] for row in indexed_rows if row.get("page") is not None})
-    alerts = []
-    if not page_numbers:
-        alerts.append({"kind": "no_page_metadata", "detail": "No page metadata found in flattened elements."})
-    if not any(row.get("bbox") for row in indexed_rows):
-        alerts.append({"kind": "no_bbox_metadata", "detail": "No bounding boxes found in flattened elements."})
+    alerts = _detect_quality_alerts(document=document, table_records=table_records, page_numbers=page_numbers, element_rows=indexed_rows)
+    runtime_report = _parse_runtime_report(native_dir)
+    _write_json(paths.runtime_report, runtime_report)
 
     manifest = {
         "doc_id": doc_id,
@@ -351,6 +417,7 @@ def build_bundle(doc_id: str, source_pdf_path: str, native_dir: Path, out_dir: P
         "tables_index": paths.tables_index.name,
         "table_count": len(table_records),
         "alerts_path": paths.alerts.name,
+        "runtime_report": runtime_report,
     }
 
     _write_json(paths.manifest, manifest)

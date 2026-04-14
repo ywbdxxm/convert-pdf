@@ -634,6 +634,47 @@ So the practical decision is:
 - treat `docling_bundle` as the stronger current reading/verifier path
 - keep `docling_bundle` as the current Docling-side product name while the broader parser comparison continues
 
+## 2026-04-15 Final Bundle Optimization Wave
+
+This wave focused on low-risk bundle improvements that directly help Codex.
+
+### OpenDataLoader improvements proven useful
+
+1. `runtime/report.json`
+   - surfaces triage summary
+   - surfaces fallback/backend-failure state
+   - turns hidden runner behavior into explicit bundle metadata
+2. image-backed table alerting
+   - pages like `Table 2-9. Peripheral Pin Assignment` now produce an explicit alert instead of failing silently
+
+These help because they improve Codex judgment without distorting native evidence.
+
+### Docling improvements proven useful
+
+1. alert page references in `quality-summary.md`
+   - the summary now points directly to the page that needs inspection
+   - captions/details are surfaced inline
+
+This shortens the path from:
+
+- "there is a quality warning"
+
+to:
+
+- "open page 27 now"
+
+### Current stopping point
+
+The next likely improvements are more invasive and less predictable:
+
+- reconstructing image-backed hard tables in OpenDataLoader
+- adding more aggressive Docling-side prioritization heuristics
+
+So the current judgment is:
+
+- keep this optimization wave
+- only continue with a larger wave if we accept more complexity and more uncertain returns
+
 ## Deferred
 
 - OpenDataLoader + LlamaIndex
