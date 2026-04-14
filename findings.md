@@ -116,6 +116,289 @@ This means:
 - parts of the current architecture remain useful as design inspiration
 - the likely best practice is `raw native output + thin overlay`, not a full schema rewrite
 
+## Current `docling_batch` Bundle Weak Points
+
+Fresh code + sample inspection on `2026-04-13` shows a few concrete problems in the current bundle shape.
+
+### 1. `manifest.json` mixes too many responsibilities
+
+It currently combines:
+
+- document identity and provenance
+- runtime/configuration details
+- window-cache status
+- output path entrypoints
+- full table catalog
+- full alert payload
+
+For a large TRM this becomes unnecessarily heavy.
+
+Example from the ESP32-S3 TRM bundle:
+
+- `table_count = 667`
+- full `tables[]` is embedded directly in `manifest.json`
+- full `alerts[]` is also embedded directly in `manifest.json`
+
+This suggests `manifest.json` should likely become a small entrypoint plus references to separate indexes, not the container for every secondary dataset.
+
+### 2. Table metadata is duplicated into chunk/section records
+
+`attach_table_references()` currently copies overlapping table objects into every chunk and section record based on page overlap.
+
+This is convenient, but it creates high fan-out duplication:
+
+- the same table record appears in `manifest.json`
+- and again in many `chunks.jsonl` rows
+- and again in many `sections.jsonl` rows
+
+This is probably acceptable for a small document, but not a clean long-term shape for large manuals.
+
+Likely better pattern:
+
+- keep one canonical `tables.index.jsonl`
+- chunk/section rows carry only `table_ids` or no inline table attachment by default
+
+### 3. Entry layer, evidence layer, and run/cache layer are mixed together
+
+Current single-folder layout mixes:
+
+- reading assets: `document.md`, `document.html`
+- canonical parser asset: `document.json`
+- evidence sidecars: `tables/`, `artifacts/`
+- retrieval/index layer: `chunks.jsonl`, `sections.jsonl`
+- quality layer: `alerts.json`
+- runtime/cache layer: `_windows/`
+
+This is practical but blurs what is:
+
+- native parser output
+- stable evidence
+- derived overlay
+- transient execution state
+
+The likely better separation is:
+
+- raw/native parser output
+- overlay/navigation/index files
+- run/cache state outside the stable document bundle
+
+### 4. Current bundle is agent-friendly but not comparison-friendly
+
+The current design is optimized for immediate use, but it obscures tool comparison because it hides where:
+
+- Docling ends
+- `docling_batch` packaging begins
+- heuristics and filtering affect the result
+
+For A/B parser evaluation, native/raw preservation should be explicit.
+
+## OpenDataLoader Official Facts
+
+Direct review of the official GitHub README and docs confirms a few important points.
+
+### 1. OpenDataLoader's native JSON is already a hierarchical evidence format
+
+Official JSON schema says:
+
+- root includes document metadata such as `file name`, `number of pages`, author/title/dates
+- root `kids` contains top-level content elements
+- every content element includes `type`, `page number`, and `bounding box`
+- tables are hierarchical with rows/cells and cell spans
+- captions can link to related content IDs
+- images can reference external image files or embedded/base64 payloads
+
+This means OpenDataLoader's native JSON is closer to a directly consumable evidence tree than our current `manifest + chunks + sections` split.
+
+### 2. OpenDataLoader's native philosophy is "rich parser output first"
+
+Official docs consistently position the outputs as:
+
+- `json` for structured data with metadata and bounding boxes
+- `markdown` for LLM context/chunking
+- `html` for human/web display
+- optional annotated PDF for visual debugging
+
+This is much closer to:
+
+- one canonical native document tree
+- multiple presentation/consumption views
+
+than to:
+
+- one large custom bundle with multiple derived indexes embedded up front
+
+### 3. Hybrid mode is not a new storage format
+
+Official hybrid docs describe hybrid as a routing/extraction mode:
+
+- default `--hybrid-mode auto`: dynamic triage
+- `--hybrid-mode full`: all pages to backend
+- backend adds OCR/formula/picture-description capabilities
+- formula and picture-description enrichments are surfaced back into normal JSON/Markdown output
+
+So for architecture purposes, hybrid mode changes extraction quality and optional fields, not the fundamental output philosophy.
+
+### 4. OpenDataLoader strongly assumes downstream chunking happens after parsing
+
+Its RAG guide explicitly shows:
+
+- convert PDF to `json,markdown`
+- load `document.json`
+- chunk by semantic elements or sections downstream
+- carry `page number` and `bounding box` metadata into retrieval
+
+This reinforces a key design lesson for this project:
+
+- parser output and retrieval/index design should be separated
+- chunk indexes do not have to be first-class artifacts in the stable document bundle
+
+### 5. Benchmark claims support testing hybrid for hard table pages, but not blindly adopting its worldview
+
+Official benchmark pages claim:
+
+- `OpenDataLoader [hybrid]` ranks first for table structure
+- `Docling` ranks second and remains strong on headings
+- local `OpenDataLoader` without hybrid is much weaker on table structure
+
+So the right comparison target for embedded manuals is indeed:
+
+- current Docling path
+- OpenDataLoader hybrid path for hard tables
+
+not local-only OpenDataLoader as the final answer by default.
+
+## 2026-04-14 Direction Lock
+
+The user explicitly rejected premature schema unification.
+
+The active rule is now:
+
+- each tool gets its own independently designed output bundle
+- each tool should be judged from zero on what best serves Codex usage
+- do not let the previous tool's structure bias the next tool's "best practice"
+- final judgment comes from actual Codex lookup/citation/verification experience
+
+This changes the design target from:
+
+- "find one universal schema first"
+
+to:
+
+- "build the best Codex-facing bundle for each tool separately, then compare them empirically"
+
+Implication:
+
+- `docling_batch` should be improved according to its own strengths and weaknesses
+- `OpenDataLoader hybrid` should be packaged according to its own strengths and weaknesses
+- only after both are built and tested should cross-tool common patterns be extracted
+
+## OpenDataLoader Hybrid First Real Run
+
+The first real OpenDataLoader hybrid run on `esp32-s3_datasheet_en.pdf` has now completed.
+
+### Environment facts
+
+- Java 17 is available at the WSL system layer.
+- OpenDataLoader runs in its own project overlay:
+  - `opendataloader/.venv`
+- The overlay now reuses the shared heavy AI base instead of reinstalling `torch`.
+- This is the correct layering:
+  - system Java
+  - shared AI base for `torch`
+  - project overlay for OpenDataLoader-specific Python packages
+
+### Native output shape observed
+
+For the ESP32-S3 datasheet, OpenDataLoader wrote:
+
+- `esp32-s3_datasheet_en.json`
+- `esp32-s3_datasheet_en.md`
+- `esp32-s3_datasheet_en.html`
+- `esp32-s3_datasheet_en_images/`
+
+This is materially different from `docling_batch`.
+
+Key implication:
+
+- OpenDataLoader native output is a flat per-document file set plus a suffixed image directory, not a pre-bundled document folder
+
+### JSON schema reality from actual sample
+
+Observed root keys:
+
+- `file name`
+- `number of pages`
+- `author`
+- `title`
+- `creation date`
+- `modification date`
+- `kids`
+
+Observed element keys:
+
+- `id`
+- `type`
+- `page number`
+- `bounding box`
+- `content`
+- `heading level`
+- `level`
+- font-related fields
+
+Important correction:
+
+- the actual element fields use spaced names like `page number` and `bounding box`
+- any Codex-facing bundler must explicitly support those keys
+
+### First-run hybrid behavior
+
+The datasheet run reported:
+
+- 87 pages total
+- triage summary: `JAVA=18, BACKEND=69`
+
+This is useful because it shows hybrid mode is not just a blind full reroute:
+
+- some pages stay on the fast Java path
+- harder pages go to the backend
+
+### First bundler issues found and fixed
+
+The first OpenDataLoader bundler draft had three real issues:
+
+1. It did not understand spaced JSON field names.
+2. It did not copy native `<stem>_images/` directories.
+3. It could leave stale bundle files from a previous run in place.
+
+Status:
+
+- spaced metadata keys: fixed
+- suffixed image directory support: fixed
+- stale bundle cleanup: still needs one explicit cleanup pass or rebuild policy tightening
+
+### Current Codex-facing OpenDataLoader bundle status
+
+The generated bundle now includes:
+
+- `README.generated.md`
+- `quality-summary.md`
+- `document.json`
+- `document.md`
+- `document.html`
+- `elements.index.jsonl`
+- `pages/`
+- `figures/`
+- `manifest.json`
+- `alerts.json`
+
+For the ESP32-S3 datasheet:
+
+- `page_count = 87`
+- `alerts = []`
+- `elements.index.jsonl` now contains page numbers and bounding boxes
+
+This means the first OpenDataLoader bundle is now minimally valid for Codex evaluation.
+
 ## Deferred
 
 - OpenDataLoader + LlamaIndex

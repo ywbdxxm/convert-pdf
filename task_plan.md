@@ -1,10 +1,10 @@
-# Task Plan: PDF / AI 工作站架构与 Docling 环境建设
+# Task Plan: PDF / AI 工作站架构与嵌入式手册输出架构
 
 ## Goal
-为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中完成 `Docling` 探索环境建设。
+为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中收敛“面向嵌入式开发的手册转换输出架构”，重点回答 `Docling` 当前 bundle 是否已接近最佳实践，以及 `OpenDataLoader PDF` 尤其 hybrid mode 的更优输出应当长什么样。
 
 ## Current Phase
-Docling Output Architecture Assessment
+Manual Output Architecture Reassessment
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -199,6 +199,18 @@ Docling Output Architecture Assessment
 - [x] 给出更干净的 Docling raw/overlay 分层建议
 - **Status:** complete
 
+### Phase 31: Manual Output Architecture Reassessment
+- [x] 复核 `docling_batch` 当前代码与 `manuals/processed` 样本的职责边界
+- [x] 识别当前 bundle 中入口层、证据层、运行层、缓存层的混杂与冗余
+- [x] 调研 `OpenDataLoader PDF` 官方仓库与 hybrid mode 官方输出/元数据设计
+- [x] 基于“只看 Codex 查阅效果”的标准形成两条产线的最终目录方案
+- [x] 向用户展示收敛方案并获得“各跑各的、各自从零思考最佳实践”的方向确认
+ - [x] 安装 OpenDataLoader 所需的 Java 11+ WSL 系统依赖
+- [ ] 实跑 `OpenDataLoader PDF` hybrid mode 并把输出放入独立目录
+- [ ] 完善 `docling_batch` 输出目录并与 `OpenDataLoader` 做最终对比测试
+- [x] 写出最终设计文档并等待用户审阅
+- **Status:** in_progress
+
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
 2. 对嵌入式 datasheet / app note，什么场景本地方案更优，什么场景云端/远程增强更优？
@@ -231,6 +243,13 @@ Docling Output Architecture Assessment
 | 当前主线继续以 `Docling JSON + Markdown + native chunking + table sidecars` 为核心，不切到全量 VLM 管线 | 这是准确性、可复现性、吞吐和工程复杂度之间最稳的主线 |
 | 下一阶段最高价值增强不是更换主解析器，而是补 `visual grounding / page images / figure metadata` 和“疑难页二级补救” | 这更直接解决嵌入式手册中的时序图、框图、宽矩阵表问题 |
 | 缓存机制默认关闭，仅作为显式可选的容错功能 | 这更符合“多数手册只处理一次”的真实工作流，避免普通单次转换承担额外复杂度和时间成本 |
+| 当前产物评价标准改为“是否最利于 Codex 直接调用、查阅、回溯原 PDF” | 这是用户在 2026-04-14 的明确要求，优先级高于区分原生与包装层 |
+| 本阶段只保留两条主线：`docling_batch` 与 `OpenDataLoader PDF hybrid` | 用户明确要求目前只构建、完善、对比、测试这两种方式 |
+| 两条主线各自放在独立方式目录下，不强行统一成 raw/native 术语 | 用户明确表示不需要刻意区分原生与追加层，只看最终查阅效果 |
+| 每一个工具都必须从零思考其最佳实践，不允许被前一个工具的目录或抽象强行约束 | 用户在 2026-04-14 明确要求避免历史设计污染下一种工具的最佳实践判断 |
+| 最终由 Codex 基于实际文件查阅、定位、引用、验证体验裁决哪种输出更好用 | 用户明确要求以真实使用效果而非架构纯度为最终评价标准 |
+| `OpenDataLoader` 的 Java 11+ 依赖属于 WSL 系统层，不放进项目 venv 或 `docling` overlay 里凑合 | 这是基于 `ai-workstation-architecture` 和仓库分层规则收敛出的当前执行边界 |
+| `OpenDataLoader` overlay 必须独立，但应复用 shared AI base，而不是重新安装 `torch` | 这是在 2026-04-14 的真实安装尝试中验证出的最佳实践 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -244,6 +263,8 @@ Docling Output Architecture Assessment
 | `micromamba create` 持续下载但环境目录几乎未落盘 | 1 | 已停止进程、清空 `~/.mamba` 相关残留，并改为先 dry-run 验证镜像链路 |
 | 规划文件引用的设计文档路径不存在 | 1 | 已补写新的架构审计与执行文档，并改用真实存在的 `docs/architecture/` 路径 |
 | `uv` 在 overlay venv 中未复用共享 base 的 `torch` | 1 | 已确认 `pip` 能正确识别 `--system-site-packages` 继承依赖，并将 overlay 安装脚本切换为 `pip` |
+| `OpenDataLoader` 运行前缺少 `java` | 1 | 已确认 Ubuntu 24.04 系统层未安装 Java，且当前 `sudo` 需要密码，等待用户决定是否手动安装系统级 JRE |
+| OpenDataLoader 首次 bootstrap 试图在 overlay 中重复安装 `torch 2.11.0` | 1 | 已停止安装，保留半成品 `.venv.partial-no-shared-base` 供对照，并将 bootstrap 改为复用 shared AI base |
 
 ## Notes
 - 当前系统为 `Ubuntu 24.04.4 LTS / WSL2`
