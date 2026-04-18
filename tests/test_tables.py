@@ -161,7 +161,7 @@ class TableExportTests(unittest.TestCase):
         class FakeDataFrame:
             columns = ["Symbol", "Max", "Unit"]
 
-            def to_csv(self, path, index=False):
+            def to_csv(self, path, index=False, header=True):
                 Path(path).write_text("a,b\n1,2\n", encoding="utf-8")
 
         class FakeTable:
@@ -192,7 +192,7 @@ class TableExportTests(unittest.TestCase):
         """
         class FakeDataFrame:
             columns = ["A", "B"]
-            def to_csv(self, path, index=False):
+            def to_csv(self, path, index=False, header=True):
                 Path(path).write_text("A,B\n1,2\n3,4\n5,6\n", encoding="utf-8")
 
         class FakeTable:
@@ -219,7 +219,7 @@ class TableExportTests(unittest.TestCase):
         """
         class FakeDataFrame:
             columns = ["A"]
-            def to_csv(self, path, index=False):
+            def to_csv(self, path, index=False, header=True):
                 Path(path).write_text("A\n1\n", encoding="utf-8")
 
         class FakeTable:
@@ -239,13 +239,75 @@ class TableExportTests(unittest.TestCase):
             records = export_tables("doc", [FakeTable()], tables_dir)
             self.assertIsNone(records[0].record["rows"])
 
+    def test_export_tables_omits_header_row_on_toc_csv(self):
+        """Phase 58c: TOC tables (``label="document_index"``) have no
+        meaningful column schema — Docling writes pandas's default
+        ``['0','1','2',...]`` as the CSV first row, which is noise an
+        agent accidentally opening the file would have to filter. Write
+        TOC CSVs with ``header=False`` so the first row is real TOC data.
+
+        Non-TOC tables must still write their (real) header row.
+        """
+        class FakeDataFrame:
+            columns = ["", "4.1.1.3", "Ultra-Low-Power Coprocessor (ULP)", "37"]
+            to_csv_calls: list[dict] = []
+
+            def to_csv(self, path, index=False, header=True):
+                FakeDataFrame.to_csv_calls.append({"path": str(path), "header": header})
+                Path(path).write_text(",4.1.1.3,foo,37\n", encoding="utf-8")
+
+        class FakeTocTable:
+            prov = [SimpleNamespace(page_no=8)]
+            label = "document_index"
+
+            def export_to_dataframe(self, doc=None):
+                return FakeDataFrame()
+            def export_to_html(self, doc=None):
+                return "<table></table>"
+            def export_to_markdown(self, doc=None):
+                return ""
+
+        class RealDataFrame:
+            columns = ["Symbol", "Max", "Unit"]
+
+            def to_csv(self, path, index=False, header=True):
+                FakeDataFrame.to_csv_calls.append({"path": str(path), "header": header})
+                Path(path).write_text("Symbol,Max,Unit\n", encoding="utf-8")
+
+        class FakeRegularTable:
+            prov = [SimpleNamespace(page_no=64)]
+            label = "table"
+
+            def export_to_dataframe(self, doc=None):
+                return RealDataFrame()
+            def export_to_html(self, doc=None):
+                return "<table><tr><th>Table 5-1. Absolute Maximum Ratings</th></tr></table>"
+            def export_to_markdown(self, doc=None):
+                return "Table 5-1. Absolute Maximum Ratings"
+
+        FakeDataFrame.to_csv_calls = []
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tables_dir = Path(tmp_dir) / "tables"
+            records = export_tables(
+                "doc", [FakeTocTable(), FakeRegularTable()], tables_dir
+            )
+
+        self.assertEqual(len(records), 2)
+        self.assertTrue(records[0].record["is_toc"])
+        self.assertFalse(records[1].record["is_toc"])
+        # to_csv was called with header=False for the TOC table
+        self.assertEqual(len(FakeDataFrame.to_csv_calls), 2)
+        self.assertFalse(FakeDataFrame.to_csv_calls[0]["header"])
+        # Regular table keeps its header row
+        self.assertTrue(FakeDataFrame.to_csv_calls[1]["header"])
+
     def test_export_tables_blanks_columns_for_toc_table(self):
         """Integration: the document_index label triggers is_toc=True and
         wipes the columns list — no mis-advertised schema on TOC tables.
         """
         class FakeDataFrame:
             columns = ["", "4.1.1.3", "Ultra-Low-Power Coprocessor (ULP)", "37"]
-            def to_csv(self, path, index=False):
+            def to_csv(self, path, index=False, header=True):
                 Path(path).write_text(",4.1.1.3,foo,37\n,4.1.1.4,bar,37\n", encoding="utf-8")
 
         class FakeTable:
@@ -708,7 +770,7 @@ class TableExportTests(unittest.TestCase):
                 self.columns = columns
                 self._row = row
 
-            def to_csv(self, path, index=False):
+            def to_csv(self, path, index=False, header=True):
                 Path(path).write_text(
                     ",".join(self.columns) + "\n" + ",".join(self._row) + "\n",
                     encoding="utf-8",

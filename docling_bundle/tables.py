@@ -478,7 +478,16 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
 
         dataframe = table.export_to_dataframe(doc=doc)
         dataframe.columns = [_clean_column_header(str(col)) for col in dataframe.columns]
-        dataframe.to_csv(csv_path, index=False)
+        # Phase 58c: for TOC tables (``label="document_index"``) Docling's
+        # DataFrame has no real header — columns are pandas's default
+        # ``['0','1','2',...]`` index. Writing that as the first CSV row
+        # just noise to an agent that opens the file directly. Skip the
+        # header row; consumers already get "no schema" via the blanked
+        # ``columns`` field in tables.index.jsonl.
+        label = getattr(table, "label", None)
+        label_str = getattr(label, "value", None) or str(label)
+        is_toc = label_str == "document_index"
+        dataframe.to_csv(csv_path, index=False, header=not is_toc)
         columns = list(dataframe.columns)
         table_html = table.export_to_html(doc=doc)
         table_markdown = table.export_to_markdown(doc=doc).strip()
