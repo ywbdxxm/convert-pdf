@@ -21,74 +21,114 @@
 
 ## Phases
 
-### 完成阶段（历史摘要）
+### 已完成（历史摘要）
 
-**P1–P7 (环境与架构打底)**：WSL + RTX 4060 Laptop GPU 工作站架构、共享 AI base (`torch + CUDA`)、docling 项目级 overlay、WSL / conda / uv / pip 镜像统一、bootstrap + verify 脚本落地。
+**P1–P56b**：环境架构 → 工具选型收敛到 Docling → bundle 结构定稿（toc/pages/sections/tables/cross_refs/assets/alerts + README）→ 八轮深度审计（caption ordering / ghost sections / bullet-prefix headings / heading breadcrumbs / Cont'd paragraphs / TOC columns / rows count）。
 
-**P8–P17 (方向收敛)**：第一性原理下的手册产出结构论证、RAG 边界认知、避免 NIH 反复自检、确认 Docling 是 ingest 层而非 RAG 应用。
+**P57（2026-04-18 第二轮审计 + 实施）**：
+- P57a：chunks.jsonl 的 `T able` OCR 残留清理（共享 `clean_ocr_text` + word-boundary `\bT (ables?)\b`）
+- P57b：`section_id` / `heading_path` / TOC `heading` 尾标点（`:`/`,`/`;`）清理（共享 `normalize_heading_text`）
+- 新增 20 测试 → 208/208 通过
+- 重跑 datasheet：chunks 零 `T able`、section_id/heading_path/toc 零尾标点；18→2 缺 `source_chunk_id`（剩余 2 条为 p.17 table footnote，需 P58a 解决）
 
-**P18–P28 (多工具对比 → 最终收敛)**：对比 Docling / Marker / MinerU / Unstructured / PyMuPDF4LLM / RAGFlow 的能力边界；阶段性保留 `docling_bundle` 与 `OpenDataLoader hybrid` 两条线做对照；最终因资源聚焦裁剪到只做 docling。
+### 已完成（Phase 58 — 2026-04-18 第三轮产物审计 + 实施）
 
-**P29–P34 (Bundle 结构整形)**：`manuals/processed/docling_bundle/<doc_id>/` 目录规范落地；单入口 `README.md` + 机器入口 `manifest.json`；窗口缓存挪出 bundle；默认 table sidecar 收敛到单一 CSV；OpenDataLoader 归档。
+**Baseline 变化**：chunks 309→339 / cross_refs resolved 91%→100% / TOC CSV 首行噪声消除 / 测试 208→220 / counts 其他零回归 / integrity 全绿。
 
-**P35–P42 (导航层与证据层)**：`toc.json` + `is_chapter` + `suspicious` 传播、`pages.index.jsonl` 反向索引、`sections.jsonl` heading_level、`tables.index.jsonl` + kind 分类 + continuation 链路、`cross_refs.jsonl` 页码 resolve、`assets.index.jsonl` 不改文件名方案。
+详见 `progress.md` "Phase 58 实施总结"。
 
-**P45 (README 可读性)**：章节大纲 + 表格分布 + cross-ref 摘要 + alert fallback image 都直接进 `README.md`，agent 无需先 `jq`。
+### 计划背景（Phase 58 之前）
 
-**P47–P54 (八轮深度审计)**：
+重跑 esp32-s3 datasheet（77s / CUDA / no-ocr），counts 与 P57 baseline 完全一致：87 pages / 7 chapters / 71 tables / 136 sections / 309 chunks / 47 cross_refs (43 resolved) / 85 assets / 3 alerts / 208 tests green。
 
-- P47：manifest `chunk_count` / `section_count` 补齐；独立页码行 / `T able` OCR 断词清理；`_clean_markdown_ocr_artifacts` 辅助函数
-- P48：`backfill_table_captions_from_markdown` prefix bug（`Table sidecars:` vs `Table sidecar:` 单复数不一致）+ `Revision History` 等短标题 caption fallback
-- P49：Docling MultiIndex flatten 产生的 `X.X` 镜像列头收敛
-- P50：`## Cont'd from previous page` H2 markdown 清理 + `classify_table_kind` electrical/timing 放宽到 ≥2 of {min, typ, max} word-boundary
-- P51：**caption 排序 bug**——`export_tables` 在 backfill 之前误跑 `propagate_continuation_captions` 导致错链；`NOISY_TOC_HEADINGS` 同步到 `build_section_records` 过滤 `Note:` ghost section
-- P52：2 张非 TOC 表 caption 缺失（p.22 / p.79），新增 `detect_missing_caption_alerts` 结构性检查把它们暴露成 `alerts.json` 的 `table_without_caption` 条目
-- P53：**ghost section 第二轮**——`Feature List`（30 chunks，p.36-59）/`Pin Assignment`（15 chunks，p.51-60）span 刚好低于 30% suspicious 阈值；根因是 `build_toc` 有 `TOC_REPEAT_DROP_THRESHOLD` 但 `build_section_records` 没同步 → 提取共享 helper `collect_heading_occurrences` / `compute_dropped_repeat_labels`，converter 算一次传给两层
-- P54：**孤立 chunk 重新归属 + table-caption leak 修复**——P53 之后 53 条 chunk（Feature List / Pin Assignment / Note: heading_path）在 sections.jsonl 完全丢失，agent 按 section tree 找不到 UART 的 feature bullets；`Table 2-9. Peripheral Pin Assignment` 作为 table caption 被 Docling 升格成 heading 漏进 sections.jsonl。修复：`build_section_records` 改成用 `_is_noisy_toc_heading`（和 TOC 同一过滤规则）判定 orphan；orphan chunk 按 doc 顺序重新 parent 到最近的真实 section，但**不扩张 parent 的 page range**（防止 ghost-span 从侧门回来）。结果：section_count 138→137；chunk coverage 256/309 → 309/309；TOC 零 ghost 条目；零 page span 暴涨
-- P55：**Unicode bullet-prefix heading filter**——datasheet 全量重审发现 `· IO MUX:` 作为 level-1 TOC 锚点 + 独立 section；Docling 的 layout analyzer 把以 Unicode 项目符号开头的行当成 heading。新增 `_BULLET_HEADING_PREFIX_RE = re.compile(r"^[·•◦▪▫►◆∙⬧]")`，在 `_is_noisy_toc_heading` 加一条分支过滤这类 heading；ASCII `-`/`*`/`+` 不碰以免误伤 `Wi-Fi` / `2.4 GHz` / `Low-Power Modes`。orphan chunk 靠 P54 的 re-parenting 路径自动接到 `4.1.3.1 IO MUX and GPIO Matrix`，page range 不扩张。结果：section_count 137→136；其他 count 零回归；167/167 通过。
-- P56a：**heading breadcrumbs**——chunks.jsonl 每条 chunk 的 `heading_path` 原本深度恒 1，agent 看不到 UART chunk 属于哪个章。新增 `build_doc_item_lineages` 按 doc 顺序构建 heading 祖先栈，`self_ref` 作为稳定查找 key（HybridChunker 会重包裹 DocItem，`id()` miss）；编号 heading 权威决定 level，非编号 heading 要么用 Docling 自己的 `heading_level`、要么挂在最深编号祖先下（不 pop 编号骨架）；`dropped_repeat_labels` 也从栈排除；`section_id` 仍取 `heading_path[-1]`，sections.jsonl 分组不变；`build_chunk_records` 用 chunker 原始 leaf 判定 NOISY_SECTION_IDS 防止 lineage 提升复活 TOC 内容。9 新测试。结果：depth 分布 19/86/92/100/12（d1/d2/d3/d4/d5）；UART chunks 带完整 4 级链；counts 零回归。
-- P56b：**polish batch (Cont'd paragraphs / TOC columns / rows count)**——document.md 里 14 条独立 `Cont'd on next page` / `Table X-Y - cont'd from previous page` 段落清掉（行锚定，inline 散文保留）；TOC 表的 `columns` 统一设 `[]`（Docling 识别成行数据的假表头不再暴露）；所有表的 `rows` 从 `TableItem.data.num_rows` 填入（原恒 null）。10 新测试。188/188 通过。
+**审计证据详见 `findings.md §7d`**。判据：`开发要求.md` 规则 2（避免过度设计）+ 规则 4（谨慎启发式）+ 规则 5（处理不好的回原 PDF）。
 
-**P56 前的评估（2026-04-18 第二轮审计）**：同时记录 5 条发现但**不修**（`findings.md` §7b）——非数字型子标题 level=1 偏高、Glossary 术语散出独立 heading、TOC 表列头垃圾（D 部分修复）、Uncaptioned 表 MultiIndex 列头混乱（`alerts.json` 已暴露）、4 条 figure cross_refs unresolved（Docling 不给 figure 全局 id）。以上都符合"过拟合风险 vs 收益"不平衡或已通过 alerts 暴露给 agent 回原 PDF 的契约。设计 spec: `docs/superpowers/specs/2026-04-18-docling-bundle-phase56-design.md`。
+本轮只发现一条"明显异常"（A）+ 两条"低风险可选优化"（B、C），其余均符合不修原则。每条 **RED→GREEN→重跑 datasheet** 独立 commit，不混批。
 
-### 计划中（Phase 57 — 2026-04-18 产物重审）
+---
 
-重审证据：`findings.md §7c`。按 "影响 × 安全" 排序，每个子阶段 **RED→GREEN→重跑 datasheet** 独立闭环、不混批。
+**P58a [HIGH, MUST FIX] — 恢复 28 条表脚注 / 引脚图例 chunks**
 
-**P57a [HIGH] — chunk OCR 断词清理 + cross_ref source 回连（耦合双修）**
+- **现象**：`chunks.jsonl` 缺失 28 条 `list_item`，分布在 p.16 (3) / p.17 (4) / p.18 (16) / p.22 (3) / p.25 (2)
+  - p.17: "Bold marks the pin function set..." / "In column Pin Providing Power, ... see Section 2.5.2 Power Scheme" / "For more information about the boot mode, see Section 3.1 Chip Boot Mode Control"
+  - p.22: "I - input. O - output. T - high impedance" — **引脚类型图例**
+  - p.18: `EFUSE_PIN_POWER_SELECTION` 驱动强度等
+- **影响**：agent 用 chunks.jsonl 查询 "pin type I/O/T 含义" / "VDD_SPI power source" 返回零结果；2 条 section cross_refs（`see Section 3.1` / `see Section 2.5.2`）的 `source_chunk_id` 永远缺失
+- **根因**：`indexing.py:333` 丢弃所有 `chunker_headings[-1] in NOISY_SECTION_IDS` 的 chunk。`NOISY_SECTION_IDS` 混用了两类语义：
+  - **TOC 区域**（`Contents` / `List of Tables` / `List of T ables` / `List of Figures`）——内容是 TOC 条目复述，丢弃合理
+  - **续页标记**（`Cont'd from previous page`）——后续 list_items 是**合法表脚注 / 图例**，不该丢；lineage promotion（P56a）已能把它们 reparent 到真实父 section
+- **修复**：把 `NOISY_SECTION_IDS` 拆成两个角色常量：
+  - `TOC_DROP_SECTION_IDS = {"Contents", "List of Tables", "List of T ables", "List of Figures"}` — `build_chunk_records` 用它做 drop filter
+  - `CONTINUATION_MARKER_SECTION_IDS = {"Cont'd from previous page"}` — 继续作为 lineage-exclusion / `should_keep_chunk_record` / `_is_noisy_toc_heading` 的过滤项（保持 TOC / sections / lineage 不污染），但**不**触发 chunk-drop
+  - `NOISY_SECTION_IDS` 保持兼容（= 两者并集），外部调用者不感知
+- **验收**：
+  1. 重跑 datasheet：`chunk_count` 309 → ~337，`section_count` 仍 136（lineage promotion 接收 reparenting）
+  2. `sections.jsonl` 依然零 `Cont'd from previous page` / `List of *` / `Contents` 条目
+  3. 缺 `source_chunk_id` 的 cross_ref 降为 0（4 条 figure 仍 `target_page=null` 但那不是 source_chunk_id 问题）
+  4. p.17 / p.18 / p.22 的 chunks 能在 `pages.index` 查到
+  5. `heading_path` 正确指向真实父 section（如 p.17 footnotes 应挂到 `2.3.2 Pin Assignment` 之类，不是 `"Cont'd from previous page"`）
+- **普适性验证**（其他 vendor 手册也会出现续页页脚）：
+  - STM32 datasheet 有 `Note: This table continues on next page` — 不在 NOISY_SECTION_IDS，不受影响
+  - 核心 invariant：TOC 区的 chunk drop 规则**未放松**（仍丢 Contents / List of *）
+- **测试**（RED 先写）：
+  - `build_chunk_records` 对 chunker_headings=`["2 Pins", "Cont'd from previous page"]` 的 chunk 保留（lineage promotion 接管）
+  - `build_chunk_records` 对 chunker_headings=`["Contents"]` / `["List of Figures"]` 的 chunk 仍丢弃
+  - TOC / sections 层对 `"Cont'd from previous page"` 仍然过滤（不新增 ghost）
 
-- 根因：`_clean_markdown_ocr_artifacts` 只跑在 markdown 字符串，chunk 由 DocItem 原值构建，18 条 chunk 的 `text` / `contextualized_text` 里 `T able` 未被替换；cross_refs 抽自 markdown（已清洗成 `Table`），`_find_source_chunk` 子串匹配失败 → 18/47 cross_refs 缺 `source_chunk_id`
-- 实现：把 `_OCR_TABLE_SPLIT_RE` 移到 `docling_bundle/patterns.py`（已有文件），在 `build_chunk_record` 构建 text/contextualized_text 时应用；word-boundary `\bT (ables?)\b` 保证不误伤 `T ype` / `T otal`
-- 验收：`chunks.jsonl` 零 `T able`；`cross_refs` 缺 `source_chunk_id` 的只剩 4 条 figure（unresolved）；其他 count 零回归
+---
 
-**P57b [LOW] — section_id 尾标点清理**
+**P58b [MEDIUM, 随 a 或独立] — 4 条 figure cross_refs 用 Docling 原生 caption 解析 target_page**
 
-- 仅 `Including:` → `Including` 一条命中；其他 135 条 section_id 均无尾标点
-- 实现：`build_section_records` 在入库前对 section_id 做 `rstrip(":,;")`（`.` 不清，避免破坏编号 `4.1.1`）；`heading_path` 同步清理
-- 验收：`section_count` 不变；受影响 chunk 的 `section_id` / `heading_path[0]` 同步更新
+- **现象**：`cross_refs.jsonl` 有 4 条 `kind=figure`（`Figure 2-2` / `Figure 2-3` / `Figure 7-1` / `Figure 7-2`），全部 `target_page=null, unresolved=true`
+- **根因**（之前定性"Docling 无 figure 全局 id" — **需修正**）：其实 Docling `document.json` 直接提供结构化证据：
+  - `texts[n]` 里有 `label="caption"` 的 text item，文本形如 `"Figure 2-2. ESP32-S3 Power Scheme"`，带 `prov[0].page_no`
+  - 部分 `pictures[k]` 还有 `captions` 字段指向对应 text ref
+  - datasheet 实测：6 处 caption 包括全部需要的 Figure 2-2/2-3/7-1/7-2
+- **影响**：resolved 率 91% → 100%；agent 拿到 figure 引用可一步跳到目标页
+- **修复**：
+  - `cross_refs.py` 新增 `_build_figure_page_map(doc)`：遍历 `doc.texts`，label=`caption` 且 `text` 匹配 `^(Figure\s+[A-Z]?\d+(?:[-.]\d+)*)` → `{"Figure X-Y": page_no}`
+  - `extract_cross_refs` 接受 `figure_page_map` 参数；`kind=figure` 时用它 resolve
+  - `converter.py` 在调用 `extract_cross_refs` 前构建 map 传入
+  - 只用 `label=caption` 的 text，不扫描整个 markdown（避免误匹散文中的 "as shown in Figure 2-2" 引用自身的情况）
+- **验收**：
+  - 4 条 figure refs 全部拿到 `target_page`
+  - resolved 47/47（100%）
+  - `unresolved=true` 字段从这 4 条移除
+- **普适性验证**：`label=caption` 是 Docling 原生、跨 vendor 一致；字段缺失时 map 为空，fallback 到 `unresolved=true`，零回归
+- **不做的事**：不扫描 markdown 裸文本做 caption 识别（需启发式区分 caption vs 散文提及，风险高）
+- **测试**：
+  - caption-labeled text → map 正确
+  - 非 caption label 的 text 含 "Figure 2-2" 不进 map
+  - map 缺 target 时保持 unresolved
 
-**P57c — `is_front_matter` 字段**（**决策：不做**）
+---
 
-- 评估：13 条前言 section 不构成"明显异常"（它们是封面 Features 下的合法 feature bullets，内容可读），只是在 `sections.jsonl` 按顺序列举时排在前面
-- agent 可用现有字段组合 `is_chapter=false AND page_start < min(page for is_chapter=true)` 复现同样信号，不需新字段
-- 按 `开发要求.md` 规则 2（避免过度设计）与规则 4（谨慎启发式），**拒绝**添加冗余计算 flag
+**P58c [LOW, 可选] — TOC CSV header row 清洁**
 
-**P57d — `table_header_degraded` alert**（**决策：不做**）
+- **现象**：`tables/table_0001.csv` 等 5 个 `is_toc=true` 的 CSV，row 0 是 `['0','1','2','3']`（pandas 默认列索引），table_0001/0003/0004/0005/0006 均有此问题
+- **影响**：极低。`tables.index.jsonl` 已把 TOC 表标 `is_toc=true, columns=[], kind=document_index`，agent 按 README "Table Breakdown" 不会点开这些 CSV；但如果 agent **确实**打开 CSV，第一行是无意义数字
+- **修复**（两选一，偏向 A）：
+  - **方案 A（推荐）**：`export_tables` 在写 CSV 前检测 TOC（或 `columns=[]`），用 `to_csv(header=False)` 写出；其他 65 个表不受影响
+  - 方案 B：根本不为 `is_toc=true` 的表写 CSV — 更激进，可能影响依赖 `csv_path` 存在的消费者（`alerts.json` / `tables.index.jsonl` 里 csv_path 引用）
+- **验收**：
+  - 5 个 TOC CSV 首行不再是 `['0','1','2',...]`
+  - 其他 66 个 CSV 列头保持不变
+  - `tables.index.jsonl` 的 `csv_path` 仍然有效
+- **Decision（留给用户确认）**：LOW 影响 + 低风险，但已接近"过度设计"边界。如果做，用方案 A。
 
-- `table_without_caption` alert 已按规则 5 让 agent 回原 PDF；再加冗余 alert 是重复启发式
-- 按 `开发要求.md` 规则 2 / 4，**拒绝**添加冗余 alert 分类
+---
 
-**不做（findings.md §7c 详述）**
+**不修（findings.md §7d 详述）**
 
-| 项 | 理由 |
-|---|---|
-| `## Note:` heading 从 markdown 里删 | 常见正文前缀，全局删会误伤合法 Note 段 |
-| Table_0066 / Table_0015 列头重建 | 已由 `table_without_caption` alert 路径回原 PDF |
-| 无编号子标题降级到 level=2 | "最近编号父级 +1" 启发式会误伤前言区合法 level-1 |
-| Glossary 术语 heading 合并 | "同页多条无编号 heading" 判据强过拟合 |
-| Figure cross_refs resolve | Docling 无 figure 全局 id，结构性缺口 |
+| 项 | 理由 | 契约 |
+|---|---|---|
+| 41 non-chapter level-1 sections（前言 + 非数字子标题 + Glossary 术语） | 已在 P55 §7b 决定。无编号前言 heading 普适存在；判据会过拟合 | agent 用 `is_chapter=true` 过滤（README Start Here 步骤 2 已写明） |
+| p.22 Table_0015 / p.79 Table_0066 无 caption + MultiIndex 列头混乱 | Docling OCR / layout 层问题 | `alerts.json: table_without_caption` 让 agent 回原 PDF（规则 5） |
+| p.78 字体解码污染（`6,*1$785( $5($` 等） | Docling 层问题，bundle 层不救 | document.md 保留污染字符，agent 可见即回原 PDF |
+| p.27 Table 2-9 被识别成图片 | Docling 层 | `table_caption_followed_by_image_without_sidecar` alert + fallback image path |
+| `assets.index` 不自动填 caption | `assets_index.py` docstring 明确说不猜（6 个有 caption 但其余 79 张靠近的散文易误判） | 保持"只记录可观察事实" |
 
-**推进顺序**：P57a（必做）→ P57b（随 a 或独立）→ P57c（待用户认可）→ 重跑重审 → P57d（若仍有必要）。每步单独 commit。
+**推进顺序**：P58a（必做，高影响）→ 重跑 → P58b（必做或紧随）→ 重跑 → P58c（用户确认后）→ 重跑。每步单独 commit，测试先 RED。
 
 ## Decisions Made（精选）
 
@@ -97,22 +137,19 @@
 | 只维护 `docling_bundle` 一条产线 | 用户 2026-04-18 裁剪，资源聚焦 |
 | 评价标准=agent 实际查阅体验，不是架构纯度 | 用户明确（开发要求.md） |
 | 启发式失败必须进 `alerts.json`，不静默降级 | Robustness Principle + 开发要求.md 规则 5 |
-| 处理不好的表 / 图 / 页让 agent 回原 PDF | 开发要求.md 规则 5；原 PDF 是权威 source of truth |
-| 不追 bundle 体积最小，证据完整优先 | 框图 / 时序图 / 表证据对嵌入式开发价值最高 |
-| 不做 RAG / 全文检索 / MCP | 基础设施层，不侵入消费层 |
-| 测试数据只用 `esp32-s3_datasheet_en.pdf` (87 页) | 迭代速度；TRM 耗时大需显式许可 |
-| 不改 assets 文件名 | 避免断 `document.json` / `document.html` 内部引用 |
+| 处理不好的表 / 图 / 页让 agent 回原 PDF | 开发要求.md 规则 5 |
+| `NOISY_SECTION_IDS` 拆分（P58a）| TOC drop vs continuation 语义本来就不同，原混用是历史债 |
+| Figure resolution 用 Docling `label=caption` 而非扫 markdown | Docling 原生信号 > 启发式；零误伤 |
+| 不为 assets 猜 caption | `assets_index.py` 既定契约：只记录可观察事实 |
+| 测试数据只用 esp32-s3 datasheet (87 页) | 迭代速度；TRM 耗时大需显式许可 |
 | `kind=generic` 是合法分类 | 规则 4：不为填满 kind 分类率而降精度 |
-| 窗口缓存默认关，只做显式容错 | 普通单次转换不承担额外复杂度 |
 
 ## Errors Encountered（代表性）
 
 | Error | 分析 | 解决 |
 |---|---|---|
-| "currently usable" ≠ "near best practice" | 2026-04-14 后才看具体 bundle 文件，误判多次 | 改为以 concrete outputs 的 agent 使用效果为准 |
-| 并行跑 OpenDataLoader datasheet + TRM 共用 5002 端口 | backend chunk 回退、TRM 结果污染 | 改为独占端口顺序跑；该分支后续归档 |
-| `caption` 被继承启发式抢先填错 | `propagate_continuation_captions` 在 backfill 之前跑（Phase 48 fix 后才暴露） | P51 移除早期调用，改为 backfill-then-propagate 单路径 |
-| `Note:` section 跨 62% 文档 | `build_toc` 过滤 `NOISY_TOC_HEADINGS` 但 `build_section_records` 没同步 | P51 在 section 构建里加同一 filter |
-| 2 张表 silent 无 caption | Docling 列头裂变 / OCR 乱码，heuristic 无法救 | P52 暴露为 `table_without_caption` alert，让 agent 回原 PDF |
+| "Cont'd from previous page" 混入 NOISY_SECTION_IDS 导致 chunks 被误丢 | P56a 为防 lineage promotion 复活 TOC 内容，引入硬过滤；未区分 TOC-only vs continuation | P58a 拆常量 |
+| Figure cross_refs 始终 unresolved | 之前定性"Docling 无 figure 全局 id"未细查 `label=caption` | P58b 用 Docling 原生 caption |
+| TOC CSV 首行是 pandas 默认列索引 | `to_csv()` 默认写 header；TOC 表没真实列头时这层是噪声 | P58c 选择性 `header=False` |
 
 完整历史见 git log 和 `findings.md`。

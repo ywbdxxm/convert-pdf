@@ -176,6 +176,73 @@ P47 修的是 `document.md` 里的 `T able` → `Table`（`_clean_markdown_ocr_a
 - C1 的 `## Note:` 在 markdown 里读起来无歧义；进入 TOC / sections / cross_refs 的通道已全部关闭。强删 heading 会侵蚀正文中合法的 Note 段。
 - E1 是 Docling 结构性缺口，在 P55 已记录。
 
+## 7d. Phase 58 audit — 2026-04-18 (re-run after P57, 第三轮深度审计)
+
+重跑 esp32-s3 datasheet（77s / CUDA / no-ocr）得到**新 bundle**（`/tmp/esp32-bundle-audit/`），counts 与已提交 bundle 完全一致，208/208 测试绿。以"agent 打开文件拿答案的步数"为判据对每个产物做字段级审计。
+
+### 整体健康指标（baseline）
+
+- 87 pages / 7 chapters / 71 tables / 136 sections / **309 chunks** / 47 cross_refs / 85 assets / 3 alerts
+- `heading_path` 深度分布：19 (d1) / 86 (d2) / 92 (d3) / 100 (d4) / 12 (d5) — 无 d0，无 `section_id != heading_path[-1]` 不一致
+- Integrity 扫描：0 dangling `csv_path` / `chunk_id` / `target_id`；0 duplicate `section_id`；0 empty-chunk section；0 `rows=null` table（P56b 修复生效）
+- P57 遗留指标：0 "T able" OCR 残留（chunks + md）；0 尾标点 heading（TOC + sections）；0 `## Cont` / `## Note:` markdown heading
+
+### 本轮新发现
+
+| # | 现象 | 证据 | 分类 | Severity |
+|---|---|---|---|---|
+| **A** | **12 页 `pages.index` 记录 `chunk_ids=[]`**（p.8–12 / 17–19 / 22 / 84–86），其中 **28 条 `list_item`** 存在于 `document.md` 和 `document.json` 但 **未进 `chunks.jsonl`** | `document.json#/texts/473-476` 是 p.17 的 pin footnote list_items；`chunks.jsonl` 全库搜索首 60 字符均 miss | **修**（P58a）| HIGH |
+| **B** | 4 条 `kind=figure` cross_refs `target_page=null`（`Figure 2-2 / 2-3 / 7-1 / 7-2`）；但 `doc.texts` 存在 **6 个** `label="caption"` 的 text 条目，文本为 `"Figure X-Y. ..."` 且带 `prov.page_no`，直接可用 | `document.json` 中 `texts[idx].label=="caption"` + `re.match(r"^Figure\\s+[A-Z]?\\d+", text)` | **修**（P58b）| MEDIUM |
+| **C** | **5 个 `is_toc=true` 的 CSV**（table_0001/0003/0004/0005/0006）首行是 `['0','1','2',...]`（pandas 默认列索引），不是真实表头 | `tables/table_0001.csv` row 0 | **修**（P58c 可选）| LOW |
+| **D** | **2 条 section cross_refs 缺 `source_chunk_id`**（`see Section 3.1` / `see Section 2.5.2`，均 source_page=17） | 根因 = A：p.17 list_items 没进 chunks，substring-match 找不到 source | **随 A 同修**（P58a） | MEDIUM |
+
+### A 的根因深挖（P58a）
+
+Docling 在 p.17 顶部把 `"Cont'd from previous page"` 识别为 `label=section_header` 的 text item（texts/472）。其后 4 条 `label=list_item`（texts/473-476）是续页表脚注。
+
+`HybridChunker` 构建 chunk 时把 leaf heading 设成了 `"Cont'd from previous page"`。`build_chunk_records` (`indexing.py:333`) 看到 `chunker_headings[-1] in NOISY_SECTION_IDS` 就 `continue`，整个 chunk 丢掉。
+
+`NOISY_SECTION_IDS` 实际上混了两类语义：
+
+| 成员 | 语义 | 合理的 drop-filter 行为 |
+|---|---|---|
+| `Contents` / `List of Tables` / `List of T ables` / `List of Figures` | **TOC 区本身**，内容就是 TOC 条目重复 | drop chunk（合理）|
+| `Cont'd from previous page` | **续页标记**，后续 list_item 是合法表脚注/图例 | **不该** drop（P56a lineage promotion 已能正确 reparent）|
+
+P56a 引入这条过滤是为了防止 lineage promotion 把 Contents / List of Figures 的内容复活到其真实父 section。但"Cont'd from previous page"本身就没有被 lineage 当成 heading（被 `_is_noisy_toc_heading` 在 `build_doc_item_lineages` 阶段排除），所以即使保留它的 chunk，lineage 也会正确 reparent 到真实父 section（如 `2.3.2 Pin Assignment`），不会污染。
+
+### B 的根因（P58b）
+
+`cross_refs.py:__doc__` 第 14 行注释写 "leaves Figure targets unresolved until a figure index exists"。实际上 Docling 已提供 figure index 所需的原材料：
+
+- `doc.texts[n].label == "caption"` + 文本匹配 `^(Figure\s+[A-Z]?\d+(?:[-.]\d+)*)` → 直接拿到 figure_id → page 映射
+- ESP32-S3 实测：6 个 caption（Figure 1-1 / 2-2 / 2-3 / 3-1 / 4-1 / Table 7-1），覆盖了所有 4 条 unresolved figure ref（2-2 / 2-3 / 7-1 / 7-2；后两者在 p.77/78 的 caption-labeled 散文段，上面的 6 个筛选没拿全 — 实际 walk 整个 texts 会抓到 p.77 `#/texts/2861` 和 p.78 `#/texts/2881`）
+
+**普适性**：`label="caption"` 是 Docling 跨 vendor 的原生标签，非启发式。
+
+### C 的根因（P58c）
+
+`export_tables` 在 TOC 表（`is_toc=true`）上调用 `to_csv()` 时 DataFrame 的列索引是 0/1/2/…（因为 TOC 表没被 Docling 识别到真实 header），pandas 默认把它们写成 CSV 首行。
+
+不影响 `tables.index.jsonl`（那里 `columns=[]` 已正确），只影响如果 agent 直接打开 CSV 的第一视觉印象。
+
+### 不修的项（本轮重新审核）
+
+| 项 | 证据 | 为何不修 |
+|---|---|---|
+| 41 non-chapter level-1 sections 在 `sections.jsonl` / `toc.json` 中占据排名靠前位置 | `Datasheet Version 2.2`、`Features`、`Wi-Fi`、`Bluetooth ®`、`CPU Clock`、`Device Mode Features`、`Glossary`、以及 Glossary 下 8 个小写术语（`module` / `peripheral` / `in-package flash` 等） | P55 §7b 已决。任何"前面最近的编号父级 +1"或"同页多条无编号 heading"判据都会误伤前言区合法 level-1 锚点（`Features` / `Wi-Fi`）。agent 使用契约是 `is_chapter=true` 过滤（README Start Here 步骤 2 明文） |
+| p.22 Table_0015 / p.79 Table_0066 无 caption + 列头乱码 | Alert `table_without_caption` 已挂，agent 回原 PDF | Docling OCR 层失败，bundle 层修会过拟合到单表 |
+| p.27 Table 2-9 被识别成图 | Alert `table_caption_followed_by_image_without_sidecar` + fallback image path | 同上 |
+| p.78 字体解码污染（`6,*1$785( $5($`） | document.md 保留污染字符 | Docling 层，bundle 层不救 |
+| `assets.index.jsonl` 不填 caption | `assets_index.py` docstring 明确说不猜 | 6 个 picture 有结构化 caption 但其余 79 张靠散文猜会高误匹；保持"只记录可观察事实" |
+
+### 修复原则
+
+沿用 Robustness Principle：
+- **A（P58a）**：拆 `NOISY_SECTION_IDS` 为两个角色常量（TOC-drop vs continuation-marker），lineage promotion 自然接管续页 chunk。**普适、零误伤、零新启发式**——本质是去除一条错误耦合。
+- **B（P58b）**：用 Docling 原生 `label="caption"` + prefix-anchored regex (`^Figure\s+...`)。**普适、零启发式（Docling 给的现成标签）**。
+- **C（P58c）**：`to_csv(..., header=False)` 仅对 `is_toc=true` 生效。**普适、零风险**。
+
 ## 8. 参考资料
 
 - Docling: <https://docling-project.github.io/docling/>

@@ -1,6 +1,55 @@
 # Progress
 
-## 当前状态（2026-04-18，Phase 57 完成）
+## 当前状态（2026-04-18，Phase 58 完成）
+
+- 重跑 esp32-s3 datasheet 实测：**87 pages / 7 chapters / 71 tables / 136 sections / 339 chunks / 47 cross_refs (47/47 resolved, 100%) / 85 assets / 3 alerts**
+- 测试：**220/220 通过**（P57 baseline 208 + P58a 2 + P58b 9 + P58c 1）
+- P58 三个 commit 已推进：`da0bd80` P58a → `bac833b` P58b → `b519f4d` P58c
+
+## Phase 58 实施总结（2026-04-18）
+
+### P58a（commit `da0bd80`）— chunks 恢复 28 条表脚注 / 引脚图例
+
+- 拆 `NOISY_SECTION_IDS` → `TOC_DROP_SECTION_IDS`（drop chunk）+ `CONTINUATION_MARKER_SECTION_IDS`（不 drop，lineage promotion 负责 reparent）
+- `build_chunk_records` 的 drop filter 收窄到 `TOC_DROP_SECTION_IDS`
+- 效果：`chunk_count` 309 → 339；`2.2 Pin Overview` page 16-19（原 16-16）/ `2.3.1 IO MUX Functions` page 20-22（原 20-20）正确反映续页表 footprint
+- 关键内容回收：`I - input. O - output. T - high impedance` / `IE - input enabled` / `WPU - internal weak pull-up` / `Bold marks the pin function...` 全部回到 chunks.jsonl
+- Cross_refs `source_chunk_id` 缺失 2 → 0；零 ghost section；零 `Cont'd from previous page` 污染 heading_path
+- 新 2 测试：continuation marker 下 chunk 保留 + `List of *` 仍被拒绝
+
+### P58b（commit `bac833b`）— figure cross_refs 用 Docling 原生 caption label 解析
+
+- 新增 `build_figure_page_map(doc)`：walk `doc.texts`，label=`caption` 且前缀锚定 `^Figure <id>` 的 text 收集 `{figure_id: page_no}`
+- `extract_cross_refs` 新增 `figure_page_map` kwarg；`converter.py` 调用前构建一次 map
+- 效果：cross_refs resolved 43/47 (91%) → 47/47 (100%)
+  - Figure 2-2 → p.30；Figure 2-3 → p.30；Figure 7-1 → p.77；Figure 7-2 → p.78
+- 新 9 测试：caption 提取 / 非 caption label 排除 / Table 前缀排除 / 重复优先第一 / 缺 prov 容错 / 缺 texts 属性容错 / resolve via map / unresolved 无 map / 无参兼容
+
+### P58c（commit `b519f4d`）— TOC CSV 首行去除 pandas 默认索引
+
+- `export_tables` 检测 `label="document_index"`，`to_csv(..., header=not is_toc)`
+- 效果：6 个 TOC CSV 首行从 `['0','1','2','3']` 变为真实 TOC 首条（如 `['Product Overview', ..., '2']` / `['1-1', 'ESP32-S3 Series Comparison', '13']`）；65 个非 TOC 表保持真实列头
+- 新 1 测试 + 6 处 FakeDataFrame 签名更新接受 `header` kwarg
+
+## Phase 58 最终 baseline（post-commit b519f4d）
+
+| 指标 | P57 end | P58 end |
+|---|---|---|
+| chunks | 309 | **339** (+30 recovered) |
+| sections | 136 | 136 |
+| tables | 71 | 71 |
+| cross_refs total | 47 | 47 |
+| cross_refs resolved | 43 (91%) | **47 (100%)** |
+| cross_refs 缺 source_chunk_id | 2 | **0** |
+| alerts | 3 | 3 |
+| TOC CSV row0 噪声 | 5 个 | **0** |
+| heading_path depth 分布 (d1/d2/d3/d4/d5) | 19/86/92/100/12 | 19/107/101/100/12 |
+| 测试 | 208/208 | **220/220** |
+| Integrity (dangling refs) | 0 | 0 |
+
+## Phase 57 session 摘要（2026-04-18 已完成）
+
+## Phase 57 session 摘要（2026-04-18 已完成）
 
 - 基线 PDF：`manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf` (87 页)
 - 最新 bundle：`manuals/processed/docling_bundle/esp32-s3-datasheet-en/`
@@ -9,7 +58,7 @@
 - P57 新指标：chunks 零 "T able" OCR 残留；sections / chunks / toc 零尾标点 heading；`Including:` → `Including`（三层一致）
 - Chunk coverage: 309/309；Integrity: 全部引用零破损
 
-## 最近 session（2026-04-18 Phase 57）
+## 最近 session（Phase 57 实施）
 
 **P57a + P57b 实施完成**（TDD RED→GREEN→重跑 datasheet）：
 
