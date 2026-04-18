@@ -35,7 +35,7 @@
 
 **P45 (README 可读性)**：章节大纲 + 表格分布 + cross-ref 摘要 + alert fallback image 都直接进 `README.md`，agent 无需先 `jq`。
 
-**P47–P53 (七轮深度审计)**：
+**P47–P54 (八轮深度审计)**：
 
 - P47：manifest `chunk_count` / `section_count` 补齐；独立页码行 / `T able` OCR 断词清理；`_clean_markdown_ocr_artifacts` 辅助函数
 - P48：`backfill_table_captions_from_markdown` prefix bug（`Table sidecars:` vs `Table sidecar:` 单复数不一致）+ `Revision History` 等短标题 caption fallback
@@ -44,6 +44,7 @@
 - P51：**caption 排序 bug**——`export_tables` 在 backfill 之前误跑 `propagate_continuation_captions` 导致错链；`NOISY_TOC_HEADINGS` 同步到 `build_section_records` 过滤 `Note:` ghost section
 - P52：2 张非 TOC 表 caption 缺失（p.22 / p.79），新增 `detect_missing_caption_alerts` 结构性检查把它们暴露成 `alerts.json` 的 `table_without_caption` 条目
 - P53：**ghost section 第二轮**——`Feature List`（30 chunks，p.36-59）/`Pin Assignment`（15 chunks，p.51-60）span 刚好低于 30% suspicious 阈值；根因是 `build_toc` 有 `TOC_REPEAT_DROP_THRESHOLD` 但 `build_section_records` 没同步 → 提取共享 helper `collect_heading_occurrences` / `compute_dropped_repeat_labels`，converter 算一次传给两层
+- P54：**孤立 chunk 重新归属 + table-caption leak 修复**——P53 之后 53 条 chunk（Feature List / Pin Assignment / Note: heading_path）在 sections.jsonl 完全丢失，agent 按 section tree 找不到 UART 的 feature bullets；`Table 2-9. Peripheral Pin Assignment` 作为 table caption 被 Docling 升格成 heading 漏进 sections.jsonl。修复：`build_section_records` 改成用 `_is_noisy_toc_heading`（和 TOC 同一过滤规则）判定 orphan；orphan chunk 按 doc 顺序重新 parent 到最近的真实 section，但**不扩张 parent 的 page range**（防止 ghost-span 从侧门回来）。结果：section_count 138→137；chunk coverage 256/309 → 309/309；TOC 零 ghost 条目；零 page span 暴涨
 
 ## Decisions Made（精选）
 

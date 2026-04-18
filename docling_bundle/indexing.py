@@ -134,26 +134,55 @@ def build_section_records(
 ):
     """Aggregate chunks into section records, skipping noisy local labels.
 
-    ``NOISY_TOC_HEADINGS`` (``Note:`` / ``Notes:`` / etc.) are section-internal
-    labels that the chunker can repeat across the document. The TOC already
-    filters them via :func:`build_toc`; dropping them here too keeps both
-    navigation layers consistent and prevents ghost sections that span a
-    large fraction of the document by aggregating scattered paragraphs.
+    ``NOISY_TOC_HEADINGS`` (``Note:`` / ``Notes:`` / etc.) and
+    ``dropped_repeat_labels`` (``Feature List`` / ``Pin Assignment`` style
+    repeated sub-labels — see :func:`compute_dropped_repeat_labels`) are
+    section-internal labels the chunker exposes as standalone headings.
+    Both get the same treatment here:
 
-    ``dropped_repeat_labels`` is an optional set of heading texts that the TOC
-    dropped via the repeat-count rule (``Feature List``, ``Pin Assignment`` —
-    unnumbered sub-labels that appear many times across the doc). Without this
-    filter their chunks aggregate into one giant ghost section spanning most
-    of the document; the TOC already hides them as navigation anchors.
+    1. **No dedicated section record** — the TOC already hides them as
+       navigation anchors, so sections.jsonl stays consistent.
+    2. **Orphan chunks re-parent to the most recent kept section** —
+       preserves content reachability via section-tree traversal
+       (an agent looking at ``4.2.1.1 UART Controller.chunk_ids`` still
+       sees its Feature List bullets).
+    3. **Orphans do NOT expand the host section's page range** — the
+       section's ``page_start`` / ``page_end`` reflect its numbered
+       heading's authoritative scope, not the scattered sub-label
+       occurrences. This is what stops reparenting from silently bringing
+       ghost-span back.
+
+    An orphan appearing before any real section is skipped (no phantom
+    parent is fabricated). Document order is taken from the input
+    iteration order of ``chunk_records``.
     """
     dropped = dropped_repeat_labels or set()
-    grouped = {}
+    grouped: dict = {}
+    last_kept_section_id: str | None = None
+
     for chunk in chunk_records:
         section_id = chunk["section_id"]
-        if section_id in NOISY_TOC_HEADINGS:
+        # An orphan chunk is one whose section_id matches any noise filter the
+        # TOC applies: ``NOISY_SECTION_IDS`` / ``NOISY_TOC_HEADINGS`` / table
+        # captions promoted to headings / noisy-text patterns — plus the
+        # repeat-label drop set. Keeping the two layers on the same filter
+        # prevents silent drift (Phase 53: Feature List; Phase 54: Table X-Y
+        # captions leaking as sections when rendered as images).
+        is_orphan = _is_noisy_toc_heading(section_id) or section_id in dropped
+
+        if is_orphan:
+            if last_kept_section_id is None:
+                # No preceding real section to attach to yet — skip silently
+                # rather than fabricate a parent from the noise heading itself.
+                continue
+            host = grouped[last_kept_section_id]
+            host["chunk_count"] += 1
+            host["chunk_ids"].append(chunk["chunk_id"])
+            # Deliberately do NOT update host's page range from orphan chunks;
+            # the section's scope must stay anchored to its own numbered heading.
             continue
-        if section_id in dropped:
-            continue
+
+        last_kept_section_id = section_id
         section = grouped.setdefault(
             section_id,
             {

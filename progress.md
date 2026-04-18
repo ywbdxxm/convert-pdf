@@ -4,10 +4,22 @@
 
 - 基线 PDF：`manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf` (87 页)
 - 最新 bundle：`manuals/processed/docling_bundle/esp32-s3-datasheet-en/`
-- 测试：160/160 通过
-- Counts（P53 后）：87 pages / 7 chapters / 71 tables / 47 cross_refs (43 resolved) / 85 assets / 138 sections / 309 chunks / 3 alerts
+- 测试：164/164 通过
+- Counts（P54 后）：87 pages / 7 chapters / 71 tables / 47 cross_refs (43 resolved) / 85 assets / 137 sections / 309 chunks / 3 alerts
+- Chunk coverage: 309/309（sections.jsonl 覆盖全部 chunk，零 orphan）
+- Integrity: 全部 chunk_id / table_id / asset_id / csv_path 引用零破损
 
 ## 最近 session（2026-04-18）
+
+**P54（orphan chunk 重新归属 + table-caption leak）**：
+
+- P53 commit 后重跑 datasheet 深度审计发现：
+  1. 53 条 chunk 从 sections.jsonl 彻底丢失——heading_path 是 `Feature List` / `Pin Assignment` / `Note:` 的 chunk 现在没有 section 收留，agent 从 section tree 导航到 `4.2.1.1 UART Controller` 只能看到 intro 段，看不到它的 feature bullets
+  2. `Table 2-9. Peripheral Pin Assignment` 作为 table caption 被 Docling 层分析器升格成 heading，漏进 sections.jsonl（TOC 用 `TABLE_CAPTION_RE` 过滤掉了，sections 没同步）
+- 修复策略：`build_section_records` 的 orphan 判定改成和 TOC 同一规则（`_is_noisy_toc_heading(section_id) or section_id in dropped_repeat_labels`）；orphan chunk 按 doc 顺序 re-parent 到最近的真实 section，但**不扩张 parent 的 page range**（避免 ghost-span 从侧门回来）
+- 4 新测试 + 已有测试保持绿；164/164 通过
+- 结果：section_count 138→137；chunk coverage 256/309 → 309/309；`4.2.1.1 UART Controller` 现在正确含 intro + Feature List + Pin Assignment 三条 chunk，page 范围仍是 p.51-51；`Table 2-9` 的 note chunk 被合并回 `2.3.5 Peripheral Pin Assignment`
+- Full integrity sweep：0 issue；7 chapters / 71 tables / 47 cross_refs (43 resolved) / 85 assets 全部引用零破损
 
 **P53（ghost sections：Feature List / Pin Assignment）**：
 

@@ -267,6 +267,106 @@ class HeadingLevelTests(unittest.TestCase):
         self.assertNotIn("Note:", section_ids)
         self.assertNotIn("Notes:", section_ids)
 
+    def test_build_section_records_reattaches_dropped_label_chunks_to_previous_section(self):
+        """Regression: dropping ghost section labels must not orphan their
+        chunks. The bullets under "Feature List" inside "4.2.1.1 UART
+        Controller" are structurally part of that UART section — agents
+        navigating the section tree must still reach them via UART's
+        ``chunk_ids``.
+
+        Rule: when a chunk's section_id is in NOISY_TOC_HEADINGS or
+        dropped_repeat_labels, attach it to the most recent kept section
+        (preceding it in document order).
+        """
+        chunks = [
+            {"chunk_id": "doc:0010", "section_id": "4.2.1.1 UART", "heading_path": ["4.2.1.1 UART"], "page_start": 51, "page_end": 51, "text": "UART intro"},
+            # Ghost-label chunks inside UART
+            {"chunk_id": "doc:0011", "section_id": "Feature List", "heading_path": ["Feature List"], "page_start": 51, "page_end": 51, "text": "UART features"},
+            {"chunk_id": "doc:0012", "section_id": "Pin Assignment", "heading_path": ["Pin Assignment"], "page_start": 51, "page_end": 51, "text": "UART pins"},
+            # Next real section
+            {"chunk_id": "doc:0020", "section_id": "4.2.1.2 I2C", "heading_path": ["4.2.1.2 I2C"], "page_start": 52, "page_end": 52, "text": "I2C intro"},
+            # Ghost-label chunks inside I2C
+            {"chunk_id": "doc:0021", "section_id": "Feature List", "heading_path": ["Feature List"], "page_start": 52, "page_end": 52, "text": "I2C features"},
+        ]
+
+        sections = build_section_records(
+            "doc",
+            chunks,
+            dropped_repeat_labels={"Feature List", "Pin Assignment"},
+        )
+
+        by_id = {s["section_id"]: s for s in sections}
+        self.assertEqual(set(by_id), {"4.2.1.1 UART", "4.2.1.2 I2C"})
+        self.assertEqual(
+            by_id["4.2.1.1 UART"]["chunk_ids"],
+            ["doc:0010", "doc:0011", "doc:0012"],
+        )
+        self.assertEqual(
+            by_id["4.2.1.2 I2C"]["chunk_ids"],
+            ["doc:0020", "doc:0021"],
+        )
+
+    def test_build_section_records_reattaches_noisy_toc_heading_chunks(self):
+        """The same re-parenting rule must apply to NOISY_TOC_HEADINGS
+        (``Note:`` / ``Notes:`` / ``Cont'd from previous page``). These are
+        section-internal labels: their body text is part of the surrounding
+        numbered section, not a standalone scattered Note: section.
+        """
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "4.1 System", "heading_path": ["4.1 System"], "page_start": 36, "page_end": 36, "text": "System overview"},
+            {"chunk_id": "doc:0002", "section_id": "Note:", "heading_path": ["Note:"], "page_start": 37, "page_end": 37, "text": "Important caveat"},
+            {"chunk_id": "doc:0003", "section_id": "4.2 Peripherals", "heading_path": ["4.2 Peripherals"], "page_start": 51, "page_end": 51, "text": "Peripheral intro"},
+            {"chunk_id": "doc:0004", "section_id": "Notes:", "heading_path": ["Notes:"], "page_start": 51, "page_end": 51, "text": "Some notes"},
+        ]
+
+        sections = build_section_records("doc", chunks)
+
+        by_id = {s["section_id"]: s for s in sections}
+        self.assertEqual(set(by_id), {"4.1 System", "4.2 Peripherals"})
+        self.assertIn("doc:0002", by_id["4.1 System"]["chunk_ids"])
+        self.assertIn("doc:0004", by_id["4.2 Peripherals"]["chunk_ids"])
+
+    def test_build_section_records_reparents_table_caption_promoted_to_heading(self):
+        """Regression: when Docling's layout analyzer promotes a table caption
+        like "Table 2-9. Peripheral Pin Assignment" to a heading (typically
+        when the table gets rendered as an image and the caption loses its
+        normal anchor), sections.jsonl must not expose it as a section.
+
+        ``build_toc`` already filters these via ``TABLE_CAPTION_RE``; sections
+        should apply the same rule — re-parent the chunk to the preceding real
+        section rather than creating a phantom ``Table X-Y`` section.
+        """
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "2.3.5 Peripheral Pin Assignment", "heading_path": ["2.3.5 Peripheral Pin Assignment"], "page_start": 26, "page_end": 26, "text": "intro"},
+            {"chunk_id": "doc:0002", "section_id": "Table 2-9. Peripheral Pin Assignment", "heading_path": ["Table 2-9. Peripheral Pin Assignment"], "page_start": 27, "page_end": 27, "text": "note under the table"},
+            {"chunk_id": "doc:0003", "section_id": "2.4 Analog Pins", "heading_path": ["2.4 Analog Pins"], "page_start": 28, "page_end": 28, "text": "Analog section"},
+        ]
+
+        sections = build_section_records("doc", chunks)
+
+        section_ids = {s["section_id"] for s in sections}
+        self.assertEqual(section_ids, {"2.3.5 Peripheral Pin Assignment", "2.4 Analog Pins"})
+        by_id = {s["section_id"]: s for s in sections}
+        # Orphan chunk re-parents to the preceding real section
+        self.assertIn("doc:0002", by_id["2.3.5 Peripheral Pin Assignment"]["chunk_ids"])
+
+    def test_build_section_records_skips_orphan_at_doc_start(self):
+        """Edge case: a dropped/noisy chunk at the very beginning of a
+        document has no preceding real section to attach to. Such chunks
+        are skipped rather than creating a phantom parent.
+        """
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "Note:", "heading_path": ["Note:"], "page_start": 1, "page_end": 1, "text": "front-matter note"},
+            {"chunk_id": "doc:0002", "section_id": "1 Overview", "heading_path": ["1 Overview"], "page_start": 2, "page_end": 2, "text": "Overview"},
+        ]
+
+        sections = build_section_records("doc", chunks)
+
+        section_ids = {s["section_id"] for s in sections}
+        self.assertEqual(section_ids, {"1 Overview"})
+        # Orphan doc:0001 isn't attached to anything — there is no parent
+        self.assertEqual(sections[0]["chunk_ids"], ["doc:0002"])
+
     def test_build_section_records_drops_repeated_unnumbered_label_ghost_sections(self):
         """Regression (Phase 53): "Feature List" / "Pin Assignment" style
         repeated sub-headings must not become ghost sections that span many

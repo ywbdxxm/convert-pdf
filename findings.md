@@ -43,9 +43,10 @@
 
 ## 3. 当前 bundle 质量（ESP32-S3 datasheet, 87 页）
 
-实测基线（Phase 53 完成状态）：
+实测基线（Phase 54 完成状态）：
 
-- 页数 87 / 章节 7 (is_chapter=true) / 表 71 / 非 TOC 表有 caption 63/65 (97%) / chunk 309 / section 138 / 告警 3
+- 页数 87 / 章节 7 (is_chapter=true) / 表 71 / 非 TOC 表有 caption 63/65 (97%) / chunk 309 / section 137 / 告警 3
+- sections.jsonl 覆盖全部 309 条 chunk（orphan 率 0%）；孤立 chunk 按 doc 顺序 reparent 到前一个真实 section，不扩张其 page range
 - `tables.index` kind 分布：pinout=13 / electrical=27 / strap=1 / revision=4 / generic=20
 - 续页表 13 条链路，全部 `(cont'd)` 规范化 + `continuation_of` 指向父表
 - `cross_refs` 47 条，43 resolved (91%)，剩 4 全是 figure（结构性缺口）
@@ -93,6 +94,8 @@ Phase 51 发现的 caption ordering bug 示范了这一点：`propagate_continua
 TOC 过滤 `NOISY_TOC_HEADINGS`，sections 构建也必须过滤——否则 `"Note:"` 在一个索引里消失、在另一个索引里聚合 62% 文档（Phase 51 ghost section bug）。Single source of truth 为过滤规则。
 
 Phase 53 同类 bug 再现：`build_toc` 用 `TOC_REPEAT_DROP_THRESHOLD` 过滤高频无编号 heading（`Feature List` / `Pin Assignment`），`build_section_records` 漏掉同一规则 → 两个 ghost section 刚好压在 30% suspicious 阈值之下溜过。解决办法是把 heading-occurrence 计数和 repeat-drop 规则提成 `collect_heading_occurrences` / `compute_dropped_repeat_labels` 共享 helper，converter 算一次传给两层。**规则原文级别统一，不光是过滤集合统一**。
+
+Phase 54 又揭示一层：drop 不等于丢内容。P53 把 Feature List 之类从 section 层移除后，53 条 chunk 彻底从 sections.jsonl 消失，agent 按 section tree 找不到 UART 的 feature bullets。修复：orphan chunk 按 doc 顺序 reparent 到最近的真实 section；同时把 `_is_noisy_toc_heading` 全集（含 `TABLE_CAPTION_RE`）接入 `build_section_records`，sections 和 TOC 共用一个 orphan 判定。**关键约束**：orphan reparent 到 host section 时**不扩张 host 的 page range**——否则 Feature List 碎片会反过来把 host 的 span 拉长回 ghost-span 区（阻止同一 bug 从侧门回来）。
 
 ### 5.4 不改 assets 文件名
 
