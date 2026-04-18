@@ -187,8 +187,12 @@ def build_chunk_record(
         # Phase 57a: reverse Docling's "T able" OCR split in chunk text so
         # downstream consumers (cross_refs source-chunk matching, full-text
         # search) see the same normalized form as document.md.
-        "text": clean_ocr_text(chunk.text),
-        "contextualized_text": clean_ocr_text(contextualized_text),
+        # Phase 59d: strip leading whitespace — HybridChunker prefixes
+        # continuation-page table serializations with ``\n `` which is a
+        # formatting artifact, not information. Only leading whitespace
+        # is stripped so internal paragraph breaks stay intact.
+        "text": clean_ocr_text(chunk.text).lstrip(),
+        "contextualized_text": clean_ocr_text(contextualized_text).lstrip(),
         "doc_item_count": len(doc_items),
         "table_like": is_table_like_chunk(chunk),
         "citation": citation,

@@ -1161,6 +1161,59 @@ class HeadingLineageTests(unittest.TestCase):
         self.assertEqual(record["heading_path"], ["1 Overview"])
         self.assertEqual(record["section_id"], "1 Overview")
 
+    def test_build_chunk_record_strips_leading_whitespace_from_text(self):
+        """Phase 59d: Docling's HybridChunker serializes continuation-page
+        table rows with a leading ``\\n `` on the concatenated chunk text.
+        That whitespace is a serialization artifact — not information —
+        and makes ``text`` / ``contextualized_text`` start with a blank
+        line that pollutes downstream previews and full-text search.
+        Strip leading whitespace while preserving internal newlines.
+        """
+        chunk = SimpleNamespace(
+            text="\n 19, Pin Name = GPIO14. 19, Pin Type = IO.",
+            meta=SimpleNamespace(
+                headings=["2.2 Pin Overview"],
+                doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=17)])],
+            ),
+        )
+
+        record = build_chunk_record(
+            doc_id="doc",
+            chunk_id="doc:0001",
+            chunk_index=1,
+            chunk=chunk,
+            contextualized_text="\n 2.2 Pin Overview\n 19, Pin Name = GPIO14. 19, Pin Type = IO.",
+        )
+
+        self.assertFalse(record["text"].startswith("\n"))
+        self.assertFalse(record["text"].startswith(" "))
+        self.assertFalse(record["contextualized_text"].startswith("\n"))
+        self.assertEqual(
+            record["text"],
+            "19, Pin Name = GPIO14. 19, Pin Type = IO.",
+        )
+
+    def test_build_chunk_record_preserves_internal_newlines(self):
+        """Only leading whitespace is stripped — internal paragraph
+        breaks in multi-sentence chunks must stay intact."""
+        chunk = SimpleNamespace(
+            text="First sentence.\nSecond sentence.",
+            meta=SimpleNamespace(
+                headings=["Section A"],
+                doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=1)])],
+            ),
+        )
+
+        record = build_chunk_record(
+            doc_id="doc",
+            chunk_id="doc:0001",
+            chunk_index=1,
+            chunk=chunk,
+            contextualized_text="Section A\nFirst sentence.\nSecond sentence.",
+        )
+
+        self.assertEqual(record["text"], "First sentence.\nSecond sentence.")
+
     def test_build_chunk_records_rejects_chunk_under_noisy_toc_section(self):
         """Regression: lineage promotion must not resurrect TOC-region chunks.
 
