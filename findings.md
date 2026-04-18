@@ -985,3 +985,175 @@ Verification after cleanup:
 
 - grep confirmed no active doc still presents deleted bundle layers as current defaults
 - the structural test suite still passes
+
+## 2026-04-18 Project Reassessment (Phase 38-41 status review)
+
+### Stated vs actual state
+
+`task_plan.md` claims Phase 38 (Navigation Layer Enhancement) is complete. Deep inspection shows:
+
+| Item | Claim | Reality |
+|------|-------|---------|
+| `patterns.py` extraction | complete | done, file present, uncommitted |
+| `infer_heading_level()` | complete | code exists in `indexing.py`, tested |
+| `build_toc()` | complete | code exists in `indexing.py`, wired into `converter.py` L460-461 |
+| `build_pages_index()` | complete | code exists, wired into `converter.py` L463-464 |
+| `flag_suspicious_sections()` | complete | code exists, wired L440 |
+| `document_index` table markers | complete | present in existing `tables.index.jsonl` |
+| Bundles regenerated | implicit | NO — existing bundles are stale, lack `toc.json` / `pages.index.jsonl`, still show `heading_level: 1` for every section |
+| Code committed | implicit | NO — 8 files dirty, `patterns.py` untracked, `AUDIT_REPORT.md` untracked |
+
+The code is genuinely done but the project has not closed the loop with a clean regeneration + commit.
+
+### Remaining original audit items (not yet addressed)
+
+| Area | Problem | Status |
+|------|---------|--------|
+| ODL Markdown | figure-text fragments (e.g. "External", "Switch", "Baseband" as loose paragraphs) | confirmed still present in datasheet bundle |
+| ODL Manifest | `page_numbers` stored as full 87-element (or 1531-element) array | confirmed still present |
+| Docling assets | hash-based filenames `image_NNNNNN_<64-hex>.png` with no page/semantic info | confirmed |
+| Code quality | `converter.py` still 531 lines (was 520) doing 9 jobs | unchanged |
+| Code quality | ODL 3-layer redundant asset-lookup loop | unchanged |
+| Code quality | ODL key-variant handling scattered across `_normalize_page` / `_normalize_bbox` / `_element_text` | unchanged |
+| Tests | no small-PDF integration test | unchanged |
+| Tests | `cli.py`/`__main__.py` in both tools have zero coverage | unchanged |
+| Tests | no error-path or boundary-condition coverage | unchanged |
+
+### New findings from this reassessment
+
+Additional AI-consumer gaps not covered in the original audit:
+
+1. **Bundle link integrity is not a checked invariant.** Nothing verifies every `![...](assets/...)` reference in `document.md` resolves to a bundle-local file. The earlier ODL bug where `document.md` pointed at `*_images/` paths outside the bundle could silently regress.
+2. **Alerts are structurally complete but not actionable enough.** `table_caption_followed_by_image_without_sidecar p.27: Table 2-9. Peripheral Pin Assignment` tells me *what* is wrong, but to recover I still have to manually scan `document.md` for p.27 to locate the image. If the alert carried `fallback_image: assets/image_0027_xxxx.png`, I would be one hop away from the truth.
+3. **Cross-references are not extracted.** Chip manuals are dense with "See Section 4.1.3.5" / "Refer to Table 2-5" / "Figure 3-1". Today those are plain text. Making them queryable (`cross_refs.jsonl`) would convert navigation from O(text search) to O(index lookup).
+4. **Register tables and pin-assignment tables have no semantic marker.** For embedded work these are the single highest-value table kinds. A cheap heuristic on CSV column headers (`Bit Field`, `Reset`, `Attribute` for registers; `Pin Name`, `GPIO`, `Function` for pinouts) could mark each table with `kind: register | pinout | generic` in `tables.index.jsonl` and cut my table-scanning by a lot.
+5. **README is structural but not content-rich.** It lists file names but not "here are the 5 most important tables", "here is the chapter outline", "here are the first 3 alerts with next-step hints". I have to open the navigation files to find those — one more hop than necessary.
+6. **No MCP surface.** Every bundle lookup is me reading a file. A thin MCP server (`lookup_page`, `lookup_table`, `find_register`, `follow_xref`) would let the harness call structured retrieval with no model-side parsing cost. This is an outcome-multiplier, not a correctness fix.
+
+### Re-prioritization rationale
+
+The original audit's Phase 1-4 ordering is still correct, but a missing bracket phase must come first: **regenerate + validate + commit what is already done.** Without that, Phase 39-41 would stack more code on top of unverified Phase 38 behaviour, and we keep discovering cosmetic issues (heading_level=1, missing `toc.json`) that only exist because the bundles were never re-run.
+
+The new AI-consumer findings above map to a new Phase F that sits above "long-term exploration": they are not speculative (they are directly motivated by my own daily use) but they do add real behaviour, so they should follow the refactor/test hardening phase.
+
+## 2026-04-18 Fresh Docling Datasheet Bundle Inspection
+
+重跑后的 `manuals/processed/docling_bundle/esp32-s3-datasheet-en/` 实测结果：
+
+### 成功落地的 Phase 38 成果
+
+| 产物 | 实测 |
+|---|---|
+| `toc.json` | 212 条，level 分布 `{1: 111, 2: 26, 3: 23, 4: 52}` |
+| `sections.jsonl` | 141 条，level 分布 `{1: 46, 2: 22, 3: 23, 4: 50}` |
+| 异常 section 标注 | `"Note:" spans 54/87 pages (62%)` 被抓到，只有 1 条 |
+| `pages.index.jsonl` | `p.27` 反查到两个 chunk + alert kind |
+| README | 引用了新文件，alert 直出 |
+| 图片引用完整性 | `document.md` 里 85 个引用全部在 `assets/` 中存在 |
+
+### Phase 38 做完仍然严重影响查阅的新问题
+
+#### Problem A: TOC 的 L1 分类太粗，产生大量噪音
+
+111 条 `level: 1` 里只有约 9 条是真正的章节（1 / 2 / 3 / 4 + 章节级 Revision / Disclaimer）。其余都是误分类：
+
+- `ESP32-S3 Series` / `Datasheet Version 2.2` / `Including:` — 封面文字
+- `Product Overview` / `Power consumption` / `ESP32-S3 Functional Block Diagram` — 封面段落标题
+- `Contents` / `List of T ables` / `List of Figures` — 目录前言
+- `Cont'd from previous page` — 表格续页标记出现 5 次
+- `Feature List` — 同名重复出现 3 次，彼此无区分
+- `Note:` — 早前审计就标的伪章节
+- `Table 2-9. Peripheral Pin Assignment` — 表格 caption 被当 heading
+
+**根因**：`build_toc()` 里只做了 `"heading" in label_str.lower() or label_str == "section_header"` 判断，再用数字前缀推层级。没有应用 `sections.py` 里已有的 `NOISY_SECTION_IDS` / `NOISY_TEXT_PATTERNS` 过滤，也没有吸收 `flag_suspicious_sections` 的标记。
+
+**影响**：我要从 212 条里肉眼挑真正的 9 条章节，TOC 反而增加阅读负担。
+
+#### Problem B: 真·章节出现但缺失了后半部分
+
+datasheet 实际章节应该有 5/6/7/8/9，但 TOC 里只看到 `1 / 2 / 3 / 4`，后续章节（Electrical Characteristics / Package / Part Number / Ordering / Revision History）在 L1 里没有出现对应的 `N Chapter Name` 形式——它们要么被 Docling 识别为其他 label，要么被 noise 淹没。
+
+需要在 `build_toc` 里识别 "数字打头+空格+大写" 这类章节强模式，强行 promote 到 L1 并标 `is_chapter`。
+
+#### Problem C: 表格 caption 覆盖率 54/71 (76%)，但排除 `document_index` 后是 48/65 (74%)
+
+缺失 caption 的 17 张大多是 "cont'd from previous page" 续页表，这些表可以从前一张表继承 caption 并标记 `continuation_of: <table_id>`。
+
+#### Problem D: 交叉引用密度实测
+
+`document.md` 实测：
+- `See Section X.Y` 24 次（9 个不同目标，最常见 `4.1.3.5`）
+- `See Table X-Y` 1 次
+- `See Figure X-Y` 3 次
+- `Refer to Section X.Y` 2 次
+
+对 87 页 datasheet，30 个交叉引用是真实、可索引、可直接跳转的导航边。输出 `cross_refs.jsonl` 的收益是把我从"全文扫描"降到"查一个 jsonl"。
+
+#### Problem E: 图片文件名仍是无语义哈希
+
+现状：`assets/image_000025_0430387ca41b0c87fce...png`
+
+当 alert 提到 "p.27 Table 2-9 没有 sidecar，有图片替代" 时，我需要：
+1. 打开 `document.md` 搜 p.27 附近的 `![Image](assets/...)`
+2. 把那条引用 copy 出来
+3. 去 `assets/` 目录核对
+
+如果文件名是 `p027_figure_001.png`，我直接跳到 p.27 对应文件即可。
+
+#### Problem F: 表格 sidecar 目前只有 CSV，寄存器表 / 引脚表无语义标注
+
+所有 65 条正式表格在 `tables.index.jsonl` 里都是平等的。但嵌入式开发最高频查阅的：
+
+- **寄存器表**（CSV header 含 `Bit`/`Reset`/`Attribute`/`Field`）
+- **引脚表**（CSV header 含 `Pin`/`GPIO`/`Function`）
+- **电气特性表**（CSV header 含 `Parameter`/`Min`/`Typ`/`Max`/`Unit`）
+
+给 `tables.index.jsonl` 增加 `kind` 字段让我可以 `grep '"kind":"register"'` 直接筛出我关心的类型。
+
+### Docling-only 聚焦后的优先级（取代旧 Phase 40-44）
+
+1. **TOC 去噪与补完**（Problem A + B）— 直接决定导航可用性
+2. **表格 caption 续页继承**（Problem C）— 提升查表命中率
+3. **交叉引用抽取 `cross_refs.jsonl`**（Problem D）— 全新能力，开销低
+4. **表格 `kind` 启发式标注**（Problem F）— 嵌入式场景最高频
+5. **图片语义重命名 + `assets.index.jsonl`**（Problem E）— 降低 alert→源文件跳转成本
+6. **代码质量清理**（converter.py 拆分、O(n²) 消除）
+7. **测试补强**（端到端集成 / CLI / 错误路径 / bundle 完整性）
+
+## 2026-04-18 Phase 39 Implementation Results
+
+### Commit `32eae51` baseline (Phase 38) vs after Phase 39
+
+| 指标 | Phase 38 | Phase 39 | 变化 |
+|---|---|---|---|
+| TOC 总条目 | 212 | 151 | -29% |
+| TOC L1 条目 | 111 | 50 | -55% |
+| TOC L1 真章节比例 | 7/111 = 6% | 7/50 = 14%（+ `is_chapter` 精确筛选 100%） | 大幅改善 |
+| "Feature List" 重复数 | 29 | 0 | 清理 |
+| "Pin Assignment" 重复数 | 15 | 0 | 清理 |
+| "Note:" 重复数 | 8 | 0 | 清理 |
+| "Cont'd from previous page" 数 | 5 | 0 | 清理 |
+| 表格 caption 误为 heading | 1 ("Table 2-9...") | 0 | 清理 |
+| 测试数 | 74 | 83 | +9 |
+
+### 实测验证 AI-consumer 体验
+
+用 `jq '.[] | select(.is_chapter)' toc.json` 立刻返回 7 条：
+
+```
+p.13: 1 ESP32-S3 Series Comparison
+p.15: 2 Pins
+p.32: 3 Boot Configurations
+p.36: 4 Functional Description
+p.64: 5 Electrical Characteristics
+p.70: 6 RF Characteristics
+p.77: 7 Packaging
+```
+
+这就是 datasheet 的真实章节目录。任务"哪些章节存在"从 "grep 212 条"降到"jq 一行"。
+
+### 剩余弱点（作为 Phase 40+ 证据）
+
+- 非章节 L1 仍有 50 条噪音（封面文字、无编号的子段标题），但可通过 `is_chapter` 过滤一键跳过
+- `suspicious` 在本 datasheet 无可见触发；需要在其他手册（典型场景：heading 被误识为 "Figure 1-X"）才能观察链路
+- 表格 caption 仍有 17/65 缺失（Phase 40 要处理）

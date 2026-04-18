@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中收敛“面向嵌入式开发的手册转换输出架构”，重点回答 `Docling` 当前 bundle 是否已接近最佳实践，以及 `OpenDataLoader PDF` 尤其 hybrid mode 的更优输出应当长什么样。
 
 ## Current Phase
-Manual Output Architecture Reassessment
+Phase 40: Docling Table Caption & Classification
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -245,6 +245,91 @@ Manual Output Architecture Reassessment
 - [x] 统一 README、项目报告、架构说明、状态文档、roadmap 到当前真实产物
 - [x] 用真实 bundle facts 和测试结果复核文档
 - **Status:** complete
+
+### Phase 37: Deep Project Audit
+- [x] 以 AI 消费者视角深度审计全部代码、产物、文档、测试
+- [x] 识别导航层关键缺陷（heading level 丢失、无页码反向索引、表格 caption 不足）
+- [x] 识别代码质量可改善点（converter.py 过度集中、正则重复、ODL 冗余循环）
+- [x] 识别测试缺口（无集成测试、CLI 未覆盖、无错误路径测试）
+- [x] 输出完整审计报告 `AUDIT_REPORT.md` 含分阶段优化计划
+- **Status:** complete
+
+### Phase 38: Navigation Layer Enhancement (Audit Phase 1)
+- [x] 生成 `toc.json` 层级目录树（docling）
+- [x] 生成 `pages.index.jsonl` 页码反向索引（docling）
+- [x] 修复 sections.jsonl heading_level（docling）
+- [x] 增强表格 caption 覆盖率（docling）
+- [x] 标记 document_index 表格（docling）
+- [x] 提取共享正则常量到 patterns.py
+- [x] 更新 paths / manifest / README 包含新产物
+- [x] 新增 16 个测试，全部通过（71 total）
+- **Status:** complete
+
+> **Scope note (2026-04-18)**：用户明确本轮只修 Docling、不动 ODL。
+> 验证只用 `esp32-s3_datasheet_en.pdf` 做日常迭代，TRM 要等显式许可再跑。
+> 基于重跑后的真实 bundle 观察，Phase 39-45 被重写。
+
+### Phase 39: Docling TOC Quality Fix
+- [x] `build_toc()` 过滤 `NOISY_SECTION_IDS` / `NOISY_TEXT_PATTERNS`
+- [x] 过滤 `TABLE_CAPTION_RE` 匹配的表格 caption 误识
+- [x] 过滤 "Feature List" / "Pin Assignment" / "Note:" 类重复非编号 heading（count > 2）
+- [x] 标 `is_chapter: true` 在编号 L1 heading（真实章节）
+- [x] 把 `flag_suspicious_sections` 的标记回写到 TOC
+- [x] 新增 10 个 TOC 测试（83 total passing）
+- **Status:** complete
+
+**Phase 39 实测成果（ESP32-S3 datasheet）：**
+- TOC 条目数 212 → 151（29% 噪声移除）
+- `is_chapter: true` 精确匹配 7 个真实章节
+- "Cont'd from previous page" ×5 / "Feature List" ×29 / "Pin Assignment" ×15 / "Note:" ×8 / 表格 caption 全部清理
+- `suspicious` 在 TOC 中 propagation 链路可用（本 datasheet "Note:" 被前置过滤所以未触发）
+
+### Phase 40: Docling Table Caption & Classification
+- [ ] `cont'd from previous page` 续页表继承上一张表 caption，加 `continuation_of` 字段
+- [ ] 基于 CSV header 启发式标注 `kind: register | pinout | electrical | timing | generic`
+- [ ] 在 `tables.index.jsonl` 里输出新字段
+- [ ] 在 README 里按 `kind` 归类，或至少列 top-5 寄存器表 / top-5 引脚表
+- [ ] 增加对应 unit tests
+- **Status:** pending
+
+### Phase 41: Cross-Reference Extraction
+- [ ] 新增 `docling_bundle/cross_refs.py`，抽取 `See Section X.Y` / `Refer to Section X.Y` / `See Table X-Y` / `See Figure X-Y`
+- [ ] 输出 `cross_refs.jsonl`：`{source_chunk_id, target_kind, target_id, target_page, raw_match}`
+- [ ] 从 TOC / `tables.index.jsonl` 解析 target 的实际 page（能对上就填，对不上标 `unresolved: true`）
+- [ ] README 引用 `cross_refs.jsonl`，说明用法
+- [ ] 单元测试覆盖抽取 + 解析
+- **Status:** pending
+
+### Phase 42: Docling Asset Naming & Index
+- [ ] 图片重命名为 `p{page:04d}_asset_{seq:03d}.png`（基于 docling document 的 prov page）
+- [ ] 生成 `assets.index.jsonl`：`{asset_id, path, page, md_reference, nearest_caption}`
+- [ ] 同步改写 `document.md` 里的 image ref
+- [ ] 同步改写 alerts payload 里的 `image_path`
+- [ ] 增加 bundle 链接完整性测试（所有 `assets/...` 引用必须解析到文件）
+- **Status:** pending
+
+### Phase 43: Code Quality Cleanup
+- [ ] 拆分 `converter.py`（531 行）为 `pipeline.py`（窗口/缓存/转换）+ `exporter.py`（bundle 落盘）
+- [ ] 消除 `inject_table_sidecars_into_markdown` 的 O(n²) 扫描
+- [ ] `SimpleNamespace` 换成 frozen dataclass
+- [ ] 运行 `ruff` + `black` 做一轮统一
+- **Status:** pending
+
+### Phase 44: Test Coverage Enhancement
+- [ ] 添加 1-2 页的合成 PDF 端到端集成测试（真正从 PDF 跑到 bundle）
+- [ ] 添加 `docling_bundle.cli.main()` 测试
+- [ ] 错误路径测试（损坏 PDF / 空输入 / 无法写 output）
+- [ ] 边界测试（单页 / 纯图片页 / 无表格文档）
+- [ ] 把 bundle 链接完整性做成独立 regression test
+- [ ] 考虑从 unittest 迁到 pytest + fixtures
+- **Status:** pending
+
+### Phase 45: README Richness & Final Validation
+- [ ] README 增补：章节大纲（top-10 chapters from TOC）/ top-N 重要表格 / 前 3 条告警 + 下一步提示
+- [ ] 用 datasheet 跑全量 regression 并逐项对比 audit 里列出的 AI 消费痛点
+- [ ] 获得 TRM 许可后用 TRM 跑一次，确认大文档下这些改动的效果
+- [ ] 提交 / 推送收尾
+- **Status:** pending
 
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？

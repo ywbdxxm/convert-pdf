@@ -457,7 +457,7 @@ def export_document_bundle(
     manifest["alert_count"] = len(alerts)
     write_json(paths.alerts, alerts)
 
-    toc = build_toc(combined_doc)
+    toc = build_toc(combined_doc, section_records=section_records)
     write_json(paths.toc, toc)
 
     pages_index = build_pages_index(chunk_records, table_records, alerts)

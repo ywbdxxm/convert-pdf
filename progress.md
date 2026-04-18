@@ -195,8 +195,18 @@
 
 ## Next Action
 
-1. Use the current bundles for real manual work.
-2. Reopen parser-output engineering only when a concrete failure or new manual class creates a clear need.
+1. Phase 40: Table caption 续页继承 + `kind: register/pinout/electrical` 启发式标注
+2. 更新 `docs/architecture.md` 的 roadmap 表格（Phase 39 标 complete）
+3. 每个 phase 结束：重跑 datasheet + 记录实测结果 + commit + push
+
+## 2026-04-18 Session
+
+- Re-anchored plan with `planning-with-files`
+- Committed Phase 38 code baseline as `32eae51` (74 tests)
+- Reset stale docs in commit `c39aa42`: deleted 1874 lines of obsolete docs, added single canonical `docs/architecture.md`, rewrote `README.md` + `AGENTS.md` Docling-only
+- Pushed both commits to `origin/main`
+- Implemented Phase 39: TOC noise filter + `is_chapter` flag + suspicious propagation (83 tests)
+- Regenerated datasheet bundle: TOC 212 → 151, `is_chapter` accurately flags 7 real chapters
 
 ## Verification Focus
 

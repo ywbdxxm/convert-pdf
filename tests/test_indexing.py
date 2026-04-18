@@ -259,39 +259,170 @@ class PagesIndexTests(unittest.TestCase):
 
 
 class TocTests(unittest.TestCase):
-    def test_builds_toc_from_doc_items(self):
-        heading1 = SimpleNamespace(
-            label=SimpleNamespace(value="section_header"),
-            text="1 Overview",
-            prov=[SimpleNamespace(page_no=1)],
+    @staticmethod
+    def _heading(text, page, label="section_header"):
+        return SimpleNamespace(
+            label=SimpleNamespace(value=label),
+            text=text,
+            prov=[SimpleNamespace(page_no=page)],
         )
-        heading2 = SimpleNamespace(
-            label=SimpleNamespace(value="section_header"),
-            text="2.1 Pin Layout",
-            prov=[SimpleNamespace(page_no=15)],
-        )
-        paragraph = SimpleNamespace(
+
+    @staticmethod
+    def _paragraph(text, page):
+        return SimpleNamespace(
             label=SimpleNamespace(value="paragraph"),
-            text="Some body text",
-            prov=[SimpleNamespace(page_no=2)],
+            text=text,
+            prov=[SimpleNamespace(page_no=page)],
         )
 
-        doc = SimpleNamespace(
-            iterate_items=lambda: iter([(heading1, 0), (paragraph, 0), (heading2, 0)])
-        )
+    def _doc(self, items):
+        return SimpleNamespace(iterate_items=lambda: iter((item, 0) for item in items))
 
-        toc = build_toc(doc)
+    def test_builds_toc_from_doc_items(self):
+        heading1 = self._heading("1 Overview", 1)
+        heading2 = self._heading("2.1 Pin Layout", 15)
+        paragraph = self._paragraph("Some body text", 2)
+
+        toc = build_toc(self._doc([heading1, paragraph, heading2]))
 
         self.assertEqual(len(toc), 2)
         self.assertEqual(toc[0]["heading"], "1 Overview")
         self.assertEqual(toc[0]["level"], 1)
         self.assertEqual(toc[0]["page"], 1)
+        self.assertTrue(toc[0]["is_chapter"])
         self.assertEqual(toc[1]["heading"], "2.1 Pin Layout")
         self.assertEqual(toc[1]["level"], 2)
         self.assertEqual(toc[1]["page"], 15)
+        self.assertFalse(toc[1]["is_chapter"])
 
     def test_empty_doc_returns_empty_toc(self):
         self.assertEqual(build_toc(SimpleNamespace()), [])
+
+    def test_is_chapter_true_only_for_numbered_l1(self):
+        items = [
+            self._heading("1 Introduction", 1),
+            self._heading("1.1 Scope", 2),
+            self._heading("A.1 Appendix Note", 100),
+            self._heading("Revision History", 120),
+        ]
+
+        toc = build_toc(self._doc(items))
+        by_heading = {entry["heading"]: entry for entry in toc}
+
+        self.assertTrue(by_heading["1 Introduction"]["is_chapter"])
+        self.assertFalse(by_heading["1.1 Scope"]["is_chapter"])
+        self.assertFalse(by_heading["A.1 Appendix Note"]["is_chapter"])
+        self.assertFalse(by_heading["Revision History"]["is_chapter"])
+
+    def test_drops_noisy_section_ids(self):
+        items = [
+            self._heading("Contents", 7),
+            self._heading("List of T ables", 10),
+            self._heading("List of Figures", 12),
+            self._heading("Cont'd from previous page", 22),
+            self._heading("1 Overview", 13),
+        ]
+
+        toc = build_toc(self._doc(items))
+
+        self.assertEqual([e["heading"] for e in toc], ["1 Overview"])
+
+    def test_drops_note_standalone_headings(self):
+        items = [
+            self._heading("Note:", 26),
+            self._heading("Notes:", 44),
+            self._heading("2.1 Pin Layout", 15),
+        ]
+
+        toc = build_toc(self._doc(items))
+
+        self.assertEqual([e["heading"] for e in toc], ["2.1 Pin Layout"])
+
+    def test_drops_table_caption_masquerading_as_heading(self):
+        items = [
+            self._heading("Table 2-9. Peripheral Pin Assignment", 27),
+            self._heading("2.3 IO Pins", 20),
+        ]
+
+        toc = build_toc(self._doc(items))
+
+        self.assertEqual([e["heading"] for e in toc], ["2.3 IO Pins"])
+
+    def test_drops_repeated_unnumbered_heading(self):
+        items = [
+            self._heading("Feature List", 36),
+            self._heading("Feature List", 37),
+            self._heading("Feature List", 38),
+            self._heading("4 Functional Description", 36),
+        ]
+
+        toc = build_toc(self._doc(items))
+
+        self.assertEqual([e["heading"] for e in toc], ["4 Functional Description"])
+
+    def test_keeps_repeated_numbered_heading_variants(self):
+        # Numbered headings are unique anchors even if their "short name" repeats.
+        items = [
+            self._heading("4.2.1 GPIO", 52),
+            self._heading("4.2.2 UART", 55),
+            self._heading("4.2.3 SPI", 58),
+        ]
+
+        toc = build_toc(self._doc(items))
+
+        self.assertEqual(len(toc), 3)
+        self.assertTrue(all(entry["level"] == 3 for entry in toc))
+
+    def test_keeps_unnumbered_heading_when_unique(self):
+        items = [
+            self._heading("Revision History", 83),
+            self._heading("Disclaimer and Copyright Notice", 87),
+        ]
+
+        toc = build_toc(self._doc(items))
+
+        self.assertEqual(len(toc), 2)
+
+    def test_propagates_suspicious_from_section_records(self):
+        items = [
+            self._heading("Note:", 7),
+            self._heading("Note:", 26),
+            self._heading("2.1 Pin Layout", 15),
+        ]
+        # "Note:" survives the hardcoded drop only if we pretend it is not in
+        # NOISY_TOC_HEADINGS; here we rely on the section_records cross-mark by
+        # using a heading that is not in the drop list but IS suspicious.
+        items = [
+            self._heading("Mystery Section", 3),
+            self._heading("2.1 Pin Layout", 15),
+        ]
+        section_records = [
+            {"section_id": "Mystery Section", "suspicious": True},
+            {"section_id": "2.1 Pin Layout"},
+        ]
+
+        toc = build_toc(self._doc(items), section_records=section_records)
+
+        by_heading = {entry["heading"]: entry for entry in toc}
+        self.assertTrue(by_heading["Mystery Section"].get("suspicious"))
+        self.assertNotIn("suspicious", by_heading["2.1 Pin Layout"])
+
+    def test_handles_label_without_value_attribute(self):
+        # Some docling label types expose only str(); no .value
+        class PlainLabel:
+            def __str__(self):
+                return "section_header"
+
+        heading = SimpleNamespace(
+            label=PlainLabel(),
+            text="1 Overview",
+            prov=[SimpleNamespace(page_no=1)],
+        )
+
+        toc = build_toc(self._doc([heading]))
+
+        self.assertEqual(len(toc), 1)
+        self.assertEqual(toc[0]["heading"], "1 Overview")
 
 
 class SuspiciousSectionTests(unittest.TestCase):

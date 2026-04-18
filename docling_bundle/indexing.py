@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 
-from docling_bundle.patterns import HEADING_NUMBER_RE
+from docling_bundle.patterns import HEADING_NUMBER_RE, TABLE_CAPTION_RE
 
 
 NOISY_SECTION_IDS = {
@@ -16,6 +17,20 @@ NOISY_SECTION_IDS = {
 NOISY_TEXT_PATTERNS = [
     re.compile(r"submit documentation feedback", re.IGNORECASE),
 ]
+
+# Headings that only make sense inside a parent section context
+# ("Note:" standalone, "Features" as a sub-header, "Feature List", etc.).
+# When these repeat across a document they cannot anchor TOC navigation.
+NOISY_TOC_HEADINGS = {
+    "Note:",
+    "Notes:",
+    "Note",
+    "Notes",
+}
+
+# A heading occurring more times than this in the document with no numbered
+# prefix is treated as a section-internal label, not a navigation anchor.
+TOC_REPEAT_DROP_THRESHOLD = 2
 
 
 def infer_heading_level(heading_text: str) -> int:
@@ -205,45 +220,97 @@ def build_chunk_records(doc_id, chunks, contextualize):
     return records
 
 
-def build_toc(doc) -> list[dict]:
-    """Build a hierarchical table of contents from the Docling document.
+def _is_heading_item(item) -> bool:
+    label = getattr(item, "label", None)
+    if label is None:
+        return False
+    label_str = getattr(label, "value", None) or str(label)
+    return "heading" in label_str.lower() or label_str == "section_header"
 
-    Extracts headings with their page numbers and inferred levels.
-    Returns a flat list sorted by page order — consumers can reconstruct
-    the tree from heading_level.
-    """
-    toc: list[dict] = []
-    if not hasattr(doc, "iterate_items"):
-        return toc
 
-    for item, _level in doc.iterate_items():
-        label = getattr(item, "label", None)
-        label_str = getattr(label, "value", None) or str(label) if label else ""
-        if "heading" not in label_str.lower() and label_str != "section_header":
-            continue
-
+def _extract_heading_text(item) -> str:
+    if hasattr(item, "text"):
+        text = item.text
+    elif hasattr(item, "export_to_markdown"):
+        text = item.export_to_markdown()
+    else:
         text = ""
-        if hasattr(item, "text"):
-            text = item.text.strip()
-        elif hasattr(item, "export_to_markdown"):
-            text = item.export_to_markdown().strip()
+    return text.strip() if text else ""
+
+
+def _first_page(item) -> int | None:
+    for prov in getattr(item, "prov", []) or []:
+        page_no = getattr(prov, "page_no", None)
+        if page_no is not None:
+            return page_no
+    return None
+
+
+def _is_numbered_heading(text: str) -> bool:
+    return HEADING_NUMBER_RE.match(text) is not None
+
+
+def _is_noisy_toc_heading(text: str) -> bool:
+    if text in NOISY_SECTION_IDS or text in NOISY_TOC_HEADINGS:
+        return True
+    if TABLE_CAPTION_RE.match(text):
+        return True
+    for pattern in NOISY_TEXT_PATTERNS:
+        if pattern.search(text):
+            return True
+    return False
+
+
+def build_toc(doc, section_records: list[dict] | None = None) -> list[dict]:
+    """Build a pruned hierarchical table of contents from the Docling document.
+
+    Two-pass filter:
+    1. Drop headings matching noisy names, noisy patterns, or table captions.
+    2. Drop non-numbered headings that repeat more than TOC_REPEAT_DROP_THRESHOLD
+       times — they are section-internal labels, not navigation anchors.
+
+    Adds metadata:
+    - ``is_chapter``: True for numbered top-level headings (``1 Foo``, ``2 Bar``)
+    - ``suspicious``: True when the heading matches a suspicious section
+      (heading-detection error from ``flag_suspicious_sections``)
+    """
+    if not hasattr(doc, "iterate_items"):
+        return []
+
+    raw: list[dict] = []
+    for item, _ in doc.iterate_items():
+        if not _is_heading_item(item):
+            continue
+        text = _extract_heading_text(item)
         if not text:
             continue
+        if _is_noisy_toc_heading(text):
+            continue
+        raw.append({"heading": text, "page": _first_page(item)})
 
-        pages: list[int] = []
-        for prov in getattr(item, "prov", []) or []:
-            page_no = getattr(prov, "page_no", None)
-            if page_no is not None:
-                pages.append(page_no)
+    counts = Counter(entry["heading"] for entry in raw)
+    suspicious_headings = {
+        record.get("section_id")
+        for record in (section_records or [])
+        if record.get("suspicious")
+    }
 
-        page = min(pages) if pages else None
+    toc: list[dict] = []
+    for entry in raw:
+        text = entry["heading"]
+        is_numbered = _is_numbered_heading(text)
+        if not is_numbered and counts[text] > TOC_REPEAT_DROP_THRESHOLD:
+            continue
         level = infer_heading_level(text)
-
-        toc.append({
+        record: dict = {
             "heading": text,
             "level": level,
-            "page": page,
-        })
+            "page": entry["page"],
+            "is_chapter": is_numbered and level == 1,
+        }
+        if text in suspicious_headings:
+            record["suspicious"] = True
+        toc.append(record)
 
     return toc
 
