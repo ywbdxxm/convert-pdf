@@ -400,6 +400,25 @@ def inject_table_sidecars_into_markdown(markdown: str, exported_tables: list[Exp
     return updated
 
 
+_MIRRORED_COL_RE = re.compile(r"^(.+)\.(.+)$")
+
+
+def _clean_column_header(col: str) -> str:
+    """Collapse Docling's mirrored MultiIndex headers (``X.X`` → ``X``).
+
+    When Docling's ``export_to_dataframe()`` flattens a two-level PDF header
+    with identical labels on both levels (e.g. a column that spans both rows
+    but only has the text in the top row), the CSV output becomes
+    ``"Pin No..Pin No."``. Collapse only when the two halves match exactly
+    so legitimate nested headers like ``"Pin Settings 6.At Reset"`` or data
+    with dots like ``"4.1.1.3"`` are preserved.
+    """
+    match = _MIRRORED_COL_RE.match(col)
+    if match and match.group(1).strip() == match.group(2).strip():
+        return match.group(1).strip()
+    return col
+
+
 def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[ExportedTable]:
     tables_dir.mkdir(parents=True, exist_ok=True)
     records: list[ExportedTable] = []
@@ -408,8 +427,9 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
         csv_path = tables_dir / csv_name
 
         dataframe = table.export_to_dataframe(doc=doc)
+        dataframe.columns = [_clean_column_header(str(col)) for col in dataframe.columns]
         dataframe.to_csv(csv_path, index=False)
-        columns = [str(col) for col in dataframe.columns]
+        columns = list(dataframe.columns)
         table_html = table.export_to_html(doc=doc)
         table_markdown = table.export_to_markdown(doc=doc).strip()
 

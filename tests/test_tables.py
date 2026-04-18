@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from docling_bundle.tables import (
     ExportedTable,
+    _clean_column_header,
     backfill_table_captions_from_markdown,
     classify_table_kind,
     extract_table_caption,
@@ -450,6 +451,23 @@ class TableExportTests(unittest.TestCase):
         backfill_table_captions_from_markdown(markdown, exported_tables)
 
         self.assertEqual(exported_tables[0].record["caption"], "Revision History")
+
+    def test_clean_column_header_collapses_mirrored_labels(self):
+        self.assertEqual(_clean_column_header("Pin No..Pin No."), "Pin No.")
+        self.assertEqual(_clean_column_header("RTC IO Name 1.RTC IO Name 1"), "RTC IO Name 1")
+        # Mirrored with whitespace tolerance
+        self.assertEqual(_clean_column_header("A .A"), "A")
+
+    def test_clean_column_header_preserves_nested_headers(self):
+        # Legitimate nested header: level0="Pin Settings 6", level1="At Reset"
+        self.assertEqual(_clean_column_header("Pin Settings 6.At Reset"), "Pin Settings 6.At Reset")
+        self.assertEqual(_clean_column_header("IO MUX Function 1, 2, 3.F0"), "IO MUX Function 1, 2, 3.F0")
+        # Data with dots should not be touched
+        self.assertEqual(_clean_column_header("4.1.1.3"), "4.1.1.3")
+        self.assertEqual(_clean_column_header("Ambient Temp. 3"), "Ambient Temp. 3")
+        # No dot at all
+        self.assertEqual(_clean_column_header("Pin No."), "Pin No.")
+        self.assertEqual(_clean_column_header("Rate"), "Rate")
 
     def test_backfill_ignores_generic_headings(self):
         markdown = (

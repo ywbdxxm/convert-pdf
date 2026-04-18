@@ -1771,3 +1771,78 @@ tests for heading fallback: one positive case (Revision History), one negative
 case (Pin Assignment, to verify allowlist guards against over-capture).
 
 Full suite: 133/133 pass.
+
+## 2026-04-18 Phase 49: Fourth-pass audit – CSV column header cleanup
+
+### Method
+
+Fourth sweep after Phase 48. Target: areas not yet inspected — `document.html`
+usefulness, `document.json` schema, asset-index consistency, chunk
+contextualization quality, section→chunk→table cross-reference integrity,
+CSV header quality.
+
+### What was already clean
+
+- `assets/` folder: 85/85 on disk, 0 not indexed, 0 dup sizes
+- Schema cross-references: 0 orphan chunk_ids in sections, 0 orphan table_ids
+  in pages.index, 0 orphan section_ids referenced by chunks, 0 missing CSVs
+- Section `text_preview`: 100% populated, none below 20 chars
+- Chunk `contextualized_text`: 0 identical to `text` (context was always
+  added), avg 27-char prefix — reasonable
+- `document.json`: 11.5 MB, standard Docling schema with 3641 texts, 85
+  pictures, 71 tables, 87 pages — properly structured
+- No empty-data tables (all 71 CSVs have actual rows)
+
+### Single issue found: mirrored CSV column headers
+
+Only Table 2-6 (RTC Functions, p.23) had the `X.X` mirror pattern:
+
+    Pin No..Pin No.,RTC IO Name 1.RTC IO Name 1,RTC Function 2.F0,...
+
+Root cause: Docling's `table.export_to_dataframe()` flattens nested PDF
+headers via MultiIndex and joins levels with `.`. When both levels are
+identical (visual span where the top row repeats because the bottom row
+has no label), the CSV shows `Pin No..Pin No.`.
+
+Other `.`-bearing columns in the same bundle (83 of them) are **legitimate
+nested headers** like `Pin Settings 6.At Reset`, `IO MUX Function 1, 2, 3.F0`,
+or data like `4.1.1.3`. So the fix must be narrow:
+
+```python
+def _clean_column_header(col: str) -> str:
+    m = _MIRRORED_COL_RE.match(col)
+    if m and m.group(1).strip() == m.group(2).strip():
+        return m.group(1).strip()
+    return col
+```
+
+Only collapse when both halves are identical after trimming.
+
+### Universality
+
+This pattern appears in any datasheet with 2-level table headers where Docling
+flattens with `.` — not ESP32-specific. The fix is safe across vendors
+because the guard requires exact equality of both halves.
+
+### Test safety
+
+Added 2 tests (positive: `Pin No..Pin No.` → `Pin No.`; negative:
+`Pin Settings 6.At Reset` preserved). Full suite: 135/135 pass.
+
+### Conclusion after four passes
+
+The bundle is now in **genuinely agent-ready shape**. Four audit passes
+found and fixed:
+
+1. Silent dead code and type gaps (Phase 43 second pass)
+2. Manifest counts + page-number artifacts + T able OCR + CLI help (Phase 47)
+3. Silent caption backfill singular/plural bug + heading fallback (Phase 48)
+4. Mirrored CSV column headers (Phase 49)
+
+Remaining issues are pure Docling native limits (font decode corruption on
+p.78; garbled column headers on p.22/p.79 where Docling's layout model
+failed) — not fixable in our bundle layer without destructive heuristics
+that would over-fit to one PDF.
+
+Rule "避免过拟合" says stop here unless a new PDF surfaces a new class of
+issue.
