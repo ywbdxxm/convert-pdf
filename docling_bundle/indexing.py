@@ -323,11 +323,15 @@ def build_pages_index(
     chunk_records: list[dict],
     table_records: list[dict],
     alerts: list[dict],
+    asset_records: list[dict] | None = None,
 ) -> list[dict]:
     """Build a page→content reverse index.
 
     For each page that appears in any record, collect the chunk_ids,
-    table_ids, and alert kinds present on that page.
+    table_ids, asset_ids, and alert kinds present on that page.
+
+    ``asset_records`` is optional so older callers keep working; when
+    provided, each page entry gains an ``asset_ids`` list.
     """
     page_data: dict[int, dict] = {}
 
@@ -337,6 +341,7 @@ def build_pages_index(
                 "page": page,
                 "chunk_ids": [],
                 "table_ids": [],
+                "asset_ids": [],
                 "alert_kinds": [],
             }
         return page_data[page]
@@ -360,6 +365,13 @@ def build_pages_index(
         for p in range(ps, pe + 1):
             entry = _ensure_page(p)
             entry["table_ids"].append(table["table_id"])
+
+    for asset in asset_records or []:
+        page = asset.get("page")
+        if page is None:
+            continue
+        entry = _ensure_page(page)
+        entry["asset_ids"].append(asset["asset_id"])
 
     for alert in alerts:
         page = alert.get("page") or alert.get("page_start")

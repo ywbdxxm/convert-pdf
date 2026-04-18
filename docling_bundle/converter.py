@@ -17,6 +17,7 @@ import pypdfium2 as pdfium
 from docling.pipeline.threaded_standard_pdf_pipeline import ThreadedStandardPdfPipeline
 
 from docling_bundle.alerts import detect_markdown_alerts, detect_table_sidecar_alerts
+from docling_bundle.assets_index import build_assets_index
 from docling_bundle.config import build_pdf_pipeline_options
 from docling_bundle.cross_refs import extract_cross_refs
 from docling_bundle.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
@@ -410,6 +411,7 @@ def export_document_bundle(
         "toc": paths.toc.name,
         "pages_index": paths.pages_index.name,
         "cross_refs": paths.cross_refs.name,
+        "assets_index": paths.assets_index.name,
     }
 
     if aggregate_status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} or combined_doc is None:
@@ -462,7 +464,10 @@ def export_document_bundle(
     toc = build_toc(combined_doc, section_records=section_records)
     write_json(paths.toc, toc)
 
-    pages_index = build_pages_index(chunk_records, table_records, alerts)
+    asset_records = build_assets_index(doc_id, markdown_text, paths.doc_dir)
+    write_jsonl(paths.assets_index, asset_records)
+
+    pages_index = build_pages_index(chunk_records, table_records, alerts, asset_records)
     write_jsonl(paths.pages_index, pages_index)
 
     cross_refs = extract_cross_refs(markdown_text, toc=toc, table_records=table_records)
@@ -489,6 +494,7 @@ def export_document_bundle(
             toc_path=paths.toc.name,
             pages_index_path=paths.pages_index.name,
             cross_refs_path=paths.cross_refs.name,
+            assets_index_path=paths.assets_index.name,
         ),
         encoding="utf-8",
     )

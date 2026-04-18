@@ -1282,3 +1282,40 @@ jq -c 'select(.source_page==16)' cross_refs.jsonl
 2. 启发式默认失败时回到 `generic` / `unresolved`，不要强行分类
 3. 新功能必须配对 regression 测试覆盖相似-但-无关场景
 4. 每个 Phase 结束重跑 datasheet 并核对：已有字段值没有 regression
+
+## 2026-04-18 Phase 42 Implementation Results
+
+### Scope 收敛：放弃 rename，保留 assets.index.jsonl
+
+原计划要把 `image_000025_<hash>.png` 重命名为 `p0027_asset_003.png`。审阅后发现：
+- `document.json` 和 `document.html` 内部都引用原哈希文件名
+- 只改文件名和 `document.md` 会让 JSON/HTML 断链
+- 这不是 datasheet 特有问题，而是所有 docling 产出都会有的通用 regression
+- Rename 的成本 > 收益
+
+改为保守方案：**保留文件名，新增 `assets.index.jsonl`**：
+
+```json
+{"asset_id": "doc:asset:0026", "path": "assets/image_000025_<hash>.png", "page": 27, "md_line": 802, "size_bytes": 737382}
+```
+
+### AI-consumer 操作路径
+
+```sh
+# 查某页所有图
+jq -c 'select(.page == 27)' assets.index.jsonl
+
+# 筛掉小图标
+jq -c 'select(.size_bytes > 50000)' assets.index.jsonl
+
+# pages.index.jsonl 同时展示章节/表/图/告警
+jq -c 'select(.page == 27)' pages.index.jsonl
+# → {"page":27,"chunk_ids":[...],"table_ids":[],"asset_ids":["doc:asset:0026"],"alert_kinds":["table_caption_followed_by_image_without_sidecar"]}
+```
+
+### 关键设计选择
+
+- 不猜 `nearest_caption`（跨多图 figure 容易误归属）
+- 不改文件名（避免 JSON/HTML 内部引用断链）
+- 缺失文件 `missing: true` 显式标出（bundle 完整性可在外部做 regression test）
+- 只依赖 docling markdown 里共通的 `![Image](...)` + `<!-- page_break -->`，所有 PDF 通用

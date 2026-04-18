@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中收敛“面向嵌入式开发的手册转换输出架构”，重点回答 `Docling` 当前 bundle 是否已接近最佳实践，以及 `OpenDataLoader PDF` 尤其 hybrid mode 的更优输出应当长什么样。
 
 ## Current Phase
-Phase 42: Docling Asset Naming & Index
+Phase 43: Code Quality Cleanup
 
 ## Robustness Principle (2026-04-18)
 
@@ -339,13 +339,26 @@ Phase 42: Docling Asset Naming & Index
 - 所有 10 条 continuation 表统一成 `<base> (cont'd)` 格式，agent 可直接 `jq 'select(.continuation_of)'` 一键取全部续页
 - TOC / kind 分布 / cross-refs 数字无 regression
 
-### Phase 42: Docling Asset Naming & Index
-- [ ] 图片重命名为 `p{page:04d}_asset_{seq:03d}.png`（基于 docling document 的 prov page）
-- [ ] 生成 `assets.index.jsonl`：`{asset_id, path, page, md_reference, nearest_caption}`
-- [ ] 同步改写 `document.md` 里的 image ref
-- [ ] 同步改写 alerts payload 里的 `image_path`
-- [ ] 增加 bundle 链接完整性测试（所有 `assets/...` 引用必须解析到文件）
-- **Status:** pending
+### Phase 42: Docling Asset Index (re-scoped)
+- [x] ~~改文件名~~ 放弃：会断 document.json / document.html 的引用，regression 风险大
+- [x] 新增 `assets.index.jsonl`：`{asset_id, path, page, md_line, size_bytes, missing?}`
+- [x] 改进 `build_pages_index` 接受 `asset_records`，输出 `asset_ids` 字段
+- [x] README / manifest 加入 `assets.index.jsonl`
+- [x] 缺失文件以 `missing: true` 显式暴露，不静默
+- [x] 7 个 assets test + 1 个 pages index 补测（120 total passing）
+- **Status:** complete
+
+**Phase 42 实测成果（ESP32-S3 datasheet）：**
+- 抽取 85 条图片资源记录，覆盖 74 个页
+- 0 个 missing（链接完整性 OK）
+- p.27 的 table_caption_followed_by_image_without_sidecar alert 现在可以双向验证：alert 有 image_path，assets.index 有 asset_id 和 size_bytes
+- agent 用 `jq 'select(.page==N)' assets.index.jsonl` 列出任意页图片，用 `jq 'select(.size_bytes>50000)'` 筛掉小图标
+- 无 regression：TOC 151/7、tables 71/10 cont、cross_refs 47/43 全部一致
+
+**Phase 42 robustness 回顾（普遍适用性）：**
+- 只依赖 docling markdown 里 `![Image](assets/...)` 格式和 `<!-- page_break -->`，所有 docling 产出都这样（不是 datasheet 特有）
+- 放弃改文件名避免 document.json/html 的内部引用断链（跨 PDF 通用的 regression 风险）
+- 缺失文件显式 `missing: true` 而不是 skip，避免 bundle 变脏而不报
 
 ### Phase 43: Code Quality Cleanup
 - [ ] 拆分 `converter.py`（531 行）为 `pipeline.py`（窗口/缓存/转换）+ `exporter.py`（bundle 落盘）

@@ -240,6 +240,7 @@ class PagesIndexTests(unittest.TestCase):
         self.assertEqual(page1["page"], 1)
         self.assertEqual(page1["chunk_ids"], ["doc:0001", "doc:0002"])
         self.assertEqual(page1["table_ids"], [])
+        self.assertEqual(page1["asset_ids"], [])
 
         page2 = index[1]
         self.assertEqual(page2["page"], 2)
@@ -249,6 +250,19 @@ class PagesIndexTests(unittest.TestCase):
         page3 = index[2]
         self.assertEqual(page3["page"], 3)
         self.assertEqual(page3["alert_kinds"], ["empty_table_sidecar"])
+
+    def test_pages_index_includes_asset_ids_when_provided(self):
+        assets = [
+            {"asset_id": "doc:asset:0001", "page": 1},
+            {"asset_id": "doc:asset:0002", "page": 2},
+            {"asset_id": "doc:asset:0003", "page": 2},
+        ]
+
+        index = build_pages_index([], [], [], asset_records=assets)
+
+        by_page = {entry["page"]: entry for entry in index}
+        self.assertEqual(by_page[1]["asset_ids"], ["doc:asset:0001"])
+        self.assertEqual(by_page[2]["asset_ids"], ["doc:asset:0002", "doc:asset:0003"])
 
     def test_empty_inputs_returns_empty(self):
         self.assertEqual(build_pages_index([], [], []), [])

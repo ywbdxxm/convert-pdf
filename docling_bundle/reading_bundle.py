@@ -17,6 +17,7 @@ def build_readme(
     toc_path: str = "toc.json",
     pages_index_path: str = "pages.index.jsonl",
     cross_refs_path: str = "cross_refs.jsonl",
+    assets_index_path: str = "assets.index.jsonl",
 ) -> str:
     lines = [
         f"# {doc_id}",
@@ -49,6 +50,7 @@ def build_readme(
         f"- Chunks index: `{chunks_index}`",
         f"- Tables index: `{tables_index}`",
         f"- Cross-references: `{cross_refs_path}`",
+        f"- Assets index: `{assets_index_path}`",
         f"- Alerts: `{alerts_path}`",
     ]
     if alerts:
