@@ -36,6 +36,14 @@ NOISY_TOC_HEADINGS = {
 # many times in chip manuals).
 TOC_REPEAT_DROP_THRESHOLD = 3
 
+# A heading starting with one of these Unicode bullet glyphs is a list item
+# that Docling's layout analyzer mis-promoted to a section heading. Real
+# chapter/section anchors never begin with a typographic bullet. We limit
+# the set to Unicode bullet glyphs only — ASCII ``-`` / ``*`` / ``+`` are
+# common inside legitimate titles ("Wi-Fi", "Low-Power Modes", "2.4 GHz")
+# and must not be filtered.
+_BULLET_HEADING_PREFIX_RE = re.compile(r"^[·•◦▪▫►◆∙⬧]")
+
 
 def infer_heading_level(heading_text: str) -> int:
     """Infer the heading level from numbered heading text.
@@ -313,6 +321,8 @@ def _is_noisy_toc_heading(text: str) -> bool:
     if text in NOISY_SECTION_IDS or text in NOISY_TOC_HEADINGS:
         return True
     if TABLE_CAPTION_RE.match(text):
+        return True
+    if _BULLET_HEADING_PREFIX_RE.match(text):
         return True
     for pattern in NOISY_TEXT_PATTERNS:
         if pattern.search(text):

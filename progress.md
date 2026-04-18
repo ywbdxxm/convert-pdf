@@ -4,12 +4,24 @@
 
 - 基线 PDF：`manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf` (87 页)
 - 最新 bundle：`manuals/processed/docling_bundle/esp32-s3-datasheet-en/`
-- 测试：164/164 通过
-- Counts（P54 后）：87 pages / 7 chapters / 71 tables / 47 cross_refs (43 resolved) / 85 assets / 137 sections / 309 chunks / 3 alerts
+- 测试：167/167 通过
+- Counts（P55 后）：87 pages / 7 chapters / 71 tables / 47 cross_refs (43 resolved) / 85 assets / 136 sections / 309 chunks / 3 alerts
 - Chunk coverage: 309/309（sections.jsonl 覆盖全部 chunk，零 orphan）
 - Integrity: 全部 chunk_id / table_id / asset_id / csv_path 引用零破损
 
 ## 最近 session（2026-04-18）
+
+**P55（bullet-prefixed heading filter）**：
+
+- 按 `开发要求.md` 重跑 datasheet 全量审计（77s / CUDA / no-ocr）：计数与 P54 baseline 完全一致（3 alerts 继续如预期暴露回原 PDF 的那几张表）
+- TOC / sections / chunks / cross_refs / assets / tables.index 全层 integrity 扫描零破损
+- 剩余结构性问题中符合"普适 + 低风险"标准的只有一个：Docling 把 `· IO MUX:` 这类**以 Unicode 项目符号（U+00B7 / U+2022 等）开头的行**升格成 heading，于是它进 TOC 成了 level-1 锚点、进 sections.jsonl 成了独立 section
+- 根因：`_is_noisy_toc_heading` 只过滤硬编码名单 + table-caption 正则 + noisy-text pattern，没处理 bullet-prefix
+- 修复：新增 `_BULLET_HEADING_PREFIX_RE = re.compile(r"^[·•◦▪▫►◆∙⬧]")`（只管 Unicode 项目符号，ASCII `-` / `*` / `+` 不碰以免误伤 `Wi-Fi` / `2.4 GHz` / `Low-Power Modes`），在 `_is_noisy_toc_heading` 里加一条判定分支
+- 已有 P54 orphan re-parenting 路径自动接住被过滤的 chunk，内容不丢
+- 3 新测试（TOC 过滤 / 相邻 ASCII 字符保留 / sections 层 re-parenting 保持 parent page range）
+- 结果：`section_count` 137 → 136；`· IO MUX:` 不再出现在 TOC，内容挂回 `4.1.3.1 IO MUX and GPIO Matrix` 的 `chunk_ids`，parent 的 page range 未扩张（40-40 保持）；其他 count 零回归；167/167 通过
+- 其他观察到但**不修**的问题（见 `findings.md` Phase 55 节 & `task_plan.md` Decisions Made）：非数字型子标题（`CPU Clock` / `General Features` 等）level=1 偏高、Glossary 术语散成独立 heading、TOC 表列头是垃圾 —— 都属于过拟合高风险，agent 通过 `is_chapter=true` 过滤即可绕开
 
 **P54（orphan chunk 重新归属 + table-caption leak）**：
 

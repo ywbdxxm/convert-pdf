@@ -326,6 +326,30 @@ class HeadingLevelTests(unittest.TestCase):
         self.assertIn("doc:0002", by_id["4.1 System"]["chunk_ids"])
         self.assertIn("doc:0004", by_id["4.2 Peripherals"]["chunk_ids"])
 
+    def test_build_section_records_reparents_bullet_prefixed_chunks(self):
+        """Regression: a chunk whose heading starts with a Unicode bullet glyph
+        (e.g. ``· IO MUX:``) must not become a standalone section. The bullet
+        was promoted to a heading by Docling's layout analyzer; the chunk body
+        still belongs to the preceding numbered section.
+        """
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "4.1.3.1 IO MUX and GPIO Matrix", "heading_path": ["4.1.3.1 IO MUX and GPIO Matrix"], "page_start": 40, "page_end": 40, "text": "intro"},
+            {"chunk_id": "doc:0002", "section_id": "· IO MUX:", "heading_path": ["· IO MUX:"], "page_start": 40, "page_end": 41, "text": "IO_MUX_GPIO n _REG details"},
+            {"chunk_id": "doc:0003", "section_id": "4.1.3.2 Reset", "heading_path": ["4.1.3.2 Reset"], "page_start": 41, "page_end": 41, "text": "Reset section"},
+        ]
+
+        sections = build_section_records("doc", chunks)
+
+        section_ids = {s["section_id"] for s in sections}
+        self.assertNotIn("· IO MUX:", section_ids)
+        self.assertEqual(section_ids, {"4.1.3.1 IO MUX and GPIO Matrix", "4.1.3.2 Reset"})
+        by_id = {s["section_id"]: s for s in sections}
+        # Orphan chunk re-parents to the preceding numbered section without
+        # expanding its page range.
+        self.assertIn("doc:0002", by_id["4.1.3.1 IO MUX and GPIO Matrix"]["chunk_ids"])
+        self.assertEqual(by_id["4.1.3.1 IO MUX and GPIO Matrix"]["page_start"], 40)
+        self.assertEqual(by_id["4.1.3.1 IO MUX and GPIO Matrix"]["page_end"], 40)
+
     def test_build_section_records_reparents_table_caption_promoted_to_heading(self):
         """Regression: when Docling's layout analyzer promotes a table caption
         like "Table 2-9. Peripheral Pin Assignment" to a heading (typically
@@ -564,6 +588,41 @@ class TocTests(unittest.TestCase):
         toc = build_toc(self._doc(items))
 
         self.assertEqual([e["heading"] for e in toc], ["2.3 IO Pins"])
+
+    def test_drops_bullet_prefixed_heading(self):
+        # Docling's layout analyzer sometimes promotes a bullet-list entry into
+        # a heading when the line's typography looks heading-like. Any heading
+        # starting with a Unicode bullet glyph (·, •, ◦, ▪, ▫, ►, ◆, ∙, ⬧) is
+        # structural noise — real chapter anchors never begin with a list bullet.
+        items = [
+            self._heading("· IO MUX:", 40),        # real datasheet case (U+00B7)
+            self._heading("• System Architecture", 5),   # U+2022
+            self._heading("◦ Sub-note", 10),       # U+25E6
+            self._heading("▪ Item", 12),           # U+25AA
+            self._heading("2.3 IO Pins", 20),      # legitimate heading kept
+        ]
+
+        toc = build_toc(self._doc(items))
+
+        self.assertEqual([e["heading"] for e in toc], ["2.3 IO Pins"])
+
+    def test_keeps_heading_with_non_bullet_special_chars(self):
+        # Guard against over-filtering: hyphens, asterisks, and mid-text
+        # middle-dots are NOT bullet prefixes and must be preserved.
+        items = [
+            self._heading("Wi-Fi", 3),                  # ASCII hyphen mid-text
+            self._heading("2.4 GHz", 5),                # decimal + unit
+            self._heading("Low-Power Modes", 67),       # hyphenated title
+            self._heading("A·B Cross-reference", 8),    # middle dot mid-text
+            self._heading("*Bluetooth", 72),            # ASCII asterisk (rare, but not a Unicode bullet)
+        ]
+
+        toc = build_toc(self._doc(items))
+
+        self.assertEqual(
+            [e["heading"] for e in toc],
+            ["Wi-Fi", "2.4 GHz", "Low-Power Modes", "A·B Cross-reference", "*Bluetooth"],
+        )
 
     def test_drops_repeated_unnumbered_heading(self):
         # Threshold is 3: headings repeating more than 3 times are dropped.

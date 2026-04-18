@@ -126,6 +126,21 @@ docling_bundle/patterns.py       → 共享正则（被 indexing / tables / aler
 详细产物契约见 `docs/architecture.md`。
 
 
+## 7b. Phase 55 audit — 2026-04-18 (re-run)
+
+重跑 esp32-s3 datasheet，counts 与 P54 一致（137 sec / 309 chunks / 71 tab / 47 xref / 85 asset / 3 alert），integrity 全部零破损。`开发要求.md` 视角下剩余瑕疵逐项分类如下：
+
+| 现象 | 是否修 | 判据 |
+|---|---|---|
+| `· IO MUX:` 等 Unicode 项目符号开头的 heading 升格成 level-1 锚点 | **修** | 普适（所有 vendor 手册的 bullet 都是同一批 glyph）；零误伤风险（ASCII 不碰）；re-parenting 路径已存在 |
+| `CPU Clock` / `Device Mode Features` 等无编号子标题以 level=1 进 TOC | 不修 | 前言区的 `Features` / `Wi-Fi` 也是无编号 level-1 锚点，用"前面最近的编号父级 +1"会误伤前言 |
+| Glossary 的 9 个术语各自成 level-1 | 不修 | 判据只能是"同一页多条无编号 heading"，强过拟合 |
+| TOC 表（is_toc=true）列头是整行数据而非表头 | 不修 | 已通过 `is_toc` 标记，agent 直接跳过 |
+| p.22 / p.79 两张表 caption 缺失 + MultiIndex 列头混乱 | 不修 | 已进 `alerts.json` 的 `table_without_caption`，契约是回原 PDF |
+| Figure 2-2 / 2-3 / 7-1 / 7-2 这 4 条 cross_refs 的 target_page 是 null | 不修 | Docling 不给 figure 全局 id，无法 resolve；`unresolved=true` 已显式标记 |
+
+**修复后**：`section_count` 137 → 136（唯一移除 `· IO MUX:`），bullet chunk 被 re-parent 到 `4.1.3.1 IO MUX and GPIO Matrix`，parent 的 page range 保持 40-40 不扩张。
+
 ## 8. 参考资料
 
 - Docling: <https://docling-project.github.io/docling/>
