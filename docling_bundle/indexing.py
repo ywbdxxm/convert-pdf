@@ -108,8 +108,32 @@ def page_numbers_for_chunk(chunk):
     return min(pages), max(pages)
 
 
-def build_chunk_record(doc_id, chunk_id, chunk_index, chunk, contextualized_text):
-    headings = list(getattr(chunk.meta, "headings", None) or [])
+def build_chunk_record(
+    doc_id,
+    chunk_id,
+    chunk_index,
+    chunk,
+    contextualized_text,
+    item_lineages: dict[int, list[str]] | None = None,
+):
+    """Build one ``chunks.jsonl`` record.
+
+    When ``item_lineages`` is provided (see :func:`build_doc_item_lineages`),
+    the chunk's ``heading_path`` is replaced with the full ancestor chain of
+    its first ``doc_item``. ``section_id`` stays the leaf heading so
+    ``sections.jsonl`` grouping is unchanged. Without lineage data we fall
+    back to whatever depth the chunker provided via ``chunk.meta.headings``.
+    """
+    doc_items = list(getattr(chunk.meta, "doc_items", []) or [])
+    chunker_headings = list(getattr(chunk.meta, "headings", None) or [])
+
+    lineage: list[str] = []
+    if item_lineages and doc_items:
+        first_item = doc_items[0]
+        lineage = list(item_lineages.get(_item_key(first_item)) or [])
+    if not lineage:
+        lineage = chunker_headings
+
     page_start, page_end = page_numbers_for_chunk(chunk)
     if page_start is None:
         citation = doc_id
@@ -118,17 +142,19 @@ def build_chunk_record(doc_id, chunk_id, chunk_index, chunk, contextualized_text
     else:
         citation = f"{doc_id} p.{page_start}-{page_end}"
 
+    section_id = lineage[-1] if lineage else "root"
+
     return {
         "doc_id": doc_id,
         "chunk_id": chunk_id,
         "chunk_index": chunk_index,
-        "section_id": section_key_from_headings(headings),
-        "heading_path": headings,
+        "section_id": section_id,
+        "heading_path": lineage,
         "page_start": page_start,
         "page_end": page_end,
         "text": chunk.text,
         "contextualized_text": contextualized_text,
-        "doc_item_count": len(getattr(chunk.meta, "doc_items", []) or []),
+        "doc_item_count": len(doc_items),
         "table_like": is_table_like_chunk(chunk),
         "citation": citation,
     }
@@ -272,19 +298,120 @@ def attach_table_references(chunk_records, section_records, table_records):
         ]
 
 
-def build_chunk_records(doc_id, chunks, contextualize):
+def build_chunk_records(
+    doc_id,
+    chunks,
+    contextualize,
+    *,
+    item_lineages: dict | None = None,
+):
     records = []
     for index, chunk in enumerate(chunks, start=1):
+        chunker_headings = list(getattr(chunk.meta, "headings", None) or [])
+        # Reject chunks whose chunker-attributed leaf is a hard-noisy
+        # section (Contents / List of Tables / List of Figures /
+        # Cont'd from previous page). These are TOC-only regions; the
+        # original content filter rejected them via ``section_id in
+        # NOISY_SECTION_IDS``. Lineage promotion (Phase 56) made
+        # ``section_id`` inherit from the chain's leaf, which could
+        # resurrect TOC content. Filter on the chunker's view so that
+        # keep/reject semantics are unchanged.
+        if chunker_headings and chunker_headings[-1] in NOISY_SECTION_IDS:
+            continue
         record = build_chunk_record(
             doc_id=doc_id,
             chunk_id=f"{doc_id}:{index:04d}",
             chunk_index=index,
             chunk=chunk,
             contextualized_text=contextualize(chunk),
+            item_lineages=item_lineages,
         )
         if should_keep_chunk_record(record):
             records.append(record)
     return records
+
+
+def _item_key(item) -> object:
+    """Return a stable lookup key for a DoclingDocument item.
+
+    Prefer ``self_ref`` (a JSON-pointer string like ``#/texts/42`` that
+    DoclingDocument assigns to every DocItem and that ``HybridChunker``
+    preserves across its own item copies). Fall back to Python object
+    identity for items that don't have a ``self_ref``.
+    """
+    ref = getattr(item, "self_ref", None)
+    if isinstance(ref, str) and ref:
+        return ref
+    return id(item)
+
+
+def build_doc_item_lineages(
+    doc,
+    *,
+    dropped_repeat_labels: set[str] | None = None,
+) -> dict:
+    """Walk the document in reading order and snapshot the heading ancestor
+    chain at every item's position.
+
+    The returned dict maps the item's stable key (:func:`_item_key` —
+    ``self_ref`` when available, else ``id()``) to the list of ancestor
+    headings (``[chapter, section, subsection, …]``). Using ``self_ref``
+    matters because ``HybridChunker`` may re-wrap DocItems into new Python
+    objects while preserving their document reference; an ``id()``-only key
+    would miss those.
+
+    Level inference:
+      * Numbered headings (``4.1.3.5 …``) take precedence — the prefix is
+        the authoritative level.
+      * Non-numbered headings fall back to Docling's own ``heading_level``
+        attribute when present, else default to 1.
+
+    Noise handling (a heading is excluded from the stack — but its own
+    snapshot still reflects the current stack, so chunks associated with
+    the noisy item still inherit a sane breadcrumb):
+      * ``_is_noisy_toc_heading`` — Note:, bullet-led, table captions, …
+      * ``dropped_repeat_labels`` — recurring section-internal labels
+        (Feature List / Pin Assignment style). Without this filter a
+        30x-repeating "Feature List" would push as level 1 and clobber
+        the real chapter ancestor on the stack.
+    """
+    snapshots: dict = {}
+    if not hasattr(doc, "iterate_items"):
+        return snapshots
+
+    dropped = dropped_repeat_labels or set()
+    # Each stack entry is (level, text, is_numbered). ``is_numbered`` matters
+    # because a non-numbered heading mid-chapter (e.g. a bold bullet-style
+    # "BACKUP32K_CLK" inside "4.1.3.9 XTAL32K Watchdog Timers") must NOT
+    # pop out the numbered chapter ancestors — the numbered structure is
+    # authoritative. Non-numbered headings become children of the deepest
+    # numbered ancestor instead (level = that ancestor's level + 1).
+    stack: list[tuple[int, str, bool]] = []
+    for item, _ in doc.iterate_items():
+        if _is_heading_item(item):
+            text = _extract_heading_text(item)
+            if text and not _is_noisy_toc_heading(text) and text not in dropped:
+                is_numbered = _is_numbered_heading(text)
+                if is_numbered:
+                    level = infer_heading_level(text)
+                else:
+                    docling_level = getattr(item, "heading_level", None)
+                    if isinstance(docling_level, int) and docling_level > 0:
+                        level = docling_level
+                    else:
+                        # Default: nest under deepest numbered ancestor so the
+                        # numbered chapter skeleton is preserved.
+                        deepest_numbered = max(
+                            (entry[0] for entry in stack if entry[2]),
+                            default=0,
+                        )
+                        level = deepest_numbered + 1 if deepest_numbered else 1
+                while stack and stack[-1][0] >= level:
+                    stack.pop()
+                stack.append((level, text, is_numbered))
+        snapshots[_item_key(item)] = [entry[1] for entry in stack]
+
+    return snapshots
 
 
 def _is_heading_item(item) -> bool:

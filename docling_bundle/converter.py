@@ -30,6 +30,7 @@ from docling_bundle.images import filter_markdown_image_refs, picture_keep_flags
 from docling_bundle.indexing import (
     attach_table_references,
     build_chunk_records,
+    build_doc_item_lineages,
     build_pages_index,
     build_section_records,
     build_toc,
@@ -489,17 +490,26 @@ def export_document_bundle(
     )
 
     chunks = list(chunker.chunk(combined_doc))
+    # Compute the repeat-label drop set once from the source doc and share it
+    # with all three layers (lineage / sections / TOC). Keeps them on the same
+    # rule for "Feature List" / "Pin Assignment" style recurring sub-labels
+    # that would otherwise aggregate into ghost sections in sections.jsonl
+    # and pollute the heading-ancestor stack in chunks.jsonl.
+    heading_occurrences = collect_heading_occurrences(combined_doc)
+    dropped_repeat_labels = compute_dropped_repeat_labels(heading_occurrences)
+    # Full heading ancestor chain for every doc item so each chunk's
+    # heading_path reflects the real hierarchy (chapter → section → …),
+    # not only the chunker's immediate-heading view. section_id stays the leaf.
+    item_lineages = build_doc_item_lineages(
+        combined_doc,
+        dropped_repeat_labels=dropped_repeat_labels,
+    )
     chunk_records = build_chunk_records(
         doc_id=doc_id,
         chunks=chunks,
         contextualize=chunker.contextualize,
+        item_lineages=item_lineages,
     )
-    # Compute the repeat-label drop set once from the source doc and share it
-    # with both sections and the TOC. Keeps both layers on the same rule for
-    # "Feature List" / "Pin Assignment" style recurring sub-labels that would
-    # otherwise aggregate into ghost sections in sections.jsonl.
-    heading_occurrences = collect_heading_occurrences(combined_doc)
-    dropped_repeat_labels = compute_dropped_repeat_labels(heading_occurrences)
     section_records = build_section_records(
         doc_id=doc_id,
         chunk_records=chunk_records,

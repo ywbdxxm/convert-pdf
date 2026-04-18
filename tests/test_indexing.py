@@ -5,6 +5,7 @@ from docling_bundle.indexing import (
     attach_table_references,
     build_chunk_record,
     build_chunk_records,
+    build_doc_item_lineages,
     build_pages_index,
     build_section_records,
     build_toc,
@@ -800,3 +801,280 @@ class HeadingOccurrenceTests(unittest.TestCase):
         dropped = compute_dropped_repeat_labels(counts)
 
         self.assertEqual(dropped, set())
+
+
+class HeadingLineageTests(unittest.TestCase):
+    """Regression suite for Phase 56 heading breadcrumbs (Fix A).
+
+    ``build_doc_item_lineages`` walks the Docling document tree in reading
+    order and returns, for each item, the full ancestor heading chain. The
+    chain uses ``infer_heading_level`` (numbered prefix is authoritative)
+    and falls back to ``item.heading_level`` for non-numbered headings.
+    Noisy headings (``Note:``, ``Table N-M.``, ``· IO MUX:``) never push
+    onto the stack but still receive a snapshot so their associated chunks
+    get a reasonable breadcrumb.
+    """
+
+    @staticmethod
+    def _heading(text, page, level=None, label="section_header"):
+        # ``level`` is Docling's own heading_level attribute (optional).
+        item = SimpleNamespace(
+            label=SimpleNamespace(value=label),
+            text=text,
+            prov=[SimpleNamespace(page_no=page)],
+        )
+        if level is not None:
+            item.heading_level = level
+        return item
+
+    @staticmethod
+    def _paragraph(text, page):
+        return SimpleNamespace(
+            label=SimpleNamespace(value="paragraph"),
+            text=text,
+            prov=[SimpleNamespace(page_no=page)],
+        )
+
+    def _doc(self, items):
+        return SimpleNamespace(iterate_items=lambda: iter((item, 0) for item in items))
+
+    def test_numbered_hierarchy_stacks_correctly(self):
+        h1 = self._heading("1 Chapter A", 1)
+        h2 = self._heading("1.1 Section", 2)
+        h3 = self._heading("1.1.1 Subsection", 3)
+        p = self._paragraph("body under subsection", 3)
+
+        lineages = build_doc_item_lineages(self._doc([h1, h2, h3, p]))
+
+        self.assertEqual(lineages[id(h1)], ["1 Chapter A"])
+        self.assertEqual(lineages[id(h2)], ["1 Chapter A", "1.1 Section"])
+        self.assertEqual(lineages[id(h3)], ["1 Chapter A", "1.1 Section", "1.1.1 Subsection"])
+        self.assertEqual(
+            lineages[id(p)],
+            ["1 Chapter A", "1.1 Section", "1.1.1 Subsection"],
+        )
+
+    def test_sibling_numbered_heading_pops_stack(self):
+        h1 = self._heading("1 A", 1)
+        h2 = self._heading("1.1 B", 1)
+        p1 = self._paragraph("under 1.1", 1)
+        h3 = self._heading("2 D", 2)
+        p2 = self._paragraph("under 2", 2)
+
+        lineages = build_doc_item_lineages(self._doc([h1, h2, p1, h3, p2]))
+
+        self.assertEqual(lineages[id(p1)], ["1 A", "1.1 B"])
+        self.assertEqual(lineages[id(h3)], ["2 D"])
+        self.assertEqual(lineages[id(p2)], ["2 D"])
+
+    def test_noisy_heading_does_not_push_but_still_snapshots(self):
+        h = self._heading("4.1.3.1 IO MUX and GPIO Matrix", 40)
+        note = self._heading("Note:", 40)  # noisy
+        bullet = self._heading("· IO MUX:", 40)  # noisy (bullet prefix)
+        p = self._paragraph("body under noisy parent", 40)
+
+        lineages = build_doc_item_lineages(self._doc([h, note, bullet, p]))
+
+        # Noisy headings get the current stack without themselves being pushed
+        self.assertEqual(lineages[id(note)], ["4.1.3.1 IO MUX and GPIO Matrix"])
+        self.assertEqual(lineages[id(bullet)], ["4.1.3.1 IO MUX and GPIO Matrix"])
+        # Subsequent non-heading items see only the real parent
+        self.assertEqual(lineages[id(p)], ["4.1.3.1 IO MUX and GPIO Matrix"])
+
+    def test_unnumbered_heading_falls_back_to_docling_heading_level(self):
+        # Front-matter "Features" is level 1 per Docling (even though it
+        # has no numeric prefix). Sub-items under it should stack at 2.
+        features = self._heading("Features", 3, level=1)
+        wifi = self._heading("Wi-Fi", 3, level=2)  # sub-bullet under Features
+        p = self._paragraph("Wi-Fi details", 3)
+
+        lineages = build_doc_item_lineages(self._doc([features, wifi, p]))
+
+        self.assertEqual(lineages[id(features)], ["Features"])
+        self.assertEqual(lineages[id(wifi)], ["Features", "Wi-Fi"])
+        self.assertEqual(lineages[id(p)], ["Features", "Wi-Fi"])
+
+    def test_unnumbered_heading_without_docling_level_defaults_to_one(self):
+        h = self._heading("Revision History", 83)  # no level attr
+        p = self._paragraph("v1.0 ...", 83)
+
+        lineages = build_doc_item_lineages(self._doc([h, p]))
+
+        self.assertEqual(lineages[id(h)], ["Revision History"])
+        self.assertEqual(lineages[id(p)], ["Revision History"])
+
+    def test_handles_missing_iterate_items(self):
+        self.assertEqual(build_doc_item_lineages(SimpleNamespace()), {})
+
+    def test_unnumbered_heading_does_not_pop_numbered_ancestors(self):
+        """Regression: ``BACKUP32K_CLK`` (unnumbered bold bullet inside
+        ``4.1.3.9 XTAL32K Watchdog Timers``) must not clobber numbered
+        chapter ancestors. The numbered skeleton (4 / 4.1 / 4.1.3) should
+        remain on the stack; the unnumbered heading nests as a child
+        of the deepest numbered ancestor (level 5 under 4.1.3.9@4).
+        """
+        chap = self._heading("4 Functional Description", 36)
+        sec1 = self._heading("4.1 System", 36)
+        sec3 = self._heading("4.1.3 System Components", 40)
+        subsec = self._heading("4.1.3.9 XTAL32K Watchdog Timers", 45)
+        bullet = self._heading("BACKUP32K_CLK", 45)  # non-numbered, no Docling level
+        p_under_bullet = self._paragraph("body under BACKUP32K_CLK", 45)
+        next_numbered = self._heading("4.2 Peripherals", 51)
+        p_under_next = self._paragraph("peripherals body", 51)
+
+        lineages = build_doc_item_lineages(
+            self._doc([chap, sec1, sec3, subsec, bullet, p_under_bullet, next_numbered, p_under_next])
+        )
+
+        # The bullet gets nested under 4.1.3.9, keeping 4 / 4.1 / 4.1.3 alive
+        self.assertEqual(
+            lineages[id(bullet)],
+            ["4 Functional Description", "4.1 System", "4.1.3 System Components", "4.1.3.9 XTAL32K Watchdog Timers", "BACKUP32K_CLK"],
+        )
+        self.assertEqual(
+            lineages[id(p_under_bullet)],
+            ["4 Functional Description", "4.1 System", "4.1.3 System Components", "4.1.3.9 XTAL32K Watchdog Timers", "BACKUP32K_CLK"],
+        )
+        # Crucial: after popping to 4.2 level 2, the chapter "4 Functional
+        # Description" is still on the stack — the unnumbered BACKUP32K_CLK
+        # never pushed anything at level 1 that could have popped the chapter.
+        self.assertEqual(lineages[id(next_numbered)], ["4 Functional Description", "4.2 Peripherals"])
+        self.assertEqual(lineages[id(p_under_next)], ["4 Functional Description", "4.2 Peripherals"])
+
+    def test_dropped_repeat_labels_do_not_pollute_stack(self):
+        # "Feature List" repeats under many numbered parents. Without
+        # filtering, it pushes as level 1 and clobbers the real chapter
+        # ancestor. With dropped_repeat_labels passed in, it must be
+        # skipped from the stack but still snapshot the current (sane)
+        # stack for chunks directly under it.
+        chap = self._heading("4 Functional Description", 36)
+        sec = self._heading("4.1 System", 36)
+        feature = self._heading("Feature List", 36)  # noisy recurring label
+        p_under_feature = self._paragraph("bullet content", 36)
+        subsec = self._heading("4.1.1 Microprocessor and Master", 36)
+        p_under_subsec = self._paragraph("subsec body", 36)
+
+        lineages = build_doc_item_lineages(
+            self._doc([chap, sec, feature, p_under_feature, subsec, p_under_subsec]),
+            dropped_repeat_labels={"Feature List"},
+        )
+
+        # Feature List itself and its paragraph inherit the numbered parents
+        self.assertEqual(
+            lineages[id(feature)],
+            ["4 Functional Description", "4.1 System"],
+        )
+        self.assertEqual(
+            lineages[id(p_under_feature)],
+            ["4 Functional Description", "4.1 System"],
+        )
+        # Crucial regression: the numbered subsection after a dropped label
+        # keeps its full ancestor chain — Feature List did not pop anything.
+        self.assertEqual(
+            lineages[id(subsec)],
+            ["4 Functional Description", "4.1 System", "4.1.1 Microprocessor and Master"],
+        )
+        self.assertEqual(
+            lineages[id(p_under_subsec)],
+            ["4 Functional Description", "4.1 System", "4.1.1 Microprocessor and Master"],
+        )
+
+    def test_build_chunk_record_uses_item_lineage_for_heading_path(self):
+        # Simulate a chunk whose first doc_item is recorded in the lineage map.
+        first_item = SimpleNamespace(
+            prov=[SimpleNamespace(page_no=40)],
+        )
+        chunk = SimpleNamespace(
+            text="UART feature bullets",
+            meta=SimpleNamespace(
+                headings=["4.2.1.1 UART Controller"],  # chunker's single-depth view
+                doc_items=[first_item],
+            ),
+        )
+        lineages = {
+            id(first_item): [
+                "4 Functional Description",
+                "4.2 Peripherals",
+                "4.2.1 Connectivity Interface",
+                "4.2.1.1 UART Controller",
+            ],
+        }
+
+        record = build_chunk_record(
+            doc_id="doc",
+            chunk_id="doc:0001",
+            chunk_index=1,
+            chunk=chunk,
+            contextualized_text="...",
+            item_lineages=lineages,
+        )
+
+        self.assertEqual(
+            record["heading_path"],
+            [
+                "4 Functional Description",
+                "4.2 Peripherals",
+                "4.2.1 Connectivity Interface",
+                "4.2.1.1 UART Controller",
+            ],
+        )
+        # section_id is the leaf (the chunker's immediate parent) —
+        # preserves sections.jsonl grouping semantics.
+        self.assertEqual(record["section_id"], "4.2.1.1 UART Controller")
+
+    def test_build_chunk_record_without_lineage_preserves_chunker_headings(self):
+        # Backward compat: if item_lineages is None or empty, fall back to
+        # chunk.meta.headings so older call sites keep working.
+        first_item = SimpleNamespace(prov=[SimpleNamespace(page_no=1)])
+        chunk = SimpleNamespace(
+            text="legacy",
+            meta=SimpleNamespace(
+                headings=["1 Overview"],
+                doc_items=[first_item],
+            ),
+        )
+
+        record = build_chunk_record(
+            doc_id="doc",
+            chunk_id="doc:0001",
+            chunk_index=1,
+            chunk=chunk,
+            contextualized_text="1 Overview\nlegacy",
+        )
+
+        self.assertEqual(record["heading_path"], ["1 Overview"])
+        self.assertEqual(record["section_id"], "1 Overview")
+
+    def test_build_chunk_records_rejects_chunk_under_noisy_toc_section(self):
+        """Regression: lineage promotion must not resurrect TOC-region chunks.
+
+        Pre-Phase-56 the filter rejected chunks with section_id in
+        ``NOISY_SECTION_IDS`` (``Contents`` / ``List of Tables`` / …).
+        With lineage promotion, section_id inherits from the breadcrumb
+        leaf, which may be a real section — so we now filter at
+        ``build_chunk_records`` on the chunker's own attribution.
+        """
+        first_item = SimpleNamespace(prov=[SimpleNamespace(page_no=7)])
+        toc_chunk = SimpleNamespace(
+            text="1.1 Nomenclature   13\n1.2 Comparison   13\n...",
+            meta=SimpleNamespace(
+                headings=["Contents"],
+                doc_items=[first_item],
+            ),
+        )
+        real_chunk = SimpleNamespace(
+            text="ESP32-S3 Series Comparison body",
+            meta=SimpleNamespace(
+                headings=["1 ESP32-S3 Series Comparison"],
+                doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=13)])],
+            ),
+        )
+
+        records = build_chunk_records(
+            doc_id="doc",
+            chunks=[toc_chunk, real_chunk],
+            contextualize=lambda c: c.text,
+        )
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["section_id"], "1 ESP32-S3 Series Comparison")
