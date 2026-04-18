@@ -4,12 +4,31 @@
 
 - 基线 PDF：`manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf` (87 页)
 - 最新 bundle：`manuals/processed/docling_bundle/esp32-s3-datasheet-en/`
-- 测试：167/167 通过
-- Counts（P55 后）：87 pages / 7 chapters / 71 tables / 47 cross_refs (43 resolved) / 85 assets / 136 sections / 309 chunks / 3 alerts
+- 测试：188/188 通过
+- Counts（P56 后）：87 pages / 7 chapters / 71 tables / 47 cross_refs (43 resolved) / 85 assets / 136 sections / 309 chunks / 3 alerts
 - Chunk coverage: 309/309（sections.jsonl 覆盖全部 chunk，零 orphan）
 - Integrity: 全部 chunk_id / table_id / asset_id / csv_path 引用零破损
+- 新增产物字段：`chunks.heading_path` 深度 1-5（之前恒为 1）、`tables.rows`（之前恒 null）、`tables.columns=[]` for TOC tables
+- Design spec: `docs/superpowers/specs/2026-04-18-docling-bundle-phase56-design.md`
 
 ## 最近 session（2026-04-18）
+
+**P56b（polish: Cont'd paragraphs / TOC columns / rows count）**：
+
+- G — document.md 里 14 条独立 `Cont'd on next page` / `Table X-Y - cont'd from previous page` 段落清掉（原来的 heading-only 清理没抓到段落形式）。新 `_CONTINUATION_PARAGRAPH_RE` 锚定行边界，inline 散文提及保留
+- D — TOC 表（`is_toc=true`）的 `columns` 改成 `[]`，不再暴露 Docling 误识别的行数据当表头（`["0","1","2"]` / `["","4.1.1.3","...","37"]`）
+- C — 所有表的 `rows` 字段从 `TableItem.data.num_rows` 填入（原来恒 null），agent 可按表大小筛选
+- 10 新测试，188/188 通过；esp32-s3 bundle counts 零回归；所有 71 张表现在都有 rows，所有 6 张 TOC 表 columns=[]
+
+**P56a（heading breadcrumbs）**：
+
+- 核心问题：chunks.jsonl 每条 chunk 的 `heading_path` 深度恒为 1，只有直接父 heading，无章节上下文。agent 做关键词搜索拿到 chunk 但看不到它属于哪个章
+- 新增 `build_doc_item_lineages`：doc 顺序遍历 `iterate_items()`，维护 `(level, text, is_numbered)` 栈，每个 item 快照当前栈。查找 key 用 `self_ref`（HybridChunker 会重新包装 DocItem，`id()` 会 miss 到；`self_ref` 稳定）
+- 层级规则：编号前缀权威（`4.1.3.5` → 4）；非编号 heading 优先用 Docling 的 `heading_level`，否则挂在最深的编号祖先之下（level = max_numbered + 1），不 pop 编号骨架（防止 `BACKUP32K_CLK` 这种章内粗体子标题把 `4 Functional Description` 顶出）
+- `dropped_repeat_labels`（Feature List 等 30x 重复标签）也从栈排除，防止污染祖先
+- `section_id` 仍是 `heading_path[-1]`，sections.jsonl 分组语义不变
+- 补漏：`build_chunk_records` 现在用 chunker 原始 leaf 判定 NOISY_SECTION_IDS 以过滤 TOC-region chunk（防止 lineage 提升把之前被 section_id 规则 reject 的 Contents / List of Tables 内容复活）
+- 9 新测试，178/178 通过；datasheet counts 零回归；UART chunks 现在正确带 `[4 Functional Description, 4.2 Peripherals, 4.2.1 Connectivity Interface, 4.2.1.1 UART Controller]` 四级链；depth 分布 19(d1)/86(d2)/92(d3)/100(d4)/12(d5)
 
 **P55（bullet-prefixed heading filter）**：
 
