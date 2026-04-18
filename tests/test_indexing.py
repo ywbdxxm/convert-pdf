@@ -1194,3 +1194,80 @@ class HeadingLineageTests(unittest.TestCase):
 
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["section_id"], "1 ESP32-S3 Series Comparison")
+
+    def test_build_chunk_records_keeps_chunk_under_continuation_marker(self):
+        """Phase 58a: ``Cont'd from previous page`` is a continuation marker,
+        not a TOC region. The list_items that follow it on a continued
+        table page are legitimate table footnotes / pin legend entries
+        and must be preserved.
+
+        ``NOISY_SECTION_IDS`` historically included both semantics; the
+        drop filter must narrow to TOC-region labels only. Lineage
+        promotion (Phase 56a) already reparents these chunks to their
+        real numbered ancestor, so the recovered chunk carries a sensible
+        ``heading_path`` instead of the continuation stub.
+        """
+        # A p.17 pin table footnote. The chunker attributes it to the
+        # continuation marker (that's the latest section_header text
+        # item before the list_item group). Lineage promotion provides
+        # the real parent via item_lineages keyed by self_ref.
+        first_item = SimpleNamespace(
+            prov=[SimpleNamespace(page_no=17)],
+            self_ref="#/texts/475",
+        )
+        footnote_chunk = SimpleNamespace(
+            text=(
+                "Power actually comes from the internal power rail supplying "
+                "power to VDD_SPI. For details, see Section 2.5.2 Power Scheme."
+            ),
+            meta=SimpleNamespace(
+                headings=["2 Pins", "Cont'd from previous page"],
+                doc_items=[first_item],
+            ),
+        )
+        item_lineages = {
+            "#/texts/475": ["2 Pins", "2.3.2 Pin Assignment"],
+        }
+
+        records = build_chunk_records(
+            doc_id="doc",
+            chunks=[footnote_chunk],
+            contextualize=lambda c: c.text,
+            item_lineages=item_lineages,
+        )
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["section_id"], "2.3.2 Pin Assignment")
+        self.assertEqual(
+            records[0]["heading_path"],
+            ["2 Pins", "2.3.2 Pin Assignment"],
+        )
+
+    def test_build_chunk_records_still_rejects_list_of_tables(self):
+        """Phase 58a: narrowing the drop filter must NOT let
+        ``List of Tables`` / ``List of Figures`` / ``List of T ables``
+        content through. These are TOC regions where the list_items
+        ARE literal TOC entries (table captions with page numbers),
+        not real content.
+        """
+        chunks = []
+        for noisy in ("List of Tables", "List of T ables", "List of Figures"):
+            chunks.append(
+                SimpleNamespace(
+                    text="Table 1-1 Nomenclature   13\nTable 2-1 Pin Map   16",
+                    meta=SimpleNamespace(
+                        headings=[noisy],
+                        doc_items=[
+                            SimpleNamespace(prov=[SimpleNamespace(page_no=10)])
+                        ],
+                    ),
+                )
+            )
+
+        records = build_chunk_records(
+            doc_id="doc",
+            chunks=chunks,
+            contextualize=lambda c: c.text,
+        )
+
+        self.assertEqual(records, [])

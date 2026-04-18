@@ -11,13 +11,34 @@ from docling_bundle.patterns import (
 )
 
 
-NOISY_SECTION_IDS = {
+# Section-id labels whose chunk content is a literal TOC dump — every
+# list_item under them is a caption + page number echoing the real TOC.
+# Dropping these chunks is safe; their contents are redundant with
+# ``toc.json`` and ``tables.index.jsonl``.
+TOC_DROP_SECTION_IDS = {
     "Contents",
     "List of Tables",
     "List of T ables",
     "List of Figures",
+}
+
+# Section-id labels that mark a CONTINUATION context on a continued
+# table page. The list_items that follow them are legitimate table
+# footnotes / pin legends / cross-references — we must NOT drop their
+# chunks. They are still excluded from TOC / sections / lineage layers
+# (they have no meaning as navigation anchors); lineage promotion
+# (:func:`build_doc_item_lineages`) reparents their chunks to the real
+# numbered ancestor so ``heading_path`` / ``section_id`` are sane.
+CONTINUATION_MARKER_SECTION_IDS = {
     "Cont'd from previous page",
 }
+
+# Backwards-compatible union: existing call sites treat this as the
+# "noisy labels at all layers" set. Keep it as the union so TOC,
+# sections, lineage, and ``should_keep_chunk_record`` all behave
+# unchanged. Only :func:`build_chunk_records` narrows to the drop
+# subset (:data:`TOC_DROP_SECTION_IDS`).
+NOISY_SECTION_IDS = TOC_DROP_SECTION_IDS | CONTINUATION_MARKER_SECTION_IDS
 
 NOISY_TEXT_PATTERNS = [
     re.compile(r"submit documentation feedback", re.IGNORECASE),
@@ -322,15 +343,24 @@ def build_chunk_records(
     records = []
     for index, chunk in enumerate(chunks, start=1):
         chunker_headings = list(getattr(chunk.meta, "headings", None) or [])
-        # Reject chunks whose chunker-attributed leaf is a hard-noisy
-        # section (Contents / List of Tables / List of Figures /
-        # Cont'd from previous page). These are TOC-only regions; the
-        # original content filter rejected them via ``section_id in
-        # NOISY_SECTION_IDS``. Lineage promotion (Phase 56) made
-        # ``section_id`` inherit from the chain's leaf, which could
-        # resurrect TOC content. Filter on the chunker's view so that
-        # keep/reject semantics are unchanged.
-        if chunker_headings and chunker_headings[-1] in NOISY_SECTION_IDS:
+        # Reject chunks whose chunker-attributed leaf is a TOC-region
+        # section (Contents / List of Tables / List of T ables /
+        # List of Figures). Their contents are literal TOC dumps (see
+        # :data:`TOC_DROP_SECTION_IDS` docstring) that duplicate
+        # ``toc.json`` / ``tables.index.jsonl``. Lineage promotion
+        # (Phase 56) made ``section_id`` inherit from the chain's leaf,
+        # which could resurrect TOC content — filter on the chunker's
+        # view so that keep/reject semantics are unchanged.
+        #
+        # Phase 58a: narrowed from ``NOISY_SECTION_IDS`` to
+        # :data:`TOC_DROP_SECTION_IDS`. ``Cont'd from previous page``
+        # lived in the old union but marks a continuation context, not
+        # a TOC dump — the list_items beneath it on continued table
+        # pages are legitimate table footnotes / pin legend entries
+        # that lineage promotion correctly reparents to the real
+        # numbered ancestor. Dropping them erased 28 chunks on the
+        # ESP32-S3 datasheet (p.16-25 pin footnotes / power legends).
+        if chunker_headings and chunker_headings[-1] in TOC_DROP_SECTION_IDS:
             continue
         record = build_chunk_record(
             doc_id=doc_id,
