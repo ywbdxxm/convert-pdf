@@ -84,6 +84,7 @@ def extract_cross_refs(
     markdown: str,
     toc: list[dict] | None = None,
     table_records: list[dict] | None = None,
+    chunk_records: list[dict] | None = None,
 ) -> list[dict]:
     """Return a flat list of cross-references with optional target-page resolution.
 
@@ -91,12 +92,18 @@ def extract_cross_refs(
     - ``kind``: "section" | "table" | "figure"
     - ``target``: the numeric/alphanumeric anchor (e.g. "4.1.3.5", "2-5")
     - ``source_page``: page on which the reference appears (1-indexed)
+    - ``source_chunk_id``: chunk containing the reference (best-effort match)
     - ``target_page``: resolved page, or ``None``
     - ``unresolved``: ``True`` when ``target_page`` could not be resolved
     - ``raw``: the matched text
+
+    ``source_chunk_id`` is populated via best-effort matching: the reference's
+    ``raw`` text is searched in chunks on the same ``source_page``. When no
+    match is found, the field is omitted (not set to ``None``).
     """
     toc = toc or []
     table_records = table_records or []
+    chunk_records = chunk_records or []
 
     refs: list[dict] = []
     current_page = 1
@@ -108,11 +115,12 @@ def extract_cross_refs(
         for match in CROSS_REF_RE.finditer(raw_line):
             kind = _normalize_kind(match.group("kind"))
             target = match.group("target").strip()
+            raw_text = match.group(0)
             record: dict = {
                 "kind": kind,
                 "target": target,
                 "source_page": current_page,
-                "raw": match.group(0),
+                "raw": raw_text,
             }
             if kind == "section":
                 target_page = _resolve_section_page(target, toc)
@@ -123,6 +131,32 @@ def extract_cross_refs(
             record["target_page"] = target_page
             if target_page is None:
                 record["unresolved"] = True
+
+            # Best-effort source_chunk_id: find chunk on same page containing raw text
+            source_chunk_id = _find_source_chunk(current_page, raw_text, chunk_records)
+            if source_chunk_id:
+                record["source_chunk_id"] = source_chunk_id
+
             refs.append(record)
 
     return refs
+
+
+def _find_source_chunk(page: int, raw_text: str, chunk_records: list[dict]) -> str | None:
+    """Return chunk_id of the first chunk on ``page`` containing ``raw_text``.
+
+    Case-insensitive substring match against chunk ``text`` field. Returns
+    ``None`` when no match is found (caller omits the field).
+    """
+    needle = raw_text.lower()
+    for chunk in chunk_records:
+        ps = chunk.get("page_start")
+        pe = chunk.get("page_end")
+        if ps is None or pe is None:
+            continue
+        if not (ps <= page <= pe):
+            continue
+        haystack = (chunk.get("text") or "").lower()
+        if needle in haystack:
+            return chunk["chunk_id"]
+    return None

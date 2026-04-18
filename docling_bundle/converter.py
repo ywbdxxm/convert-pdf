@@ -470,7 +470,7 @@ def export_document_bundle(
     pages_index = build_pages_index(chunk_records, table_records, alerts, asset_records)
     write_jsonl(paths.pages_index, pages_index)
 
-    cross_refs = extract_cross_refs(markdown_text, toc=toc, table_records=table_records)
+    cross_refs = extract_cross_refs(markdown_text, toc=toc, table_records=table_records, chunk_records=chunk_records)
     write_jsonl(paths.cross_refs, cross_refs)
 
     write_jsonl(paths.chunks, chunk_records)

@@ -140,10 +140,12 @@ def build_section_records(doc_id, chunk_records):
                 "page_start": chunk["page_start"],
                 "page_end": chunk["page_end"],
                 "chunk_count": 0,
+                "chunk_ids": [],
                 "text_preview": chunk["text"][:200],
             },
         )
         section["chunk_count"] += 1
+        section["chunk_ids"].append(chunk["chunk_id"])
         if chunk["page_start"] is not None:
             if section["page_start"] is None or chunk["page_start"] < section["page_start"]:
                 section["page_start"] = chunk["page_start"]

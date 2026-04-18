@@ -48,6 +48,7 @@ class IndexingTests(unittest.TestCase):
     def test_build_section_records_aggregates_chunks_by_section(self):
         chunks = [
             {
+                "chunk_id": "rm0090:0001",
                 "doc_id": "rm0090",
                 "section_id": "Clock / PLL",
                 "heading_path": ["Clock", "PLL"],
@@ -56,6 +57,7 @@ class IndexingTests(unittest.TestCase):
                 "text": "PLL source selection",
             },
             {
+                "chunk_id": "rm0090:0002",
                 "doc_id": "rm0090",
                 "section_id": "Clock / PLL",
                 "heading_path": ["Clock", "PLL"],
@@ -72,6 +74,7 @@ class IndexingTests(unittest.TestCase):
         self.assertEqual(sections[0]["page_start"], 10)
         self.assertEqual(sections[0]["page_end"], 12)
         self.assertEqual(sections[0]["chunk_count"], 2)
+        self.assertEqual(sections[0]["chunk_ids"], ["rm0090:0001", "rm0090:0002"])
 
     def test_build_chunk_records_filters_contents_and_continued_page_noise(self):
         chunks = [
@@ -219,7 +222,22 @@ class HeadingLevelTests(unittest.TestCase):
         self.assertEqual(infer_heading_level(""), 1)
 
 
-class PagesIndexTests(unittest.TestCase):
+    def test_build_section_records_includes_chunk_ids(self):
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "1 Overview", "heading_path": ["1 Overview"], "page_start": 1, "page_end": 1, "text": "First chunk"},
+            {"chunk_id": "doc:0002", "section_id": "1 Overview", "heading_path": ["1 Overview"], "page_start": 1, "page_end": 2, "text": "Second chunk"},
+            {"chunk_id": "doc:0003", "section_id": "2 Pins", "heading_path": ["2 Pins"], "page_start": 3, "page_end": 3, "text": "Third chunk"},
+        ]
+
+        sections = build_section_records("doc", chunks)
+
+        overview = [s for s in sections if s["section_id"] == "1 Overview"][0]
+        self.assertEqual(overview["chunk_ids"], ["doc:0001", "doc:0002"])
+        self.assertEqual(overview["chunk_count"], 2)
+
+        pins = [s for s in sections if s["section_id"] == "2 Pins"][0]
+        self.assertEqual(pins["chunk_ids"], ["doc:0003"])
+        self.assertEqual(pins["chunk_count"], 1)
     def test_builds_reverse_index_from_chunks_and_tables(self):
         chunks = [
             {"chunk_id": "doc:0001", "page_start": 1, "page_end": 1},
