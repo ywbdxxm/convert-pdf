@@ -115,32 +115,97 @@ def _columns_are_similar(a: list[str], b: list[str], minimum: int = 3) -> bool:
     return norm_a[:compare_len] == norm_b[:compare_len]
 
 
+def _pages_are_contiguous(prev_record: dict, current_record: dict) -> bool:
+    """Adjacency check: current table starts within 1 page of previous end.
+
+    Same page is allowed (Docling sometimes splits one logical table on one
+    page into multiple records). Strictly forbids backwards jumps and any
+    gap greater than one page.
+    """
+    prev_end = prev_record.get("page_end")
+    curr_start = current_record.get("page_start")
+    if prev_end is None or curr_start is None:
+        return False
+    return prev_end <= curr_start <= prev_end + 1
+
+
+_EXPLICIT_CONTINUATION_RE = re.compile(
+    r"^Table\s+(?P<target>[A-Z]?\.?\d+(?:[-.]\d+)*)\s*[-–—]\s*"
+    r"cont(?:'d|inued)?(?:\s+from\s+previous\s+page)?\s*$",
+    flags=re.IGNORECASE,
+)
+
+_PREV_CAPTION_NUMBER_RE = re.compile(
+    r"^Table\s+(?P<target>[A-Z]?\.?\d+(?:[-.]\d+)*)",
+    flags=re.IGNORECASE,
+)
+
+
+def _table_number(caption: str) -> str | None:
+    match = _PREV_CAPTION_NUMBER_RE.match(caption or "")
+    if not match:
+        return None
+    return match.group("target").replace(" ", "")
+
+
+_CONT_SUFFIX_RE = re.compile(r"\s*\(cont'd\)\s*$", flags=re.IGNORECASE)
+
+
+def _base_caption(caption: str) -> str:
+    """Strip any existing ``(cont'd)`` suffix so chained continuations stay single-suffixed."""
+    return _CONT_SUFFIX_RE.sub("", caption).rstrip()
+
+
 def propagate_continuation_captions(exported_tables: list[ExportedTable]) -> None:
-    """Let captionless tables inherit caption from the previous continuation table.
+    """Normalize multi-page table captions and inherit missing ones.
 
-    A table is treated as a continuation when:
-    - it has no caption, and
-    - the preceding engineering table has a caption, and
-    - their leading CSV column headers match.
+    Two paths, both requiring page adjacency with the previous captioned
+    engineering table:
 
-    On match, the current record gets ``caption`` = ``"<prev> (cont'd)"`` and
-    ``continuation_of`` = the preceding ``table_id``.
+    A. The current caption already declares continuation explicitly
+       (``Table X-Y - cont'd from previous page``). When the number
+       matches the previous caption, replace with ``"<prev> (cont'd)"``
+       so the whole bundle uses one consistent continuation suffix.
+
+    B. The current caption is empty AND leading column headers match the
+       previous table. Inherit ``"<prev> (cont'd)"``.
+
+    Both paths record ``continuation_of = <previous table_id>``.
+
+    The page-adjacency requirement avoids false links between unrelated
+    tables that happen to share column headers across distant pages.
     """
     previous: ExportedTable | None = None
     for exported in exported_tables:
         record = exported.record
         if record.get("label") == "document_index":
             continue
+
         caption = (record.get("caption") or "").strip()
         columns = record.get("columns") or []
 
-        if not caption and previous is not None:
+        explicit_match = _EXPLICIT_CONTINUATION_RE.match(caption) if caption else None
+
+        if previous is not None and _pages_are_contiguous(previous.record, record):
             prev_caption = (previous.record.get("caption") or "").strip()
             prev_columns = previous.record.get("columns") or []
-            if prev_caption and _columns_are_similar(columns, prev_columns):
-                record["caption"] = f"{prev_caption} (cont'd)"
+            prev_number = _table_number(prev_caption)
+
+            if explicit_match:
+                current_target = explicit_match.group("target").replace(" ", "")
+                if prev_number and current_target == prev_number:
+                    record["caption"] = f"{_base_caption(prev_caption)} (cont'd)"
+                    record["continuation_of"] = previous.record["table_id"]
+
+            elif not caption and prev_caption and _columns_are_similar(columns, prev_columns):
+                record["caption"] = f"{_base_caption(prev_caption)} (cont'd)"
                 record["continuation_of"] = previous.record["table_id"]
 
+        # Advance the "previous" cursor only when the current record has a
+        # caption that could act as a donor for later tables. A continuation
+        # table inherits caption but its own caption is now non-empty, so it
+        # will still serve as previous for its successor (allowing chained
+        # continuations like Table X-Y page 1 → page 2 → page 3).
         if (record.get("caption") or "").strip():
             previous = exported
 

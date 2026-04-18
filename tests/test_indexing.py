@@ -349,16 +349,33 @@ class TocTests(unittest.TestCase):
         self.assertEqual([e["heading"] for e in toc], ["2.3 IO Pins"])
 
     def test_drops_repeated_unnumbered_heading(self):
+        # Threshold is 3: headings repeating more than 3 times are dropped.
+        # Real-world noise ("Feature List" 29x, "Pin Assignment" 15x) is
+        # well above this; occasional 2-3x legitimate repeats survive.
         items = [
             self._heading("Feature List", 36),
             self._heading("Feature List", 37),
             self._heading("Feature List", 38),
+            self._heading("Feature List", 39),
             self._heading("4 Functional Description", 36),
         ]
 
         toc = build_toc(self._doc(items))
 
         self.assertEqual([e["heading"] for e in toc], ["4 Functional Description"])
+
+    def test_keeps_unnumbered_heading_with_small_repeat_count(self):
+        # Two or three occurrences can be legitimate (e.g. the same short
+        # non-numbered heading naturally recurring). Do not drop them.
+        items = [
+            self._heading("Overview", 1),
+            self._heading("Overview", 50),
+            self._heading("Overview", 100),
+        ]
+
+        toc = build_toc(self._doc(items))
+
+        self.assertEqual(len(toc), 3)
 
     def test_keeps_repeated_numbered_heading_variants(self):
         # Numbered headings are unique anchors even if their "short name" repeats.

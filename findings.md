@@ -1244,3 +1244,41 @@ jq -c 'select(.source_page==16)' cross_refs.jsonl
 
 - Figure 不能 resolve，因为没有 `figures.index.jsonl`
 - `and` 连接的第二引用（`see Figure 2-3 and T able 2-13`）需要 "See" prefix 在两个都适用时才抽取；当前从 47 条已覆盖大部分，精度优先于召回
+
+## 2026-04-18 Phase 41.5: Robustness Pass
+
+### 用户提醒
+
+> 确保改动对所有 PDF 普遍适用，不是只针对 datasheet 过拟合；避免让某些场景恶化。
+
+### 对 Phase 39-41 启发式的风险复核
+
+| 启发式 | 风险 | 加固 |
+|---|---|---|
+| TOC_REPEAT_DROP_THRESHOLD=2 | 2 次合法重复 heading 被误删 | 放宽到 3 |
+| Continuation 列匹配无页约束 | 远页相似列被误链为续页 | 加 page adjacency（同页或下一页） |
+| Continuation 无 backwards 守卫 | 前一表跨页时向前跳可能被误判 | 强制 page 单调不减 |
+| Docling 显式 "Table X-Y - cont'd" 不正规化 | 两种 continuation 格式 agent 要两种逻辑 | 统一正规化到 `(cont'd)` |
+| 显式 cont'd 无 number 匹配 | Docling 偶发识别错误导致跨 table number 链错 | 要求当前 target 与前表 number 一致 |
+| 链式续页后缀叠加 | `(cont'd) (cont'd)` 影响可读性 | `_base_caption` 脱掉旧后缀再加 |
+| Cross-ref 正则英文特定 | 非英文手册不能抽取 | 文档说明，不误伤 |
+| Kind 关键词列表 | 非 Espressif 厂商用不同列名导致分类失败 | 失败回落 `generic` 是安全分类 |
+
+### 实测对比（同一份 datasheet）
+
+| 指标 | Phase 41 末 | Phase 41.5 末 |
+|---|---|---|
+| TOC 条目 / 章节数 | 151 / 7 | 151 / 7 |
+| Cross-refs 抽取 / 解析 | 47 / 91% | 47 / 91% |
+| Kind 分布 | 同 | 同 |
+| 续页表检测 | 3 | 10 |
+| 续页 caption 格式 | 混合两种 | 统一 `<base> (cont'd)` |
+
+结论：所有 Phase 41.5 改动都是单向改善（同一 datasheet 下没有 regression），同时对跨厂商健壮性明显增强。
+
+### 下一轮 Phase 42-45 执行约束（写入规划）
+
+1. 每个改动前列出"在 STM32 / NXP / TI / 扫描件手册上会发生什么"
+2. 启发式默认失败时回到 `generic` / `unresolved`，不要强行分类
+3. 新功能必须配对 regression 测试覆盖相似-但-无关场景
+4. 每个 Phase 结束重跑 datasheet 并核对：已有字段值没有 regression

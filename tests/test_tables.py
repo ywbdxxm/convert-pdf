@@ -219,40 +219,108 @@ class TableExportTests(unittest.TestCase):
         self.assertEqual(classify_table_kind(["Feature", "Value"]), "generic")
         self.assertEqual(classify_table_kind([]), "generic")
 
+    def _make_table(self, table_id, page_start, page_end, caption, columns, label="table"):
+        return ExportedTable(
+            record={
+                "table_id": table_id,
+                "page_start": page_start,
+                "page_end": page_end,
+                "csv_path": f"tables/{table_id.split(':')[-1]}.csv",
+                "label": label,
+                "caption": caption,
+                "is_toc": label == "document_index",
+                "columns": columns,
+            },
+            markdown="",
+        )
+
     def test_propagate_continuation_captions_inherits_from_previous(self):
-        first = ExportedTable(
-            record={
-                "table_id": "esp32:table:0008",
-                "page_start": 16,
-                "page_end": 16,
-                "csv_path": "tables/table_0008.csv",
-                "label": "table",
-                "caption": "Table 2-1. Pin Overview",
-                "kind": "pinout",
-                "is_toc": False,
-                "columns": ["Pin No.", "Pin Name", "Pin Type"],
-            },
-            markdown="",
-        )
-        second = ExportedTable(
-            record={
-                "table_id": "esp32:table:0009",
-                "page_start": 17,
-                "page_end": 17,
-                "csv_path": "tables/table_0009.csv",
-                "label": "table",
-                "caption": "",
-                "kind": "pinout",
-                "is_toc": False,
-                "columns": ["Pin No.", "Pin Name", "Pin Type"],
-            },
-            markdown="",
-        )
+        first = self._make_table("esp32:table:0008", 16, 16, "Table 2-1. Pin Overview", ["Pin No.", "Pin Name", "Pin Type"])
+        second = self._make_table("esp32:table:0009", 17, 17, "", ["Pin No.", "Pin Name", "Pin Type"])
 
         propagate_continuation_captions([first, second])
 
         self.assertEqual(second.record["caption"], "Table 2-1. Pin Overview (cont'd)")
         self.assertEqual(second.record["continuation_of"], "esp32:table:0008")
+
+    def test_propagate_continuation_captions_inherits_on_same_page(self):
+        # Docling occasionally splits one logical table on one page into
+        # two records. Same-page adjacency should still trigger inheritance.
+        first = self._make_table("t:table:0056", 73, 73, "Table 6-9. Transmitter", ["Parameter", "Min", "Typ", "Max"])
+        second = self._make_table("t:table:0057", 73, 73, "", ["Parameter", "Min", "Typ", "Max"])
+
+        propagate_continuation_captions([first, second])
+
+        self.assertEqual(second.record["caption"], "Table 6-9. Transmitter (cont'd)")
+
+    def test_propagate_continuation_captions_skips_non_adjacent_pages(self):
+        # Two unrelated tables on distant pages with similar column headers
+        # must NOT be linked. This is the key robustness guard.
+        first = self._make_table("t:table:0001", 10, 10, "Table 1-1. Comparison", ["Feature", "Variant A", "Variant B"])
+        second = self._make_table("t:table:0050", 64, 64, "", ["Feature", "Variant A", "Variant B"])
+
+        propagate_continuation_captions([first, second])
+
+        self.assertEqual(second.record["caption"], "")
+        self.assertNotIn("continuation_of", second.record)
+
+    def test_propagate_continuation_captions_rejects_backwards_page(self):
+        # A later table that appears on an earlier page is never a continuation.
+        first = self._make_table("t:table:0001", 20, 20, "Table 1-1. Foo", ["A", "B", "C"])
+        second = self._make_table("t:table:0002", 10, 10, "", ["A", "B", "C"])
+
+        propagate_continuation_captions([first, second])
+
+        self.assertEqual(second.record["caption"], "")
+
+    def test_propagate_continuation_captions_normalizes_explicit_docling_cont_caption(self):
+        first = self._make_table("t:table:0010", 18, 18, "Table 2-2. Power-Up Glitches on Pins", ["Pin", "Glitch"])
+        second = self._make_table(
+            "t:table:0011",
+            19,
+            19,
+            "Table 2-2 - cont'd from previous page",
+            ["Pin", "Glitch"],
+        )
+
+        propagate_continuation_captions([first, second])
+
+        # Explicit continuation is normalised to match the column-match form
+        self.assertEqual(
+            second.record["caption"],
+            "Table 2-2. Power-Up Glitches on Pins (cont'd)",
+        )
+        self.assertEqual(second.record["continuation_of"], "t:table:0010")
+
+    def test_propagate_continuation_captions_explicit_cont_number_mismatch_keeps_original(self):
+        # If Docling's cont'd caption references a different table number
+        # than the previous table, we do NOT force-normalize. Safety first.
+        first = self._make_table("t:table:0010", 18, 18, "Table 2-2. Power-Up Glitches", ["Pin", "Glitch"])
+        second = self._make_table(
+            "t:table:0011",
+            19,
+            19,
+            "Table 5-9 - cont'd from previous page",
+            ["Pin", "Glitch"],
+        )
+
+        propagate_continuation_captions([first, second])
+
+        self.assertEqual(second.record["caption"], "Table 5-9 - cont'd from previous page")
+        self.assertNotIn("continuation_of", second.record)
+
+    def test_propagate_continuation_captions_chains_through_multiple_pages(self):
+        # Table X-Y spans 3 pages; the middle captionless page must still
+        # chain its continuation caption forward.
+        first = self._make_table("t:table:0001", 10, 10, "Table 1-1. Foo", ["X", "Y", "Z"])
+        second = self._make_table("t:table:0002", 11, 11, "", ["X", "Y", "Z"])
+        third = self._make_table("t:table:0003", 12, 12, "", ["X", "Y", "Z"])
+
+        propagate_continuation_captions([first, second, third])
+
+        self.assertEqual(second.record["caption"], "Table 1-1. Foo (cont'd)")
+        # Chained continuations stay single-suffixed — no "(cont'd) (cont'd)" stutter.
+        self.assertEqual(third.record["caption"], "Table 1-1. Foo (cont'd)")
 
     def test_propagate_continuation_captions_does_not_overwrite_existing(self):
         first = ExportedTable(

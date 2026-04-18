@@ -6,6 +6,18 @@
 ## Current Phase
 Phase 42: Docling Asset Naming & Index
 
+## Robustness Principle (2026-04-18)
+
+> **改动必须是对所有 PDF 普遍适用的优化，而不是只针对当前 datasheet 过拟合。**
+> **避免为改善一个场景而在另一个场景恶化。**
+>
+> 操作层：
+> - 每个启发式都要过一遍"在其他 chip vendor 手册里会发生什么"
+> - 有地理/排版/命名风险的启发式必须要有 adjacency / number-match / text-pattern 多重约束
+> - 添加 fallback 到 conservative 类（如 `generic`）而不是强行分类
+> - `kind=generic` 是安全分类，不要为了填满 kind 分类率而降低精度
+> - 测试必须覆盖：正常场景、相似但无关场景、跨 vendor 差异场景
+
 ## Phases
 ### Phase 1: Research Refresh
 - [x] 恢复上一轮 PDF 工具调研结论
@@ -311,6 +323,21 @@ Phase 42: Docling Asset Naming & Index
 - 抽取 47 条交叉引用（26 section / 17 table / 4 figure）
 - Resolve 成功率 91%（43/47），未解决全部是 Figure（后续 Phase 若新增 figure index 可覆盖）
 - 每条引用带 `source_page` / `target_page` / `raw`，可直接 jq 跳转
+
+### Phase 41.5: Robustness Pass (applied after user reminder about over-fit risk)
+- [x] 续页 caption 继承加 **page adjacency** 约束（同页或下一页才继承），防止远页相似 header 被误链
+- [x] 续页继承新增向后页守卫（禁止向前跳页）
+- [x] 识别并正规化 Docling 显式 "Table X-Y - cont'd from previous page" caption 到统一 `(cont'd)` 格式
+- [x] 续页 number 与前表 number 必须匹配才正规化（防 Docling 字符误识跨表链错）
+- [x] 支持链式续页（多页跨行时 caption 保持单后缀，不出现 `(cont'd) (cont'd)`）
+- [x] `TOC_REPEAT_DROP_THRESHOLD` 从 2 放宽到 3，保留偶发 2 次合法重复
+- [x] 新增 7 个 robustness test（113 total passing）
+- **Status:** complete
+
+**Phase 41.5 实测效果：**
+- 续页表检测 3 → 10（+7 条 Docling 显式 "- cont'd from previous page" 现在被正规化）
+- 所有 10 条 continuation 表统一成 `<base> (cont'd)` 格式，agent 可直接 `jq 'select(.continuation_of)'` 一键取全部续页
+- TOC / kind 分布 / cross-refs 数字无 regression
 
 ### Phase 42: Docling Asset Naming & Index
 - [ ] 图片重命名为 `p{page:04d}_asset_{seq:03d}.png`（基于 docling document 的 prov page）

@@ -30,7 +30,11 @@ NOISY_TOC_HEADINGS = {
 
 # A heading occurring more times than this in the document with no numbered
 # prefix is treated as a section-internal label, not a navigation anchor.
-TOC_REPEAT_DROP_THRESHOLD = 2
+# Threshold 3 keeps occasional 2x repetitions (e.g. a doc genuinely has the
+# same short non-numbered heading twice) and still removes the high-volume
+# structural noise ("Feature List", "Pin Assignment", "Note:" that repeat
+# many times in chip manuals).
+TOC_REPEAT_DROP_THRESHOLD = 3
 
 
 def infer_heading_level(heading_text: str) -> int:
