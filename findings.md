@@ -41,40 +41,55 @@
 
 **结论**：Docling 是可靠的**层次化解析器**，不是**语义理解器**。bundle 层只做**可验证的结构化后处理**，一切语义判断仍需原 PDF 核验。
 
-## 3. 当前 bundle 质量（ESP32-S3 datasheet, 87 页）
+## 3. 当前 bundle 质量（Phase 60 baseline, 2026-04-19）
 
-实测基线（Phase 54 完成状态）：
+### ESP32-S3 Datasheet（87 页）
 
-- 页数 87 / 章节 7 (is_chapter=true) / 表 71 / 非 TOC 表有 caption 63/65 (97%) / chunk 309 / section 137 / 告警 3
-- sections.jsonl 覆盖全部 309 条 chunk（orphan 率 0%）；孤立 chunk 按 doc 顺序 reparent 到前一个真实 section，不扩张其 page range
-- `tables.index` kind 分布：pinout=13 / electrical=27 / strap=1 / revision=4 / generic=20
+实测基线：
+
+- 页数 87 / 章 7 (is_chapter=true) / sections 145 (含 9 nav parent) / chunks 339 / tables 71 / cross_refs 47 (100% resolved, 43 target_id) / assets 85 / alerts 3
+- sections.jsonl 覆盖全部 339 条 chunk（orphan 率 0%）；orphan chunk 按 doc 顺序 reparent 到前一个真实 section，不扩张其 page range
+- `tables.index` kind 分布：pinout=13 / electrical=27 / strap=1 / revision=4 / generic=20 / document_index=6
 - 续页表 13 条链路，全部 `(cont'd)` 规范化 + `continuation_of` 指向父表
-- `cross_refs` 47 条，43 resolved (91%)，剩 4 全是 figure（结构性缺口）
+- `rows` 71/71 与 CSV 数据行精确对齐（扣 header row）
+- `cross_refs` 47 条 100% resolved（Figure 通过 Docling `label=caption` text 解析，P58b）；43 带 `target_id`（section/table）；4 figure 无 target_id（Docling 无 figure 全局 id）
 - `assets` 85 张图，零 missing，与 `pages.index.asset_ids` 交叉引用
-- Integrity：全部 `csv_path` / `asset.path` / `cross_refs.source_chunk_id` / `chunk_id` 引用零破损（人工扫描确认）
+- Integrity：全部 `csv_path` / `asset.path` / `cross_refs.source_chunk_id` / `chunk_id` / `section_id` / `target_id` 引用零破损
 
-**Bundle 对 agent 的典型步数**：
+### ESP32-S3 TRM（1531 页）
+
+实测基线（Phase 60 完成）：
+
+- 页数 1531 / sections 1663（含 73 nav parent）/ chunks 3793 / tables 667 / cross_refs 47 (~100% resolved) / assets 1448 / alerts 380
+- `alerts`：371 条 `table_without_caption` + 9 条 `empty_table_sidecar`（TRM 寄存器 / 指令编码表普遍无 "Table X-Y" caption，符合规则 5 契约回原 PDF）
+- pages.index 覆盖 1531/1531（Phase 60 footer-strip 修复解锁 p.1030）
+
+**Bundle 对 agent 的典型步数（datasheet）**：
 
 | 场景 | 步数 |
 |---|---|
 | GPIO14 默认功能 | 2（README → tables.index 定位 → CSV） |
 | VDD 电气参数 | 2（README Table Breakdown electrical → CSV） |
-| Section 4.1.3.5 原文 | 2（cross_refs resolve → chunk） |
+| Section 4.1.3.5 原文 | 2（cross_refs.target_id → sections.jsonl chunk_ids → chunks.jsonl） |
+| 第 4 章概览 | 1（sections.jsonl `section_id="4 Functional Description"`，nav parent 带 page range + table_ids） |
 | 找 block diagram | grep document.md（约 1-2 步） |
-| Table 2-5 被谁引用 | 1（cross_refs.jsonl filter） |
+| Table 2-5 被谁引用 | 1（cross_refs.jsonl filter target_id）|
 | 遇到不可信内容 | 1（alerts.json → 原 PDF 页） |
 
-**结论**：产物已处于"对 AI 消费足够好"的状态。继续优化的边际回报递减。
+**结论**：datasheet 基线产物已达到"对 AI 消费足够好"；TRM 规模扩展到 17×页，pattern 一致，**rule 5 契约正在发挥作用**（371 个 `table_without_caption` alert 让 agent 不误信 Docling OCR 层失败）。继续优化的边际回报递减。
 
 ## 4. 已知缺口（选择不修，按规则 5 让 agent 回原 PDF）
 
 | 缺口 | 为何不修 | Agent 感知 |
 |---|---|---|
-| Figure 没有 index，cross_refs 里 figure 引用 unresolved | 需要额外启发式识别 "Figure X-Y" caption 和关联图片，过度设计风险 | `cross_refs.jsonl` 标 `target_page: null` |
-| p.22 Table 0015 无 caption | Docling 续页列头不一致；放宽匹配会引入误匹 | `alerts.json: table_without_caption p.22` |
-| p.79 Table 0066 无 caption + 列头乱码 | OCR 原生错误，列头启发式修复会过拟合 | `alerts.json: table_without_caption p.79` |
-| p.78 字体解码偶发污染 | Docling 层问题，不在 bundle 层修 | document.md 有污染字符，agent 看到后回原 PDF |
-| TRM (1531 页) 未系统验证 | 耗时大、需用户显式许可 | Backlog Phase 46 |
+| Figure 无全局 id；cross_refs figure 无 `target_id` | Docling 结构性缺口；`target_page` 已通过 caption label 解析 | `cross_refs.jsonl` figure 无 `target_id` 字段，但 `target_page` 可用 |
+| p.22 Table 0015 / p.79 Table 0066 无 caption | Docling 续页列头不一致 / OCR 列头乱码；放宽匹配会引入误匹 | `alerts.json: table_without_caption` + 回原 PDF |
+| p.27 Table 2-9 被识别成图片 | Docling 层 | `alerts.json: table_caption_followed_by_image_without_sidecar` + fallback image path |
+| TRM 371 张表 caption 缺失 | TRM 寄存器 / 指令编码表普遍无"Table X-Y"标题；加 heuristic 识别会大量误匹 | 每张都有 `table_without_caption` alert，回原 PDF |
+| TRM 9 张表 CSV 为空 | Docling 输出空 grid；可能是图被识别成表 | `empty_table_sidecar` alert |
+| TRM `is_chapter=True` 97 条含 `1. Internal ROM 0` 类噪声 | Docling OCR 层把编号列表项升格为 section_header；跨 vendor 约束下不能用更严格的判据（会破坏 datasheet `1 ESP32-S3 Series Comparison`） | 靠 `Chapter NN` 文本关键词再做二次定位 |
+| p.78 字体解码偶发污染 | Docling 层问题，不在 bundle 层修 | document.md 有污染字符，agent 可见后回原 PDF |
+| Docling HybridChunker 把 `Table 1-1` 归到 `1.1 Nomenclature` 而非 `1.2 Comparison` | 两连续 numbered heading 之间的内容归属启发式 = 过拟合 | 可通过 `Table 1-1` 文本 grep 定位 |
 
 ## 5. 设计原则（从失败中提炼）
 
