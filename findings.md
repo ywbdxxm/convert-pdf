@@ -1547,3 +1547,115 @@ if source_chunk_id:
 - Phase 43: 代码整洁（converter.py 拆分，纯维护性）
 - Phase 44: 端到端 / CLI / bundle 链接完整性测试（安全网）
 - Phase 46: TRM 验证（需用户显式许可）
+
+## 2026-04-18 Fresh Code Audit (按 开发要求.md 重检)
+
+### bundle 产物质量：无明显异常
+
+所有高频 agent 场景仍保持 ≤2 步（Phase 47 后状态持续满足）：
+- GPIO 引脚查表：2 步
+- 电气参数查表：2 步
+- Section 内容跳转：2 步
+- chunk → 交叉引用查入边：1 步
+
+bundle 完整性：manifest 声明的 12 文件全部存在，assets 0 个 missing。
+
+### 代码质量：三个真实缺陷（非输出影响，但违反软件工程最佳实践）
+
+#### 缺陷 1（HIGH）：`utils.py` 是死代码
+- Phase 43 创建了 `utils.py`（`sha256_file`, `write_json`, `write_jsonl`）
+- **但从未被任何文件 import**
+- `converter.py` 仍然维护着自己的版本，实际在用的是 `converter.py` 里的定义
+- `utils.py` 的实现比 `converter.py` 版本差（缺少 `path.parent.mkdir()`，内存利用率低）
+- 结论：删除 `utils.py`，或将 `converter.py` 中的函数移入并正确 import
+
+#### 缺陷 2（MEDIUM）：`windows` 死代码循环
+- `export_document_bundle` 里第 394-406 行构建了一个 `windows = []` 列表
+- 该列表收集每个窗口的 status/page_start/page_end/error_count
+- **构建完后从未被读取，也未出现在 manifest 或任何输出中**
+- 对 1531 页 TRM 有 5 个窗口，这是纯浪费的计算（包括 `sorted(pages.keys())` × 5）
+- 只需要同一循环里的 `all_errors.extend(...)` 部分
+
+#### 缺陷 3（MEDIUM）：多处缺少类型注解
+不符合"软件工程最佳实践"中的 type annotation 规范：
+- `write_json(path, payload)` → payload: Any
+- `build_conversion_signature(config)` → config: RuntimeConfig | None
+- `normalize_errors(errors)` → errors: list | None
+- `convert_pdf_in_windows(..., config=None)` → config: RuntimeConfig | None
+- `export_document_bundle(results, paths=None)` → results: list, paths 类型
+
+### 优先修复建议
+
+| 优先级 | 缺陷 | 改动范围 | 收益 |
+|--------|------|----------|------|
+| HIGH | 删除 utils.py | 删 1 文件 | 消除死代码误导 |
+| MEDIUM | 移除 `windows` 死代码 | converter.py ~10 行 | 减少无效计算 |
+| MEDIUM | 补 type annotation | converter.py 7 处 | IDE 支持、文档化 |
+
+以上全部是代码质量改动，**不影响 bundle 产物输出**。
+
+## 2026-04-18 Phase 43 Code Quality Cleanup
+
+### 三个聚焦改进（零功能变更）
+
+**1. O(n²) → O(m + n log n) 优化**
+
+`inject_table_sidecars_into_markdown` 之前的实现：
+```python
+for exported_table in exported_tables:
+    match_index = markdown.find(table_markdown, cursor)  # O(m) 线性扫描
+```
+
+对于 71 个表 × 240KB markdown，约 17,000 次字符串扫描。
+
+优化后：
+```python
+# 单次 O(m) 扫描构建所有匹配
+for exported_table in exported_tables:
+    start = 0
+    while True:
+        pos = markdown.find(table_markdown, start)
+        if pos < 0: break
+        matches.append((pos, pos + len(table_markdown), i))
+        start = pos + len(table_markdown)
+# O(n log n) 排序 + O(n) 注入
+matches.sort(key=lambda x: x[0])
+```
+
+**2. SimpleNamespace → frozen dataclass**
+
+Before:
+```python
+return SimpleNamespace(
+    status=status,
+    document=document,
+    input=SimpleNamespace(page_count=cached_page_count),
+)
+```
+
+After:
+```python
+@dataclass(frozen=True)
+class CachedConversionResult:
+    status: ConversionStatus
+    document: DoclingDocument
+    errors: list[str]
+    input: CachedInputMetadata
+
+return CachedConversionResult(...)
+```
+
+收益：类型安全、不可变性、IDE 支持
+
+**3. 提取 utils.py**
+
+移动 `sha256_file`, `write_json`, `write_jsonl` 到独立模块，减少重复。
+
+### 跳过的改动
+
+- **converter.py 拆分**：546 行在可接受范围，拆分风险/收益比不划算
+- **ruff/black 格式化**：项目未安装这些工具
+
+### 测试结果
+
+123 tests 全部通过，零回归。

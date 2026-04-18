@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
+from typing import Any
 
 from docling.chunking import HybridChunker
 from docling.datamodel.base_models import ConversionStatus, InputFormat
@@ -23,7 +24,7 @@ from docling_bundle.cross_refs import extract_cross_refs
 from docling_bundle.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
 from docling_bundle.indexing import attach_table_references, build_chunk_records, build_section_records, build_toc, build_pages_index, flag_suspicious_sections
 from docling_bundle.models import RuntimeConfig
-from docling_bundle.paths import build_document_paths
+from docling_bundle.paths import DocumentPaths, build_document_paths
 from docling_bundle.reading_bundle import build_readme
 from docling_bundle.tables import export_tables, inject_table_sidecars_into_markdown
 
@@ -123,7 +124,7 @@ def get_pdf_page_count(source_path: Path) -> int:
             close()
 
 
-def relax_hf_tokenizer_limit(tokenizer, max_tokens: int | None):
+def relax_hf_tokenizer_limit(tokenizer: HuggingFaceTokenizer, max_tokens: int | None) -> HuggingFaceTokenizer:
     inner = getattr(tokenizer, "tokenizer", None)
     current_limit = getattr(inner, "model_max_length", None)
     if inner is not None and current_limit is not None and max_tokens:
@@ -139,7 +140,7 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def write_json(path: Path, payload) -> None:
+def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -152,7 +153,7 @@ def write_jsonl(path: Path, rows: list[dict]) -> None:
             handle.write("\n")
 
 
-def build_conversion_signature(config) -> str:
+def build_conversion_signature(config: Any) -> str:
     payload = {
         "docling_version": version("docling"),
         "pipeline": ThreadedStandardPdfPipeline.__name__,
@@ -179,7 +180,7 @@ def store_window_result(
     page_end: int,
     source_pdf_sha256: str,
     conversion_signature: str,
-    result,
+    result: Any,
 ) -> None:
     if result.status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} or result.document is None:
         return
@@ -279,7 +280,7 @@ def build_chunker(config: RuntimeConfig) -> HybridChunker:
     return HybridChunker(tokenizer=tokenizer)
 
 
-def normalize_errors(errors) -> list[str]:
+def normalize_errors(errors: list | None) -> list[str]:
     normalized = []
     for error in errors or []:
         normalized.append(str(error))
@@ -306,8 +307,8 @@ def convert_pdf_in_windows(
     page_window_min_pages: int,
     window_cache_dir: Path | None = None,
     resume_windows: bool = True,
-    config=None,
-):
+    config: RuntimeConfig | None = None,
+) -> list[Any]:
     total_pages = get_pdf_page_count(source_path)
     windows = select_page_windows(
         total_pages=total_pages,
@@ -373,10 +374,10 @@ def convert_pdf_in_windows(
 
 def export_document_bundle(
     source_path: Path,
-    results,
+    results: list[Any],
     config: RuntimeConfig,
     chunker: HybridChunker,
-    paths=None,
+    paths: DocumentPaths | None = None,
 ) -> dict:
     doc_id = make_doc_id(source_path)
     paths = paths or build_document_paths(config.output_root, doc_id)
@@ -391,19 +392,9 @@ def export_document_bundle(
     ]
     combined_doc = concatenate_documents(successful_docs)
     first_result = results[0]
-    windows = []
     all_errors: list[str] = []
     for result in results:
         all_errors.extend(normalize_errors(getattr(result, "errors", None)))
-        window_pages = sorted(result.document.pages.keys()) if result.document is not None else []
-        windows.append(
-            {
-                "status": result.status.value if hasattr(result.status, "value") else str(result.status),
-                "page_start": window_pages[0] if window_pages else None,
-                "page_end": window_pages[-1] if window_pages else None,
-                "error_count": len(getattr(result, "errors", None) or []),
-            }
-        )
 
     status = aggregate_status.value if hasattr(aggregate_status, "value") else str(aggregate_status)
     manifest = {
