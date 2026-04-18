@@ -43,9 +43,9 @@
 
 ## 3. 当前 bundle 质量（ESP32-S3 datasheet, 87 页）
 
-实测基线（Phase 52 完成状态）：
+实测基线（Phase 53 完成状态）：
 
-- 页数 87 / 章节 7 (is_chapter=true) / 表 71 / 非 TOC 表有 caption 63/65 (97%) / chunk 309 / section 140 / 告警 3
+- 页数 87 / 章节 7 (is_chapter=true) / 表 71 / 非 TOC 表有 caption 63/65 (97%) / chunk 309 / section 138 / 告警 3
 - `tables.index` kind 分布：pinout=13 / electrical=27 / strap=1 / revision=4 / generic=20
 - 续页表 13 条链路，全部 `(cont'd)` 规范化 + `continuation_of` 指向父表
 - `cross_refs` 47 条，43 resolved (91%)，剩 4 全是 figure（结构性缺口）
@@ -63,7 +63,7 @@
 | Table 2-5 被谁引用 | 1（cross_refs.jsonl filter） |
 | 遇到不可信内容 | 1（alerts.json → 原 PDF 页） |
 
-**结论**：产物已处于"对 AI 消费足够好"的状态。继续优化的边际回报递减，Phase 52 为用户明确的停止点。
+**结论**：产物已处于"对 AI 消费足够好"的状态。继续优化的边际回报递减。
 
 ## 4. 已知缺口（选择不修，按规则 5 让 agent 回原 PDF）
 
@@ -91,6 +91,8 @@ Phase 51 发现的 caption ordering bug 示范了这一点：`propagate_continua
 ### 5.3 两层过滤要同步
 
 TOC 过滤 `NOISY_TOC_HEADINGS`，sections 构建也必须过滤——否则 `"Note:"` 在一个索引里消失、在另一个索引里聚合 62% 文档（Phase 51 ghost section bug）。Single source of truth 为过滤规则。
+
+Phase 53 同类 bug 再现：`build_toc` 用 `TOC_REPEAT_DROP_THRESHOLD` 过滤高频无编号 heading（`Feature List` / `Pin Assignment`），`build_section_records` 漏掉同一规则 → 两个 ghost section 刚好压在 30% suspicious 阈值之下溜过。解决办法是把 heading-occurrence 计数和 repeat-drop 规则提成 `collect_heading_occurrences` / `compute_dropped_repeat_labels` 共享 helper，converter 算一次传给两层。**规则原文级别统一，不光是过滤集合统一**。
 
 ### 5.4 不改 assets 文件名
 
@@ -120,15 +122,6 @@ docling_bundle/patterns.py       → 共享正则（被 indexing / tables / aler
 
 详细产物契约见 `docs/architecture.md`。
 
-## 7. Backlog（保留但不追）
-
-| 项 | 价值 | 为什么不做 |
-|---|---|---|
-| Phase 44 端到端集成测试 / CLI 覆盖 / 错误路径 | 中（安全网） | 当前 153 单元测试对实际 bug 已充分 |
-| Phase 46 TRM (1531 页) 验证 | 中 | 耗时大，需用户许可 |
-| Figure index / figure cross-ref resolve | 中 | 需要额外启发式，风险 > 收益 |
-| converter.py 拆分（595 行） | 低 | 可读性足够，拆分 churn 风险大 |
-| bundle 体积优化（assets 剪枝） | 低 | 证据完整性优先 |
 
 ## 8. 参考资料
 

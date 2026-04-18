@@ -183,6 +183,5 @@ Bundle 规模：`document.md` 239 KB / `document.json` 12 MB / `document.html` 2
 - **不追 bundle 体积最小**：证据完整性优先
 - **启发式必须有 alert 兜底**：任何失败可见，不静默降级
 - **测试数据只用 `esp32-s3_datasheet_en.pdf`**：TRM 验证需显式许可
-- **Phase 52 起停止 feature 扩展**：除非新 PDF 暴露新类 bug，不再优化
 
 完整决策历史在 `task_plan.md` 的 `Decisions Made` 段；实测观察在 `findings.md`；会话日志在 `progress.md`。

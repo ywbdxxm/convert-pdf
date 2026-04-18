@@ -27,7 +27,16 @@ from docling_bundle.assets_index import build_assets_index
 from docling_bundle.config import build_pdf_pipeline_options
 from docling_bundle.cross_refs import extract_cross_refs
 from docling_bundle.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
-from docling_bundle.indexing import attach_table_references, build_chunk_records, build_section_records, build_toc, build_pages_index, flag_suspicious_sections
+from docling_bundle.indexing import (
+    attach_table_references,
+    build_chunk_records,
+    build_pages_index,
+    build_section_records,
+    build_toc,
+    collect_heading_occurrences,
+    compute_dropped_repeat_labels,
+    flag_suspicious_sections,
+)
 from docling_bundle.models import RuntimeConfig
 from docling_bundle.paths import DocumentPaths, build_document_paths
 from docling_bundle.reading_bundle import build_readme
@@ -485,7 +494,17 @@ def export_document_bundle(
         chunks=chunks,
         contextualize=chunker.contextualize,
     )
-    section_records = build_section_records(doc_id=doc_id, chunk_records=chunk_records)
+    # Compute the repeat-label drop set once from the source doc and share it
+    # with both sections and the TOC. Keeps both layers on the same rule for
+    # "Feature List" / "Pin Assignment" style recurring sub-labels that would
+    # otherwise aggregate into ghost sections in sections.jsonl.
+    heading_occurrences = collect_heading_occurrences(combined_doc)
+    dropped_repeat_labels = compute_dropped_repeat_labels(heading_occurrences)
+    section_records = build_section_records(
+        doc_id=doc_id,
+        chunk_records=chunk_records,
+        dropped_repeat_labels=dropped_repeat_labels,
+    )
     flag_suspicious_sections(section_records, page_count=manifest["page_count"])
     tables = [item for item, _level in combined_doc.iterate_items() if isinstance(item, TableItem)]
     exported_tables = export_tables(doc_id=doc_id, tables=tables, tables_dir=paths.tables_dir, doc=combined_doc)

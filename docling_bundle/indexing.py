@@ -126,7 +126,12 @@ def build_chunk_record(doc_id, chunk_id, chunk_index, chunk, contextualized_text
     }
 
 
-def build_section_records(doc_id, chunk_records):
+def build_section_records(
+    doc_id,
+    chunk_records,
+    *,
+    dropped_repeat_labels: set[str] | None = None,
+):
     """Aggregate chunks into section records, skipping noisy local labels.
 
     ``NOISY_TOC_HEADINGS`` (``Note:`` / ``Notes:`` / etc.) are section-internal
@@ -134,11 +139,20 @@ def build_section_records(doc_id, chunk_records):
     filters them via :func:`build_toc`; dropping them here too keeps both
     navigation layers consistent and prevents ghost sections that span a
     large fraction of the document by aggregating scattered paragraphs.
+
+    ``dropped_repeat_labels`` is an optional set of heading texts that the TOC
+    dropped via the repeat-count rule (``Feature List``, ``Pin Assignment`` —
+    unnumbered sub-labels that appear many times across the doc). Without this
+    filter their chunks aggregate into one giant ghost section spanning most
+    of the document; the TOC already hides them as navigation anchors.
     """
+    dropped = dropped_repeat_labels or set()
     grouped = {}
     for chunk in chunk_records:
         section_id = chunk["section_id"]
         if section_id in NOISY_TOC_HEADINGS:
+            continue
+        if section_id in dropped:
             continue
         section = grouped.setdefault(
             section_id,
@@ -277,18 +291,13 @@ def _is_noisy_toc_heading(text: str) -> bool:
     return False
 
 
-def build_toc(doc, section_records: list[dict] | None = None) -> list[dict]:
-    """Build a pruned hierarchical table of contents from the Docling document.
+def _collect_toc_raw_entries(doc) -> list[dict]:
+    """Collect ``(heading, page)`` pairs that pass the base noise filter.
 
-    Two-pass filter:
-    1. Drop headings matching noisy names, noisy patterns, or table captions.
-    2. Drop non-numbered headings that repeat more than TOC_REPEAT_DROP_THRESHOLD
-       times — they are section-internal labels, not navigation anchors.
-
-    Adds metadata:
-    - ``is_chapter``: True for numbered top-level headings (``1 Foo``, ``2 Bar``)
-    - ``suspicious``: True when the heading matches a suspicious section
-      (heading-detection error from ``flag_suspicious_sections``)
+    Shared between :func:`build_toc` and :func:`collect_heading_occurrences`
+    so both layers observe the same "candidate heading" set before counting.
+    Filters applied here: heading-item check, empty text, ``_is_noisy_toc_heading``
+    (NOISY_SECTION_IDS / NOISY_TOC_HEADINGS / table-caption pattern / noisy-text).
     """
     if not hasattr(doc, "iterate_items"):
         return []
@@ -303,8 +312,54 @@ def build_toc(doc, section_records: list[dict] | None = None) -> list[dict]:
         if _is_noisy_toc_heading(text):
             continue
         raw.append({"heading": text, "page": _first_page(item)})
+    return raw
+
+
+def collect_heading_occurrences(doc) -> dict:
+    """Count how many times each (non-noise) heading text appears in ``doc``.
+
+    The returned mapping reflects post-noise-filter occurrences so it matches
+    the candidate set :func:`build_toc` sees. Used by the converter to derive
+    ``dropped_repeat_labels`` once and share it with :func:`build_section_records`.
+    """
+    return dict(Counter(entry["heading"] for entry in _collect_toc_raw_entries(doc)))
+
+
+def compute_dropped_repeat_labels(
+    occurrences,
+    threshold: int = TOC_REPEAT_DROP_THRESHOLD,
+) -> set[str]:
+    """Return the set of unnumbered headings that repeat more than ``threshold`` times.
+
+    Numbered headings are never dropped — a numbered prefix is a unique
+    navigation anchor regardless of literal-text repetition across a doc.
+    """
+    return {
+        heading
+        for heading, count in occurrences.items()
+        if count > threshold and not _is_numbered_heading(heading)
+    }
+
+
+def build_toc(doc, section_records: list[dict] | None = None) -> list[dict]:
+    """Build a pruned hierarchical table of contents from the Docling document.
+
+    Two-pass filter:
+    1. Drop headings matching noisy names, noisy patterns, or table captions.
+    2. Drop non-numbered headings that repeat more than TOC_REPEAT_DROP_THRESHOLD
+       times — they are section-internal labels, not navigation anchors.
+
+    Adds metadata:
+    - ``is_chapter``: True for numbered top-level headings (``1 Foo``, ``2 Bar``)
+    - ``suspicious``: True when the heading matches a suspicious section
+      (heading-detection error from ``flag_suspicious_sections``)
+    """
+    raw = _collect_toc_raw_entries(doc)
+    if not raw:
+        return []
 
     counts = Counter(entry["heading"] for entry in raw)
+    dropped = compute_dropped_repeat_labels(counts)
     suspicious_headings = {
         record.get("section_id")
         for record in (section_records or [])
@@ -314,9 +369,9 @@ def build_toc(doc, section_records: list[dict] | None = None) -> list[dict]:
     toc: list[dict] = []
     for entry in raw:
         text = entry["heading"]
-        is_numbered = _is_numbered_heading(text)
-        if not is_numbered and counts[text] > TOC_REPEAT_DROP_THRESHOLD:
+        if text in dropped:
             continue
+        is_numbered = _is_numbered_heading(text)
         level = infer_heading_level(text)
         record: dict = {
             "heading": text,

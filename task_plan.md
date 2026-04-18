@@ -6,12 +6,6 @@
 
 评价标准只有一个：**agent 实际查阅 `manuals/processed/docling_bundle/<doc_id>/` 时的使用体验**（见 `开发要求.md`）。
 
-## Current Phase
-
-**Phase 52 complete — 用户宣告停止点（2026-04-18）。**
-
-除非新 PDF 暴露新类问题，不再继续扩展 `docling_bundle`。未落地的 Phase 44（测试安全网）和 Phase 46（TRM 验证）保留为 backlog。
-
 ## Robustness Principle
 
 > **改动必须对所有 PDF 普遍适用，不为单一 datasheet 过拟合。**
@@ -41,33 +35,15 @@
 
 **P45 (README 可读性)**：章节大纲 + 表格分布 + cross-ref 摘要 + alert fallback image 都直接进 `README.md`，agent 无需先 `jq`。
 
-**P47–P52 (六轮深度审计)**：
+**P47–P53 (七轮深度审计)**：
 
 - P47：manifest `chunk_count` / `section_count` 补齐；独立页码行 / `T able` OCR 断词清理；`_clean_markdown_ocr_artifacts` 辅助函数
 - P48：`backfill_table_captions_from_markdown` prefix bug（`Table sidecars:` vs `Table sidecar:` 单复数不一致）+ `Revision History` 等短标题 caption fallback
 - P49：Docling MultiIndex flatten 产生的 `X.X` 镜像列头收敛
 - P50：`## Cont'd from previous page` H2 markdown 清理 + `classify_table_kind` electrical/timing 放宽到 ≥2 of {min, typ, max} word-boundary
 - P51：**caption 排序 bug**——`export_tables` 在 backfill 之前误跑 `propagate_continuation_captions` 导致错链；`NOISY_TOC_HEADINGS` 同步到 `build_section_records` 过滤 `Note:` ghost section
-- **P52（停止点）**：`detect_missing_caption_alerts` 把 Docling 漏 caption 的非 TOC 表暴露为 `table_without_caption` alert，直接指引 agent 回原 PDF
-
-### Backlog（用户触发再开）
-
-### Phase 44: Test Coverage Enhancement
-
-- [ ] 1-2 页合成 PDF 端到端集成测试（从 PDF 跑到 bundle）
-- [ ] `docling_bundle.cli.main()` 覆盖
-- [ ] 错误路径（损坏 PDF / 空输入 / 无法写 output）
-- [ ] 边界（单页 / 纯图片页 / 无表格文档）
-- [ ] Bundle 链接完整性作为独立 regression test
-- [ ] 可选：从 unittest 迁移到 pytest + fixtures
-- **Status:** pending
-
-### Phase 46: TRM Validation
-
-- [ ] 用户显式许可后用 `esp32-s3_technical_reference_manual_en.pdf` (1531 页) 跑完整转换
-- [ ] 核对 toc / kind / cross_refs / assets / alerts 在大文档上的表现
-- [ ] 记录超大文档边界情况
-- **Status:** pending（需用户许可）
+- P52：2 张非 TOC 表 caption 缺失（p.22 / p.79），新增 `detect_missing_caption_alerts` 结构性检查把它们暴露成 `alerts.json` 的 `table_without_caption` 条目
+- P53：**ghost section 第二轮**——`Feature List`（30 chunks，p.36-59）/`Pin Assignment`（15 chunks，p.51-60）span 刚好低于 30% suspicious 阈值；根因是 `build_toc` 有 `TOC_REPEAT_DROP_THRESHOLD` 但 `build_section_records` 没同步 → 提取共享 helper `collect_heading_occurrences` / `compute_dropped_repeat_labels`，converter 算一次传给两层
 
 ## Decisions Made（精选）
 
@@ -83,7 +59,6 @@
 | 不改 assets 文件名 | 避免断 `document.json` / `document.html` 内部引用 |
 | `kind=generic` 是合法分类 | 规则 4：不为填满 kind 分类率而降精度 |
 | 窗口缓存默认关，只做显式容错 | 普通单次转换不承担额外复杂度 |
-| Phase 52 起停止 feature 扩展 | 用户明确"最后一轮"，12 轮迭代后已够 |
 
 ## Errors Encountered（代表性）
 

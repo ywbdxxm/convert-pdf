@@ -8,6 +8,8 @@ from docling_bundle.indexing import (
     build_pages_index,
     build_section_records,
     build_toc,
+    collect_heading_occurrences,
+    compute_dropped_repeat_labels,
     flag_suspicious_sections,
     infer_heading_level,
     section_key_from_headings,
@@ -264,6 +266,47 @@ class HeadingLevelTests(unittest.TestCase):
         self.assertIn("2.1 Pin Layout", section_ids)
         self.assertNotIn("Note:", section_ids)
         self.assertNotIn("Notes:", section_ids)
+
+    def test_build_section_records_drops_repeated_unnumbered_label_ghost_sections(self):
+        """Regression (Phase 53): "Feature List" / "Pin Assignment" style
+        repeated sub-headings must not become ghost sections that span many
+        pages. They are filtered from the TOC via the repeat-count rule; the
+        same rule must apply to sections.jsonl to keep both navigation layers
+        consistent.
+
+        Without the fix, all scattered "Feature List" chunks (from UART,
+        I2C, SPI, etc. sub-blocks) aggregate into one 24-page ghost section.
+        """
+        chunks = [
+            # Real numbered section
+            {"chunk_id": "doc:0001", "section_id": "4.2.1.1 UART", "heading_path": ["4.2.1.1 UART"], "page_start": 51, "page_end": 51, "text": "UART intro"},
+            # Ghost "Feature List" chunks scattered across the doc
+            {"chunk_id": "doc:0002", "section_id": "Feature List", "heading_path": ["Feature List"], "page_start": 36, "page_end": 36, "text": "PIE features"},
+            {"chunk_id": "doc:0003", "section_id": "Feature List", "heading_path": ["Feature List"], "page_start": 44, "page_end": 44, "text": "Timer features"},
+            {"chunk_id": "doc:0004", "section_id": "Feature List", "heading_path": ["Feature List"], "page_start": 58, "page_end": 58, "text": "PCNT features"},
+            {"chunk_id": "doc:0005", "section_id": "Feature List", "heading_path": ["Feature List"], "page_start": 59, "page_end": 59, "text": "Touch features"},
+        ]
+
+        sections = build_section_records(
+            "doc",
+            chunks,
+            dropped_repeat_labels={"Feature List"},
+        )
+
+        section_ids = {s["section_id"] for s in sections}
+        self.assertIn("4.2.1.1 UART", section_ids)
+        self.assertNotIn("Feature List", section_ids)
+
+    def test_build_section_records_keeps_labels_not_in_dropped_set(self):
+        """Backward compat: when no dropped_repeat_labels is provided, every
+        non-noisy section_id is kept (previous behavior)."""
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "Feature List", "heading_path": ["Feature List"], "page_start": 10, "page_end": 10, "text": "x"},
+        ]
+
+        sections = build_section_records("doc", chunks)
+
+        self.assertEqual([s["section_id"] for s in sections], ["Feature List"])
 
     def test_build_section_records_keeps_real_sections_intact(self):
         """Sanity guard for fix B: numbered sections and ordinary
@@ -540,3 +583,61 @@ class SuspiciousSectionTests(unittest.TestCase):
         sections = [{"section_id": "X", "page_start": 1, "page_end": 50}]
         flag_suspicious_sections(sections, page_count=None)
         self.assertNotIn("suspicious", sections[0])
+
+
+class HeadingOccurrenceTests(unittest.TestCase):
+    @staticmethod
+    def _heading(text, page, label="section_header"):
+        return SimpleNamespace(
+            label=SimpleNamespace(value=label),
+            text=text,
+            prov=[SimpleNamespace(page_no=page)],
+        )
+
+    def _doc(self, items):
+        return SimpleNamespace(iterate_items=lambda: iter((item, 0) for item in items))
+
+    def test_collect_heading_occurrences_counts_each_repeat(self):
+        items = [
+            self._heading("Feature List", 36),
+            self._heading("Feature List", 44),
+            self._heading("Feature List", 58),
+            self._heading("4.1.1.1 CPU", 36),
+            self._heading("Note:", 26),
+        ]
+
+        counts = collect_heading_occurrences(self._doc(items))
+
+        self.assertEqual(counts["Feature List"], 3)
+        self.assertEqual(counts["4.1.1.1 CPU"], 1)
+        # Note: is filtered as a pre-noise heading and does not get counted.
+        self.assertEqual(counts.get("Note:", 0), 0)
+
+    def test_collect_heading_occurrences_handles_missing_iterate_items(self):
+        counts = collect_heading_occurrences(SimpleNamespace())
+        self.assertEqual(counts, {})
+
+    def test_compute_dropped_repeat_labels_over_threshold(self):
+        # Default threshold is 3; "Feature List" x4 exceeds it.
+        counts = {"Feature List": 4, "4.1 Foo": 5, "Rare Label": 2}
+
+        dropped = compute_dropped_repeat_labels(counts)
+
+        self.assertIn("Feature List", dropped)
+
+    def test_compute_dropped_repeat_labels_keeps_numbered_headings(self):
+        # Numbered anchors must never be dropped even if their literal text
+        # somehow repeats (e.g. cross-doc concatenation, rare).
+        counts = {"4.2 Peripherals": 10}
+
+        dropped = compute_dropped_repeat_labels(counts)
+
+        self.assertNotIn("4.2 Peripherals", dropped)
+
+    def test_compute_dropped_repeat_labels_keeps_small_repeats(self):
+        # Threshold is 3; ≤ threshold keeps the heading.
+        counts = {"Overview": 3, "Features": 2, "Glossary": 1}
+
+        dropped = compute_dropped_repeat_labels(counts)
+
+        self.assertEqual(dropped, set())
