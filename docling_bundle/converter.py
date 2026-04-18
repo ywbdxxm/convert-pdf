@@ -19,7 +19,7 @@ from docling.pipeline.threaded_standard_pdf_pipeline import ThreadedStandardPdfP
 from docling_bundle.alerts import detect_markdown_alerts, detect_table_sidecar_alerts
 from docling_bundle.config import build_pdf_pipeline_options
 from docling_bundle.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
-from docling_bundle.indexing import attach_table_references, build_chunk_records, build_section_records
+from docling_bundle.indexing import attach_table_references, build_chunk_records, build_section_records, build_toc, build_pages_index, flag_suspicious_sections
 from docling_bundle.models import RuntimeConfig
 from docling_bundle.paths import build_document_paths
 from docling_bundle.reading_bundle import build_readme
@@ -406,6 +406,8 @@ def export_document_bundle(
         "chunks_index": paths.chunks.name,
         "tables_index": paths.tables_index.name,
         "tables_dir": paths.tables_dir.name,
+        "toc": paths.toc.name,
+        "pages_index": paths.pages_index.name,
     }
 
     if aggregate_status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} or combined_doc is None:
@@ -435,6 +437,7 @@ def export_document_bundle(
         contextualize=chunker.contextualize,
     )
     section_records = build_section_records(doc_id=doc_id, chunk_records=chunk_records)
+    flag_suspicious_sections(section_records, page_count=manifest["page_count"])
     tables = [item for item, _level in combined_doc.iterate_items() if isinstance(item, TableItem)]
     exported_tables = export_tables(doc_id=doc_id, tables=tables, tables_dir=paths.tables_dir, doc=combined_doc)
     table_records = [table.record for table in exported_tables]
@@ -454,6 +457,12 @@ def export_document_bundle(
     manifest["alert_count"] = len(alerts)
     write_json(paths.alerts, alerts)
 
+    toc = build_toc(combined_doc)
+    write_json(paths.toc, toc)
+
+    pages_index = build_pages_index(chunk_records, table_records, alerts)
+    write_jsonl(paths.pages_index, pages_index)
+
     write_jsonl(paths.chunks, chunk_records)
     write_jsonl(paths.sections, section_records)
     write_jsonl(paths.tables_index, table_records)
@@ -472,6 +481,8 @@ def export_document_bundle(
             chunks_index=paths.chunks.name,
             tables_index=paths.tables_index.name,
             alerts_path=paths.alerts.name,
+            toc_path=paths.toc.name,
+            pages_index_path=paths.pages_index.name,
         ),
         encoding="utf-8",
     )

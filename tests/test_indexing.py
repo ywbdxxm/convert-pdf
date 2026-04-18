@@ -5,7 +5,11 @@ from docling_bundle.indexing import (
     attach_table_references,
     build_chunk_record,
     build_chunk_records,
+    build_pages_index,
     build_section_records,
+    build_toc,
+    flag_suspicious_sections,
+    infer_heading_level,
     section_key_from_headings,
 )
 
@@ -186,3 +190,131 @@ class IndexingTests(unittest.TestCase):
 
         self.assertEqual(chunk_records[0]["table_ids"], ["esp32:table:0001"])
         self.assertEqual(section_records[0]["table_ids"], ["esp32:table:0001"])
+
+
+class HeadingLevelTests(unittest.TestCase):
+    def test_numbered_heading_single_level(self):
+        self.assertEqual(infer_heading_level("1 Overview"), 1)
+        self.assertEqual(infer_heading_level("3 Peripherals"), 1)
+
+    def test_numbered_heading_two_levels(self):
+        self.assertEqual(infer_heading_level("2.1 Pin Layout"), 2)
+        self.assertEqual(infer_heading_level("5.2 Recommended Operating Conditions"), 2)
+
+    def test_numbered_heading_three_levels(self):
+        self.assertEqual(infer_heading_level("4.1.3 Clock Control"), 3)
+
+    def test_numbered_heading_four_levels(self):
+        self.assertEqual(infer_heading_level("4.1.3.5 Power Management Unit (PMU)"), 4)
+
+    def test_appendix_heading(self):
+        self.assertEqual(infer_heading_level("A.1 Appendix Section"), 2)
+
+    def test_unnumbered_heading_defaults_to_1(self):
+        self.assertEqual(infer_heading_level("Wi-Fi"), 1)
+        self.assertEqual(infer_heading_level("Features"), 1)
+        self.assertEqual(infer_heading_level("Note:"), 1)
+
+    def test_empty_heading(self):
+        self.assertEqual(infer_heading_level(""), 1)
+
+
+class PagesIndexTests(unittest.TestCase):
+    def test_builds_reverse_index_from_chunks_and_tables(self):
+        chunks = [
+            {"chunk_id": "doc:0001", "page_start": 1, "page_end": 1},
+            {"chunk_id": "doc:0002", "page_start": 1, "page_end": 2},
+            {"chunk_id": "doc:0003", "page_start": 3, "page_end": 3},
+        ]
+        tables = [
+            {"table_id": "doc:table:0001", "page_start": 2, "page_end": 2},
+        ]
+        alerts = [
+            {"kind": "empty_table_sidecar", "page": 3},
+        ]
+
+        index = build_pages_index(chunks, tables, alerts)
+
+        self.assertEqual(len(index), 3)
+        page1 = index[0]
+        self.assertEqual(page1["page"], 1)
+        self.assertEqual(page1["chunk_ids"], ["doc:0001", "doc:0002"])
+        self.assertEqual(page1["table_ids"], [])
+
+        page2 = index[1]
+        self.assertEqual(page2["page"], 2)
+        self.assertIn("doc:0002", page2["chunk_ids"])
+        self.assertEqual(page2["table_ids"], ["doc:table:0001"])
+
+        page3 = index[2]
+        self.assertEqual(page3["page"], 3)
+        self.assertEqual(page3["alert_kinds"], ["empty_table_sidecar"])
+
+    def test_empty_inputs_returns_empty(self):
+        self.assertEqual(build_pages_index([], [], []), [])
+
+    def test_skips_chunks_without_page(self):
+        chunks = [{"chunk_id": "doc:0001", "page_start": None, "page_end": None}]
+        self.assertEqual(build_pages_index(chunks, [], []), [])
+
+
+class TocTests(unittest.TestCase):
+    def test_builds_toc_from_doc_items(self):
+        heading1 = SimpleNamespace(
+            label=SimpleNamespace(value="section_header"),
+            text="1 Overview",
+            prov=[SimpleNamespace(page_no=1)],
+        )
+        heading2 = SimpleNamespace(
+            label=SimpleNamespace(value="section_header"),
+            text="2.1 Pin Layout",
+            prov=[SimpleNamespace(page_no=15)],
+        )
+        paragraph = SimpleNamespace(
+            label=SimpleNamespace(value="paragraph"),
+            text="Some body text",
+            prov=[SimpleNamespace(page_no=2)],
+        )
+
+        doc = SimpleNamespace(
+            iterate_items=lambda: iter([(heading1, 0), (paragraph, 0), (heading2, 0)])
+        )
+
+        toc = build_toc(doc)
+
+        self.assertEqual(len(toc), 2)
+        self.assertEqual(toc[0]["heading"], "1 Overview")
+        self.assertEqual(toc[0]["level"], 1)
+        self.assertEqual(toc[0]["page"], 1)
+        self.assertEqual(toc[1]["heading"], "2.1 Pin Layout")
+        self.assertEqual(toc[1]["level"], 2)
+        self.assertEqual(toc[1]["page"], 15)
+
+    def test_empty_doc_returns_empty_toc(self):
+        self.assertEqual(build_toc(SimpleNamespace()), [])
+
+
+class SuspiciousSectionTests(unittest.TestCase):
+    def test_flags_section_spanning_over_30_percent(self):
+        sections = [
+            {"section_id": "Note:", "page_start": 7, "page_end": 60},
+            {"section_id": "2.1 Pin Layout", "page_start": 15, "page_end": 16},
+        ]
+        flag_suspicious_sections(sections, page_count=87)
+
+        self.assertTrue(sections[0].get("suspicious"))
+        self.assertIn("54/87", sections[0]["suspicious_reason"])
+        self.assertNotIn("suspicious", sections[1])
+
+    def test_does_not_flag_normal_sections(self):
+        sections = [
+            {"section_id": "1 Overview", "page_start": 1, "page_end": 5},
+        ]
+        flag_suspicious_sections(sections, page_count=100)
+
+        self.assertNotIn("suspicious", sections[0])
+
+    def test_no_crash_on_none_page_count(self):
+        sections = [{"section_id": "X", "page_start": 1, "page_end": 50}]
+        flag_suspicious_sections(sections, page_count=None)
+        self.assertNotIn("suspicious", sections[0])

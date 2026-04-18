@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
-
-TABLE_CAPTION_RE = re.compile(r"Table\s+\d+(?:-\d+)?\.\s+\S")
+from docling_bundle.patterns import TABLE_CAPTION_RE
 
 
 @dataclass(frozen=True)
@@ -23,6 +22,7 @@ def build_table_manifest_records(
     label: str,
     caption: str,
 ) -> dict:
+    is_toc = label == "document_index"
     return {
         "table_id": f"{doc_id}:table:{table_index:04d}",
         "page_start": page_start,
@@ -30,6 +30,7 @@ def build_table_manifest_records(
         "csv_path": str(csv_path),
         "label": label,
         "caption": caption,
+        "is_toc": is_toc,
     }
 
 
@@ -84,9 +85,15 @@ def _build_table_sidecars_line(record: dict) -> str:
 
 
 def _extract_context_caption(lines: list[str], sidecar_index: int) -> str:
+    """Search backwards from sidecar line for a Table caption.
+
+    Extends search range to cover more lines and also looks past
+    page_break markers, images, and empty lines.
+    """
     cursor = sidecar_index - 1
+    max_distance = 30  # look back up to 30 lines
     changed = True
-    while cursor >= 0 and changed:
+    while cursor >= 0 and changed and (sidecar_index - cursor) < max_distance:
         changed = False
         while cursor >= 0 and not lines[cursor].strip():
             cursor -= 1
@@ -95,6 +102,7 @@ def _extract_context_caption(lines: list[str], sidecar_index: int) -> str:
             lines[cursor].strip().startswith("|")
             or lines[cursor].strip() == "<!-- page_break -->"
             or lines[cursor].strip().startswith("![Image](")
+            or lines[cursor].strip().startswith("Table sidecar:")
         ):
             cursor -= 1
             changed = True

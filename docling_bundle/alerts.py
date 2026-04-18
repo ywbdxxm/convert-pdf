@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
-
-TABLE_CAPTION_RE = re.compile(r"^Table\s+\d+(?:-\d+)?\.\s+\S")
-IMAGE_REF_RE = re.compile(r"!\[Image\]\(([^)]+)\)")
+from docling_bundle.patterns import TABLE_CAPTION_RE, IMAGE_REF_RE
 
 
 def _caption_text(line: str) -> str | None:

@@ -11,6 +11,8 @@ class DocumentPaths:
     readme: Path
     alerts: Path
     manifest: Path
+    toc: Path
+    pages_index: Path
     sections: Path
     chunks: Path
     tables_index: Path
@@ -27,6 +29,8 @@ def build_document_paths(output_root: Path, doc_id: str) -> DocumentPaths:
         readme=doc_dir / "README.md",
         alerts=doc_dir / "alerts.json",
         manifest=doc_dir / "manifest.json",
+        toc=doc_dir / "toc.json",
+        pages_index=doc_dir / "pages.index.jsonl",
         sections=doc_dir / "sections.jsonl",
         chunks=doc_dir / "chunks.jsonl",
         tables_index=doc_dir / "tables.index.jsonl",

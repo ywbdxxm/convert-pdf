@@ -3,8 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
-IMAGE_REF_RE = re.compile(r"!\[Image\]\(([^)]+)\)")
+from docling_bundle.patterns import IMAGE_REF_RE
 
 
 def resolve_artifacts_dir(document_path: Path) -> Path:
