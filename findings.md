@@ -1711,3 +1711,63 @@ Docling 对 "Table" 一词的 OCR 切词是断词 bug（"T"+空格+"able"）。
 - `test_is_idempotent`: 幂等性
 
 全量 131 tests 通过。
+
+## 2026-04-18 Phase 48: Third-pass audit – discovered silent bug in caption backfill
+
+### Method
+
+After Phase 47 cleanup, did a fresh third-pass audit on the regenerated bundle
+with 5 realistic agent queries (+ deep inspection of under-used fields):
+
+- All 5 common queries answer in 1 step (kind filter, page lookup, heading search) ✓
+- 14 tables were caption-less, 8 of them non-TOC — investigated each
+
+### Root cause of caption backfill silent failure
+
+`backfill_table_captions_from_markdown` checks `line.startswith("Table sidecars:")`
+(plural "sidecars"), but the actual injected line is `"Table sidecar: ..."` (singular).
+
+The mismatch means the backfill function has been a no-op since Phase 41 when the
+injection format was changed to singular "sidecar". This silently failed — caption
+recovery was only working for tables whose own cell content contained a `Table N-N.`
+label; any table whose caption lives in surrounding markdown was lost.
+
+The existing unit test masked the bug because it also used the old "Table sidecars:"
+prefix, exercising the same wrong code path as production.
+
+### Heading-as-caption fallback
+
+Beyond the bug fix, noticed that many tables (e.g. Revision History across pages
+83-86) are titled by a section heading `## Revision History` instead of a
+`Table N-N.` caption. Added a narrow fallback:
+
+- Only when backward scan lands on a `#`-prefixed heading
+- Only when the heading text is in a small allowlist:
+  - `Revision History`
+  - `Document Change Notification`
+  - `Datasheet Versioning`
+
+This pattern is universal across chip-vendor datasheets — Revision History is
+almost always a titled section, not a numbered Table. The allowlist guarantees
+we don't misclassify "Pin Assignment" / "Features" style generic headings.
+
+### Impact
+
+- 14 → 8 tables without caption
+- 8 → 2 non-TOC tables without caption (97% coverage)
+- Revision History chain (p83-86): now has full caption chain with continuation markers
+- Table 6-6, 6-7 on p72: caption recovered (had caption in markdown, backfill just couldn't see them due to prefix bug)
+
+### Remaining 2 caption-less pinout tables
+
+p22 and p79 have garbled Docling-native column headers ("IO MUX Function 1, 2, 3.F0",
+"Pin Type Pin Providing Power") — these are Docling extraction limits, not our bug.
+They are still classified as `kind=pinout` so agents find them via kind filter.
+
+### Test safety
+
+Updated pre-existing test to use correct "Table sidecar:" prefix. Added 2 new
+tests for heading fallback: one positive case (Revision History), one negative
+case (Pin Assignment, to verify allowlist guards against over-capture).
+
+Full suite: 133/133 pass.

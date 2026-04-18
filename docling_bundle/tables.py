@@ -286,13 +286,28 @@ def _extract_context_caption(lines: list[str], sidecar_index: int) -> str:
     if cursor < 0:
         return ""
 
-    text = lines[cursor].strip()
+    raw = lines[cursor].strip()
+    was_heading = raw.startswith("#")
+    text = raw
     while text.startswith("#"):
         text = text[1:].strip()
 
     if TABLE_CAPTION_RE.match(text):
         return text
+    # Heading-as-caption fallback: some datasheets title tables via a section
+    # heading (e.g. "## Revision History", "## Datasheet Versioning") rather
+    # than a "Table N-N." caption. Accept a narrow, universally recognizable
+    # allowlist so this does not misclassify generic headings.
+    if was_heading and text in _HEADING_CAPTION_ALLOWLIST:
+        return text
     return ""
+
+
+_HEADING_CAPTION_ALLOWLIST = frozenset({
+    "Revision History",
+    "Document Change Notification",
+    "Datasheet Versioning",
+})
 
 
 def backfill_table_captions_from_markdown(markdown: str, exported_tables: list[ExportedTable]) -> None:
@@ -303,13 +318,14 @@ def backfill_table_captions_from_markdown(markdown: str, exported_tables: list[E
     if not table_map:
         return
 
-    for index, line in enumerate(markdown.splitlines()):
-        if not line.startswith("Table sidecars:"):
+    lines = markdown.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("Table sidecar:"):
             continue
         for table_id, exported_table in table_map.items():
             if f"`{table_id}`" not in line:
                 continue
-            caption = _extract_context_caption(markdown.splitlines(), index)
+            caption = _extract_context_caption(lines, index)
             if caption:
                 exported_table.record["caption"] = caption
             break

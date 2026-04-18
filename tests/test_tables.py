@@ -405,7 +405,7 @@ class TableExportTests(unittest.TestCase):
             "| Feature | Value |\n"
             "|---------|-------|\n"
             "| A       | 1     |\n\n"
-            "Table sidecars: [HTML](tables/table_0019.html) | [CSV](tables/table_0019.csv) | `stm32:table:0019`\n"
+            "Table sidecar: [CSV](tables/table_0019.csv) | `stm32:table:0019`\n"
         )
         exported_tables = [
             ExportedTable(
@@ -424,3 +424,56 @@ class TableExportTests(unittest.TestCase):
         backfill_table_captions_from_markdown(markdown, exported_tables)
 
         self.assertEqual(exported_tables[0].record["caption"], "Table 4. DFSDM implementation")
+
+    def test_backfill_recovers_caption_from_revision_history_heading(self):
+        markdown = (
+            "## Revision History\n\n"
+            "| Date | Version | Release notes |\n"
+            "|------|---------|---------------|\n"
+            "| 2024 | v1.0    | Initial       |\n\n"
+            "Table sidecar: [CSV](tables/table_0100.csv) | `esp32:table:0100`\n"
+        )
+        exported_tables = [
+            ExportedTable(
+                record={
+                    "table_id": "esp32:table:0100",
+                    "page_start": 83,
+                    "page_end": 83,
+                    "csv_path": "tables/table_0100.csv",
+                    "label": "table",
+                    "caption": "",
+                },
+                markdown="| Date | Version | Release notes |\n|------|---------|---------------|",
+            )
+        ]
+
+        backfill_table_captions_from_markdown(markdown, exported_tables)
+
+        self.assertEqual(exported_tables[0].record["caption"], "Revision History")
+
+    def test_backfill_ignores_generic_headings(self):
+        markdown = (
+            "## Pin Assignment\n\n"
+            "| Pin | Name |\n"
+            "|-----|------|\n"
+            "| 1   | VCC  |\n\n"
+            "Table sidecar: [CSV](tables/table_0200.csv) | `esp32:table:0200`\n"
+        )
+        exported_tables = [
+            ExportedTable(
+                record={
+                    "table_id": "esp32:table:0200",
+                    "page_start": 20,
+                    "page_end": 20,
+                    "csv_path": "tables/table_0200.csv",
+                    "label": "table",
+                    "caption": "",
+                },
+                markdown="| Pin | Name |\n|-----|------|",
+            )
+        ]
+
+        backfill_table_captions_from_markdown(markdown, exported_tables)
+
+        # "Pin Assignment" is a generic section heading, not a table title.
+        self.assertEqual(exported_tables[0].record["caption"], "")
