@@ -9,9 +9,8 @@ The extractor:
   ``converter.py`` emits during Markdown export
 - matches prefix-anchored references (``see`` / ``refer to`` /
   ``shown in``) to avoid false positives from table captions
-- resolves target page against ``toc`` (for Section) and
-  ``tables.index.jsonl`` (for Table) when possible
-- leaves Figure targets unresolved until a figure index exists
+- resolves target page against ``toc`` (for Section), ``tables.index.jsonl``
+  (for Table), and :func:`build_figure_page_map` (for Figure) when possible
 """
 
 from __future__ import annotations
@@ -64,6 +63,65 @@ _TABLE_CAPTION_TARGET_RE = re.compile(
     r"^Table\s+([A-Z]?\.?\d+(?:[-.]\d+)*)", flags=re.IGNORECASE
 )
 
+# Prefix-anchored ``^Figure <id>`` match. Docling emits figure titles
+# as standalone text items with ``label="caption"``; the text form is
+# typically ``Figure 2-2. ESP32-S3 Power Scheme``. Prefix-anchoring
+# avoids picking up running prose that happens to mention the phrase.
+_FIGURE_CAPTION_TARGET_RE = re.compile(
+    r"^(Figure\s+[A-Z]?\.?\d+(?:[-.]\d+)*)", flags=re.IGNORECASE
+)
+
+
+def build_figure_page_map(doc) -> dict[str, int]:
+    """Return ``{"Figure X-Y": page_no}`` from Docling's native captions.
+
+    Walks ``doc.texts`` and collects entries whose ``label == "caption"``
+    and whose text matches ``^Figure <id>``. Uses Docling's own
+    structural label — no heuristic substring matching against running
+    prose — so every PDF Docling processes contributes its ground-truth
+    figure locations without per-vendor tuning.
+
+    Figures without a ``prov[0].page_no`` (Docling cache stubs, rare
+    malformed items) are skipped silently; they stay unresolved in
+    ``cross_refs.jsonl`` rather than pointing at a wrong page.
+
+    First occurrence wins for duplicate ids — picking the later one
+    could swap to a trailing ``(cont'd)`` caption on a later page.
+    """
+    texts = getattr(doc, "texts", None) or []
+    figure_map: dict[str, int] = {}
+    for item in texts:
+        label = getattr(item, "label", None)
+        label_str = getattr(label, "value", None) or str(label)
+        if label_str != "caption":
+            continue
+        text = getattr(item, "text", "") or ""
+        match = _FIGURE_CAPTION_TARGET_RE.match(text.strip())
+        if not match:
+            continue
+        figure_id = match.group(1)
+        # Normalize internal whitespace so "Figure  2-2" and "Figure 2-2"
+        # collapse to the same key (matches the form used by the
+        # reference regex after its own whitespace normalization).
+        figure_id = re.sub(r"\s+", " ", figure_id)
+        if figure_id in figure_map:
+            continue
+        prov = getattr(item, "prov", None) or []
+        if not prov:
+            continue
+        page_no = getattr(prov[0], "page_no", None)
+        if page_no is None:
+            continue
+        figure_map[figure_id] = page_no
+    return figure_map
+
+
+def _resolve_figure_page(target: str, figure_page_map: dict[str, int]) -> int | None:
+    if not target or not figure_page_map:
+        return None
+    key = f"Figure {target.strip()}"
+    return figure_page_map.get(key)
+
 
 def _resolve_table_page(target: str, table_records: list[dict]) -> int | None:
     if not target:
@@ -85,6 +143,7 @@ def extract_cross_refs(
     toc: list[dict] | None = None,
     table_records: list[dict] | None = None,
     chunk_records: list[dict] | None = None,
+    figure_page_map: dict[str, int] | None = None,
 ) -> list[dict]:
     """Return a flat list of cross-references with optional target-page resolution.
 
@@ -104,6 +163,7 @@ def extract_cross_refs(
     toc = toc or []
     table_records = table_records or []
     chunk_records = chunk_records or []
+    figure_page_map = figure_page_map or {}
 
     refs: list[dict] = []
     current_page = 1
@@ -126,6 +186,8 @@ def extract_cross_refs(
                 target_page = _resolve_section_page(target, toc)
             elif kind == "table":
                 target_page = _resolve_table_page(target, table_records)
+            elif kind == "figure":
+                target_page = _resolve_figure_page(target, figure_page_map)
             else:
                 target_page = None
             record["target_page"] = target_page

@@ -25,7 +25,7 @@ from docling_bundle.alerts import (
 )
 from docling_bundle.assets_index import build_assets_index
 from docling_bundle.config import build_pdf_pipeline_options
-from docling_bundle.cross_refs import extract_cross_refs
+from docling_bundle.cross_refs import build_figure_page_map, extract_cross_refs
 from docling_bundle.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
 from docling_bundle.indexing import (
     attach_table_references,
@@ -566,7 +566,14 @@ def export_document_bundle(
     pages_index = build_pages_index(chunk_records, table_records, alerts, asset_records)
     write_jsonl(paths.pages_index, pages_index)
 
-    cross_refs = extract_cross_refs(markdown_text, toc=toc, table_records=table_records, chunk_records=chunk_records)
+    figure_page_map = build_figure_page_map(combined_doc)
+    cross_refs = extract_cross_refs(
+        markdown_text,
+        toc=toc,
+        table_records=table_records,
+        chunk_records=chunk_records,
+        figure_page_map=figure_page_map,
+    )
     write_jsonl(paths.cross_refs, cross_refs)
 
     write_jsonl(paths.chunks, chunk_records)
