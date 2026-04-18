@@ -7,10 +7,67 @@ import re
 from docling_bundle.patterns import TABLE_CAPTION_RE
 
 
+# Substring groups for classify_table_kind; checked in priority order.
+PINOUT_COLUMN_MARKERS = (
+    "pin no",
+    "pin name",
+    "pin type",
+    "io mux function",
+    "gpio",
+)
+STRAP_COLUMN_MARKERS = ("strapping pin",)
+REVISION_COLUMN_MARKERS = ("release notes",)
+REGISTER_COLUMN_MARKERS = ("bit field", "bit range", "field name", "bits")
+REGISTER_SECONDARY_MARKERS = ("reset", "attribute", "access")
+ELECTRICAL_COLUMN_SET = frozenset({"parameter", "min", "typ", "max"})
+TIMING_COLUMN_MARKERS = ("setup", "hold", "rise time", "fall time", "t setup", "t hold")
+
+
 @dataclass(frozen=True)
 class ExportedTable:
     record: dict
     markdown: str
+
+
+def classify_table_kind(columns: list[str]) -> str:
+    """Infer a semantic kind for an engineering table from its CSV columns.
+
+    Returns one of:
+    ``pinout`` | ``strap`` | ``register`` | ``electrical`` | ``timing``
+    | ``revision`` | ``generic``.
+    """
+    if not columns:
+        return "generic"
+    cols_lower = [str(c).lower() for c in columns]
+    col_set = set(cols_lower)
+
+    for marker in PINOUT_COLUMN_MARKERS:
+        if any(marker in col for col in cols_lower):
+            return "pinout"
+    for marker in STRAP_COLUMN_MARKERS:
+        if any(marker in col for col in cols_lower):
+            return "strap"
+    for marker in REVISION_COLUMN_MARKERS:
+        if any(marker in col for col in cols_lower):
+            return "revision"
+
+    has_register_primary = any(
+        any(marker in col for col in cols_lower) for marker in REGISTER_COLUMN_MARKERS
+    )
+    has_register_secondary = any(
+        any(marker in col for col in cols_lower) for marker in REGISTER_SECONDARY_MARKERS
+    )
+    if has_register_primary and has_register_secondary:
+        return "register"
+
+    if ELECTRICAL_COLUMN_SET.issubset(col_set):
+        return "electrical"
+
+    for marker in TIMING_COLUMN_MARKERS:
+        if any(marker in col for col in cols_lower):
+            return "timing"
+
+    return "generic"
 
 
 def build_table_manifest_records(
@@ -21,17 +78,71 @@ def build_table_manifest_records(
     csv_path: Path,
     label: str,
     caption: str,
+    columns: list[str] | None = None,
 ) -> dict:
     is_toc = label == "document_index"
-    return {
+    kind = "document_index" if is_toc else classify_table_kind(columns or [])
+    record = {
         "table_id": f"{doc_id}:table:{table_index:04d}",
         "page_start": page_start,
         "page_end": page_end,
         "csv_path": str(csv_path),
         "label": label,
         "caption": caption,
+        "kind": kind,
         "is_toc": is_toc,
     }
+    if columns:
+        record["columns"] = list(columns)
+    return record
+
+
+def _columns_are_similar(a: list[str], b: list[str], minimum: int = 3) -> bool:
+    """Return True when two CSV column headers likely describe the same table.
+
+    Checks that at least ``minimum`` leading columns match (case-insensitive,
+    whitespace-normalised). Used to detect multi-page continuation tables.
+    """
+    if not a or not b:
+        return False
+    norm_a = [" ".join(str(c).lower().split()) for c in a]
+    norm_b = [" ".join(str(c).lower().split()) for c in b]
+    if norm_a == norm_b:
+        return True
+    compare_len = min(minimum, len(norm_a), len(norm_b))
+    if compare_len < minimum:
+        return False
+    return norm_a[:compare_len] == norm_b[:compare_len]
+
+
+def propagate_continuation_captions(exported_tables: list[ExportedTable]) -> None:
+    """Let captionless tables inherit caption from the previous continuation table.
+
+    A table is treated as a continuation when:
+    - it has no caption, and
+    - the preceding engineering table has a caption, and
+    - their leading CSV column headers match.
+
+    On match, the current record gets ``caption`` = ``"<prev> (cont'd)"`` and
+    ``continuation_of`` = the preceding ``table_id``.
+    """
+    previous: ExportedTable | None = None
+    for exported in exported_tables:
+        record = exported.record
+        if record.get("label") == "document_index":
+            continue
+        caption = (record.get("caption") or "").strip()
+        columns = record.get("columns") or []
+
+        if not caption and previous is not None:
+            prev_caption = (previous.record.get("caption") or "").strip()
+            prev_columns = previous.record.get("columns") or []
+            if prev_caption and _columns_are_similar(columns, prev_columns):
+                record["caption"] = f"{prev_caption} (cont'd)"
+                record["continuation_of"] = previous.record["table_id"]
+
+        if (record.get("caption") or "").strip():
+            previous = exported
 
 
 def _stringify_label(label) -> str:
@@ -181,6 +292,9 @@ def inject_table_sidecars_into_markdown(markdown: str, exported_tables: list[Exp
 
     updated = updated.rstrip() + "\n"
     backfill_table_captions_from_markdown(updated, exported_tables)
+    # Re-run continuation propagation so tables whose caption was only
+    # recoverable from Markdown context can now donate to their successors.
+    propagate_continuation_captions(exported_tables)
     return updated
 
 
@@ -193,6 +307,7 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
 
         dataframe = table.export_to_dataframe(doc=doc)
         dataframe.to_csv(csv_path, index=False)
+        columns = [str(col) for col in dataframe.columns]
         table_html = table.export_to_html(doc=doc)
         table_markdown = table.export_to_markdown(doc=doc).strip()
 
@@ -209,9 +324,11 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
                     csv_path=Path("tables") / csv_name,
                     label=_stringify_label(getattr(table, "label", None)),
                     caption=extract_table_caption(table_markdown, table_html),
+                    columns=columns,
                 ),
                 markdown=table_markdown,
             )
         )
 
+    propagate_continuation_captions(records)
     return records

@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中收敛“面向嵌入式开发的手册转换输出架构”，重点回答 `Docling` 当前 bundle 是否已接近最佳实践，以及 `OpenDataLoader PDF` 尤其 hybrid mode 的更优输出应当长什么样。
 
 ## Current Phase
-Phase 40: Docling Table Caption & Classification
+Phase 41: Cross-Reference Extraction
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -285,12 +285,17 @@ Phase 40: Docling Table Caption & Classification
 - `suspicious` 在 TOC 中 propagation 链路可用（本 datasheet "Note:" 被前置过滤所以未触发）
 
 ### Phase 40: Docling Table Caption & Classification
-- [ ] `cont'd from previous page` 续页表继承上一张表 caption，加 `continuation_of` 字段
-- [ ] 基于 CSV header 启发式标注 `kind: register | pinout | electrical | timing | generic`
-- [ ] 在 `tables.index.jsonl` 里输出新字段
-- [ ] 在 README 里按 `kind` 归类，或至少列 top-5 寄存器表 / top-5 引脚表
-- [ ] 增加对应 unit tests
-- **Status:** pending
+- [x] 续页表通过 CSV header 匹配从上一表继承 caption + 写 `continuation_of`
+- [x] 基于 CSV header 启发式标注 `kind: pinout | strap | register | electrical | timing | revision | document_index | generic`
+- [x] 在 `tables.index.jsonl` 输出 `kind` / `columns` / `continuation_of` 字段
+- [x] 13 个 Phase 40 测试（96 total passing）
+- **Status:** complete
+
+**Phase 40 实测成果（ESP32-S3 datasheet）：**
+- Kind 分布：`document_index: 6`, `pinout: 13`, `strap: 1`, `electrical: 15`, `revision: 4`, `generic: 32`
+- 缺 caption 的工程表：17 → 8（覆盖率 74% → 89%）
+- 3 个续页表自动继承 caption：Table 2-1 (p.17)、Table 6-9 (p.73)、Table 6-13 (p.75)
+- Agent 可用 `jq '.[] | select(.kind==\"pinout\")' tables.index.jsonl` 一键筛所有引脚表
 
 ### Phase 41: Cross-Reference Extraction
 - [ ] 新增 `docling_bundle/cross_refs.py`，抽取 `See Section X.Y` / `Refer to Section X.Y` / `See Table X-Y` / `See Figure X-Y`

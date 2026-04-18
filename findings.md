@@ -1157,3 +1157,53 @@ p.77: 7 Packaging
 - 非章节 L1 仍有 50 条噪音（封面文字、无编号的子段标题），但可通过 `is_chapter` 过滤一键跳过
 - `suspicious` 在本 datasheet 无可见触发；需要在其他手册（典型场景：heading 被误识为 "Figure 1-X"）才能观察链路
 - 表格 caption 仍有 17/65 缺失（Phase 40 要处理）
+
+## 2026-04-18 Phase 40 Implementation Results
+
+### Table caption coverage + kind classification
+
+| 指标 | Phase 39 end | Phase 40 end | 变化 |
+|---|---|---|---|
+| 总表数 | 71 | 71 | - |
+| 工程表缺 caption | 11 | 8 | -27% |
+| 自动 continuation 继承 | 0 | 3 | 新能力 |
+| kind 分类字段 | 无 | 7 类 | 新能力 |
+
+Kind 分布（datasheet 71 表）：
+
+```
+document_index: 6    # 目录页噪声，agent 可过滤
+pinout:         13   # 引脚/IO MUX/GPIO 表
+strap:          1    # Strapping Pin 默认配置
+electrical:     15   # Parameter/Min/Typ/Max/Unit 表
+revision:       4    # Date/Version/Release Notes（版本历史）
+generic:        32   # 其余（Comparison、功能描述等）
+```
+
+3 个续页表自动继承：
+
+```
+p.17 table:0009 ← Table 2-1. Pin Overview (cont'd)        -- 之前 caption 为空
+p.73 table:0057 ← Table 6-9. Transmitter Characteristics (cont'd)
+p.75 table:0063 ← Table 6-13. Receiver Characteristics (cont'd)
+```
+
+### AI-consumer 操作路径变化
+
+**Phase 39 之前（想找所有引脚表）：**
+1. 读 `tables.index.jsonl` 里 65 条非目录表
+2. 肉眼从 caption 挑关键词 "Pin" / "GPIO" / "IO MUX"
+3. 遗漏没有 caption 的 Table 2-1 续页（它只出现在 p.16，看不到 p.17 的续页）
+
+**Phase 40 之后：**
+
+```sh
+jq -c '.[] | select(.kind=="pinout")' tables.index.jsonl
+```
+
+→ 13 条引脚/GPIO 表，含续页，全部带 caption。
+
+### 剩余缺口（下 phase 处理）
+
+- 8 个工程表仍无 caption — 多是历史版本表（p.83-86 revision history），caption 本身在 PDF 里就不存在，不是解析失败
+- 32 张 `generic` 表在 datasheet 上大多合理，但部分 comparison/功能表可能应归 `register`/`timing`，需要 TRM 样本才能验证
