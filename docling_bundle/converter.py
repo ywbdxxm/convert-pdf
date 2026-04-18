@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
@@ -287,6 +288,25 @@ def normalize_errors(errors: list | None) -> list[str]:
     return normalized
 
 
+_PAGE_FOOTER_NUMBER_RE = re.compile(r"(<!-- page_break -->)\n\n\d{1,3}\n\n")
+_OCR_TABLE_SPLIT_RE = re.compile(r"\bT (ables?)\b")
+
+
+def _clean_markdown_ocr_artifacts(markdown_text: str) -> str:
+    """Post-process Docling markdown to remove universally-known OCR artifacts.
+
+    - Strip standalone page-number lines that Docling detects from page footers.
+      Pattern: <!-- page_break --> followed by a lone 1-3 digit line.
+    - Fix "T able"/"T ables" split-word artifacts where Docling's layout model
+      inserts a space between the capital T and the rest of the word. Other
+      capital-letter-plus-word pairs (e.g. "V flash", "A boot") are legitimate
+      technical subscript notation and must not be touched.
+    """
+    markdown_text = _PAGE_FOOTER_NUMBER_RE.sub(r"\1\n\n", markdown_text)
+    markdown_text = _OCR_TABLE_SPLIT_RE.sub(r"T\1", markdown_text)
+    return markdown_text
+
+
 def build_window_cache_root(output_root: Path) -> Path:
     repo_root = output_root.resolve().parents[1]
     return repo_root / "tmp" / "docling_bundle-cache"
@@ -453,6 +473,8 @@ def export_document_bundle(
     table_records = [table.record for table in exported_tables]
     attach_table_references(chunk_records, section_records, table_records)
     manifest["table_count"] = len(table_records)
+    manifest["chunk_count"] = len(chunk_records)
+    manifest["section_count"] = len(section_records)
 
     markdown_text = paths.document_markdown.read_text(encoding="utf-8")
     if config.image_filter == "heuristic":
@@ -461,6 +483,7 @@ def export_document_bundle(
             picture_keep_flags(combined_doc),
         )
     markdown_text = inject_table_sidecars_into_markdown(markdown_text, exported_tables)
+    markdown_text = _clean_markdown_ocr_artifacts(markdown_text)
     paths.document_markdown.write_text(markdown_text, encoding="utf-8")
     alerts = detect_markdown_alerts(markdown_text)
     alerts.extend(detect_table_sidecar_alerts(paths.doc_dir, table_records))

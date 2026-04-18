@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中收敛“面向嵌入式开发的手册转换输出架构”，重点回答 `Docling` 当前 bundle 是否已接近最佳实践，以及 `OpenDataLoader PDF` 尤其 hybrid mode 的更优输出应当长什么样。
 
 ## Current Phase
-Phase 43 complete (second pass). Next: Phase 44（测试安全网）或用户决定。
+Phase 47 complete (output quality polish). Next: Phase 44（测试安全网）或用户决定。
 
 ## Robustness Principle (2026-04-18)
 
@@ -423,6 +423,30 @@ Phase 43 complete (second pass). Next: Phase 44（测试安全网）或用户决
 - [ ] 核对 toc / kind / cross_refs / assets 在 1531 页大文档上的表现
 - [ ] 记录大文档边界情况
 - **Status:** pending
+
+### Phase 47: Output Quality Polish (2026-04-18 datasheet rerun)
+- [x] 重跑 `esp32-s3_datasheet_en.pdf` 后系统审计输出产物
+- [x] 补全 `manifest.json` 缺失的 `chunk_count` / `section_count`
+- [x] 去除 Docling OCR 把页脚页码识别为独立文本行的 2 处残留（p.27, p.79）
+- [x] 修复 Docling OCR "T able" / "T ables" 断词残留（26 处）
+- [x] 为 CLI `--output` 加 help 文本，避免嵌套目录误用
+- [x] 新增 `_clean_markdown_ocr_artifacts` 共享函数 + 8 个单元测试
+- [x] 保持 `F image` / `V flash` / `A boot` 等合法下标符号不动
+- [x] 全量 131 个测试通过（含 8 个新测试）
+- [x] 重跑验证：TOC 151/7、Tables 71、Sections 141、Cross refs 47/43、Alerts 1 全部无回归
+- **Status:** complete
+
+**Phase 47 实测成果（ESP32-S3 datasheet）：**
+- 独立页码行：2 → 0（页脚噪音清理）
+- `T able` 断词：25 → 0
+- `T ables` 断词：1 → 0
+- `manifest.json`：新增 `chunk_count=309` / `section_count=141`
+- 合法符号保持不动：`F image=8`, `V flash=3`, `A boot=2` 全部完整保留
+
+**普遍适用性验证：**
+- 独立页码清除只在 `<!-- page_break -->` 紧跟的数字行上生效，行内数字不会被误删
+- `T able(s)` 修复仅针对"T"+空格+"able(s)"模式，避免误伤其他大写字母+空格+单词的技术符号
+- 两个修复都带测试保护，包括"不误伤合法内容"的边界用例
 
 ## Key Questions
 1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？

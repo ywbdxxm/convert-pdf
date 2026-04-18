@@ -10,7 +10,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     convert = subparsers.add_parser("convert")
     convert.add_argument("--input", action="append", required=True)
-    convert.add_argument("--output", required=True)
+    convert.add_argument(
+        "--output",
+        required=True,
+        help="Output root directory. Bundles are written to <output>/docling_bundle/<doc-id>/",
+    )
     convert.add_argument(
         "--enable-window-cache",
         action="store_true",

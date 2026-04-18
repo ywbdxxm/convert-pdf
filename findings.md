@@ -1659,3 +1659,55 @@ return CachedConversionResult(...)
 ### 测试结果
 
 123 tests 全部通过，零回归。
+
+## 2026-04-18 Phase 47: 重跑 ESP32-S3 datasheet 的深度审计
+
+### 审计方法
+
+用 `/home/qcgg/workspace/convert-pdf/开发要求.md` 三条原则作为对齐标准：
+1. 目标：PDF → agent 查阅友好的产物
+2. 标准：实际查阅 `manuals/processed` 的效果
+3. 注意：避免过拟合、保证普遍适用、修明显异常
+
+删掉旧 bundle，重跑 `esp32-s3_datasheet_en.pdf`，然后逐文件审计。
+
+### 发现的异常
+
+| 异常 | 严重程度 | 普遍性 |
+|------|---------|-------|
+| `manifest.json` 缺 `chunk_count` / `section_count` | BUG | 所有 PDF |
+| `document.md` 有 2 个独立页码行 ("27", "79") | 噪音 | 几乎所有带页脚的 PDF |
+| `document.md` 有 26 处 "T able" / "T ables" OCR 断词 | 噪音 | 所有 Docling 处理的 PDF |
+| CLI `--output` 无 help 文本，易误用导致嵌套目录 | UX | 所有新用户 |
+
+### 确认无需修复的问题
+
+| 问题 | 理由 |
+|------|------|
+| 字体编码乱码 `)25(+23(...` (p.78) | Docling 无法解码的自定义 PDF 字体，不是我们的 bug |
+| `sections.jsonl` 仍含 "Table 2-9..." 伪 section | 设计如此：sections 是原始数据，toc.json 才是过滤后的导航 |
+| TOC 中 43 个非编号非章节条目 | Phase 39 已保守过滤，继续删会伤真实子标题 |
+| 个别 L1 噪音标题 (e.g. "· IO MUX:") | Docling 布局检测极限，过滤需启发式会带来过拟合风险 |
+
+### 关键决策：为什么 "T able" 要修，而 "V flash" 不能修
+
+Docling 对 "Table" 一词的 OCR 切词是断词 bug（"T"+空格+"able"）。
+但对技术文档里 `V_flash` / `F_image` / `A_boot` 这类符号（大写字母+下标），
+在 markdown 里表达为 "V flash" / "F image" / "A boot"，这是正确内容，不能动。
+
+检查办法：列出所有 `[A-Z] [a-z]{3,}` 模式，逐个看上下文：
+- 只有 `T able(s)` 在所有上下文都是错误的
+- `F image` 都在 "F = F image + N MHz" RF 公式里，是正确的image frequency 符号
+- `V flash`, `V coprocessor`, `V supply` 都是 voltage rail 符号
+- `A boot`, `A full` 都是 current 或信号名
+
+所以修复必须精确到 `T able(s)`，不能用通用 `[A-Z] ` 模式。
+
+### 测试安全
+
+加了 8 个新单元测试，关键在边界用例：
+- `test_preserves_digits_that_are_not_standalone`: 保护行内数字
+- `test_does_not_touch_legitimate_capital_space_words`: 保护合法下标符号
+- `test_is_idempotent`: 幂等性
+
+全量 131 tests 通过。
