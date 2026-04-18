@@ -83,6 +83,54 @@ class CleanMarkdownOcrArtifactsTests(unittest.TestCase):
 
         self.assertEqual(once, twice)
 
+    def test_strips_standalone_cont_d_from_previous_page_heading(self):
+        # Docling OCR promotes the continuation annotation to an H2
+        # heading. It is filtered from TOC/sections but remains in
+        # document.md and confuses any heading-based navigation.
+        markdown = (
+            "![Image](assets/foo.png)\n\n"
+            "<!-- page_break -->\n\n"
+            "## Cont'd from previous page\n\n"
+            "| Pin | Name |\n"
+            "|-----|------|\n"
+            "| 1   | VCC  |\n"
+        )
+
+        result = _clean_markdown_ocr_artifacts(markdown)
+
+        self.assertNotIn("## Cont'd from previous page", result)
+        # Surrounding structure stays intact.
+        self.assertIn("<!-- page_break -->", result)
+        self.assertIn("| Pin | Name |", result)
+        self.assertIn("![Image](assets/foo.png)", result)
+
+    def test_strips_cont_d_heading_with_level_one(self):
+        # Some documents surface it as a single-# heading instead of ##.
+        markdown = "<!-- page_break -->\n\n# Cont'd from previous page\n\n| A | B |\n"
+
+        result = _clean_markdown_ocr_artifacts(markdown)
+
+        self.assertNotIn("Cont'd from previous page", result)
+        self.assertIn("| A | B |", result)
+
+    def test_strips_cont_d_heading_with_continued_spelling(self):
+        # "Continued from previous page" is the long-form variant.
+        markdown = "<!-- page_break -->\n\n## Continued from previous page\n\n| A | B |\n"
+
+        result = _clean_markdown_ocr_artifacts(markdown)
+
+        self.assertNotIn("Continued from previous page", result)
+        self.assertIn("| A | B |", result)
+
+    def test_preserves_cont_d_text_inside_paragraph(self):
+        # Only standalone heading lines are stripped; inline prose mentions
+        # must be preserved as a universal safety rule.
+        markdown = "The table is cont'd from previous page as usual.\n"
+
+        result = _clean_markdown_ocr_artifacts(markdown)
+
+        self.assertIn("cont'd from previous page", result)
+
 
 if __name__ == "__main__":
     unittest.main()

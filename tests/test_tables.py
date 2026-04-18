@@ -220,6 +220,74 @@ class TableExportTests(unittest.TestCase):
         self.assertEqual(classify_table_kind(["Feature", "Value"]), "generic")
         self.assertEqual(classify_table_kind([]), "generic")
 
+    def test_classify_table_kind_electrical_min_max_only(self):
+        # Absolute maximum ratings have Min/Max but no Typ; universally seen
+        # in every vendor's datasheet.
+        self.assertEqual(
+            classify_table_kind(["Parameter", "Description", "Min", "Max", "Unit"]),
+            "electrical",
+        )
+
+    def test_classify_table_kind_electrical_with_unit_suffix_columns(self):
+        # RF / audio / power tables often suffix values with units, e.g.
+        # ``Min (dBm) | Typ (dBm) | Max (dBm)``. Classification must not
+        # hinge on the column name being exactly "min".
+        self.assertEqual(
+            classify_table_kind(["Rate", "Min (dBm)", "Typ (dBm)", "Max (dBm)"]),
+            "electrical",
+        )
+
+    def test_classify_table_kind_electrical_with_symbol_column(self):
+        # Some datasheets use ``Symbol`` instead of ``Parameter``.
+        self.assertEqual(
+            classify_table_kind(["Symbol", "Min", "Max", "Unit"]),
+            "electrical",
+        )
+
+    def test_classify_table_kind_electrical_with_parameter_suffix(self):
+        # "Parameter 1" / "Parameter 2" variants must not defeat classification.
+        self.assertEqual(
+            classify_table_kind(
+                ["Parameter 1", "Description", "Min", "Typ", "Max", "Unit"]
+            ),
+            "electrical",
+        )
+
+    def test_classify_table_kind_timing_via_time_unit_in_columns(self):
+        # Tables with two of min/typ/max AND a time-unit suffix are timing.
+        self.assertEqual(
+            classify_table_kind(["Parameter", "Min (ns)", "Typ (ns)", "Max (ns)"]),
+            "timing",
+        )
+        self.assertEqual(
+            classify_table_kind(["Parameter", "Min (µs)", "Max (µs)"]),
+            "timing",
+        )
+
+    def test_classify_table_kind_requires_two_mtm_signals(self):
+        # Conservative: only one of min/typ/max → stay generic. This keeps
+        # the classifier from over-reaching on stat / peak / range columns.
+        self.assertEqual(
+            classify_table_kind(["Parameter", "Description", "Min (µs)"]),
+            "generic",
+        )
+        self.assertEqual(
+            classify_table_kind(["Parameter", "Description", "Typ", "Unit"]),
+            "generic",
+        )
+
+    def test_classify_table_kind_does_not_match_maximum_minimum_words(self):
+        # Word-boundary regex must not confuse "Maximum"/"Minimum" prose
+        # column titles with data columns named "Max"/"Min".
+        self.assertEqual(
+            classify_table_kind(["Feature", "Maximum Value", "Minimum Value"]),
+            "generic",
+        )
+        self.assertEqual(
+            classify_table_kind(["Symbol", "Typical Time Period (µs)"]),
+            "generic",
+        )
+
     def _make_table(self, table_id, page_start, page_end, caption, columns, label="table"):
         return ExportedTable(
             record={

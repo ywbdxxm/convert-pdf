@@ -22,6 +22,16 @@ REGISTER_SECONDARY_MARKERS = ("reset", "attribute", "access")
 ELECTRICAL_COLUMN_SET = frozenset({"parameter", "min", "typ", "max"})
 TIMING_COLUMN_MARKERS = ("setup", "hold", "rise time", "fall time", "t setup", "t hold")
 
+# Word-boundary match for the min/typ/max signal. Avoids false positives on
+# prose column titles like "Minimum Value" / "Typical Time Period" / "Maximum".
+_MTM_TOKEN_RE = re.compile(r"\b(min|typ|max)\b", flags=re.IGNORECASE)
+# Time-unit suffix in a column header, e.g. ``(ns)``, ``(µs)``, ``(µ s)``,
+# ``(us)``, ``(ms)``, ``(ps)``. When the table already looks electrical (≥2
+# of min/typ/max), promoting it to ``timing`` is a tighter label for agents.
+_TIME_UNIT_RE = re.compile(
+    r"\(\s*(?:µ\s*s|us|ms|ns|ps)\s*\)", flags=re.IGNORECASE
+)
+
 
 @dataclass(frozen=True)
 class ExportedTable:
@@ -61,6 +71,22 @@ def classify_table_kind(columns: list[str]) -> str:
         return "register"
 
     if ELECTRICAL_COLUMN_SET.issubset(col_set):
+        return "electrical"
+
+    # Relaxed electrical / timing fallback. Real datasheets routinely embed
+    # units inside the column name (``Min (dBm)``), use ``Symbol`` instead
+    # of ``Parameter``, or drop ``Typ`` on absolute-max tables — all of
+    # which defeat the strict subset check above. Requiring ≥2 of
+    # {min, typ, max} as whole-word hits keeps the fallback conservative:
+    # a single hint (e.g. a column named "Typical Time Period") is not
+    # enough to leave ``generic``.
+    mtm_hits: set[str] = set()
+    for col in cols_lower:
+        for match in _MTM_TOKEN_RE.finditer(col):
+            mtm_hits.add(match.group(1).lower())
+    if len(mtm_hits) >= 2:
+        if any(_TIME_UNIT_RE.search(col) for col in cols_lower):
+            return "timing"
         return "electrical"
 
     for marker in TIMING_COLUMN_MARKERS:

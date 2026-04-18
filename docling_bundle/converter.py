@@ -290,6 +290,13 @@ def normalize_errors(errors: list | None) -> list[str]:
 
 _PAGE_FOOTER_NUMBER_RE = re.compile(r"(<!-- page_break -->)\n\n\d{1,3}\n\n")
 _OCR_TABLE_SPLIT_RE = re.compile(r"\bT (ables?)\b")
+# Match a continuation annotation that Docling has promoted into a markdown
+# heading. Requires the line to start with "#" markers and contain only the
+# continuation phrase — prose mentions inside paragraphs stay intact.
+_CONTINUATION_HEADING_RE = re.compile(
+    r"^#{1,6}\s+Cont(?:'d|inued)(?:\s+from\s+previous\s+page)?\s*$\n?",
+    flags=re.IGNORECASE | re.MULTILINE,
+)
 
 
 def _clean_markdown_ocr_artifacts(markdown_text: str) -> str:
@@ -301,9 +308,17 @@ def _clean_markdown_ocr_artifacts(markdown_text: str) -> str:
       inserts a space between the capital T and the rest of the word. Other
       capital-letter-plus-word pairs (e.g. "V flash", "A boot") are legitimate
       technical subscript notation and must not be touched.
+    - Strip continuation-annotation headings ("## Cont'd from previous page").
+      Docling's layout model promotes a page-continuation label into a real
+      heading, but the annotation is never a navigation anchor. The same
+      string is already filtered out of ``indexing.NOISY_SECTION_IDS``;
+      stripping it from the markdown keeps the reading view consistent.
+      Inline paragraph mentions are untouched (the pattern requires a heading
+      prefix).
     """
     markdown_text = _PAGE_FOOTER_NUMBER_RE.sub(r"\1\n\n", markdown_text)
     markdown_text = _OCR_TABLE_SPLIT_RE.sub(r"T\1", markdown_text)
+    markdown_text = _CONTINUATION_HEADING_RE.sub("", markdown_text)
     return markdown_text
 
 

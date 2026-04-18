@@ -199,6 +199,19 @@
 2. 更新 `docs/architecture.md` 的 roadmap 表格（Phase 39 标 complete）
 3. 每个 phase 结束：重跑 datasheet + 记录实测结果 + commit + push
 
+## 2026-04-18 Fifth Pass (Phase 50)
+
+- Re-ran deep audit of `esp32-s3_datasheet_en.pdf` bundle against Robustness Principle
+- Found 2 universal (non-ESP-specific) residuals:
+  1. `document.md` still had `## Cont'd from previous page` H2 headings (2 occurrences) that are already filtered from TOC/chunks/sections via `NOISY_SECTION_IDS` — markdown layer was not kept in sync
+  2. `classify_table_kind` required strict `{parameter, min, typ, max}` subset, so common real-world patterns (`Min (dBm)`, `Parameter 1`, `Symbol`) fell through to `generic`
+- TDD: added 11 tests first (4 markdown cleanup, 7 classifier), then implemented
+- Implementation: `_CONTINUATION_HEADING_RE` + relaxed MTM word-boundary + time-unit regex
+- Regenerated datasheet bundle from scratch
+- Zero regressions: page/table/chunk/section/alert/toc/cross_refs/assets counts all identical
+- Quality wins: `## Cont'd` in markdown 2→0; `kind=electrical` 15→27 (12 RF/electrical tables recovered); all remaining generics verified as correct
+- All 146 tests pass
+
 ## 2026-04-18 Session
 
 - Re-anchored plan with `planning-with-files`
