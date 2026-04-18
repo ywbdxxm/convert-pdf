@@ -131,6 +131,47 @@ class CleanMarkdownOcrArtifactsTests(unittest.TestCase):
 
         self.assertIn("cont'd from previous page", result)
 
+    def test_strips_standalone_contd_on_next_page_paragraph(self):
+        # Between continuation tables Docling emits a free-standing
+        # "Cont'd on next page" paragraph. Not a heading, so the existing
+        # heading-targeted cleanup misses it. Strip it as its own pattern.
+        markdown = (
+            "| 14 | GPIO9 | IO |\n"
+            "| 15 | GPIO10 | IO |\n\n"
+            "Cont'd on next page\n\n"
+            "<!-- page_break -->\n"
+        )
+
+        result = _clean_markdown_ocr_artifacts(markdown)
+
+        self.assertNotIn("Cont'd on next page", result)
+        self.assertIn("| 14 | GPIO9 | IO |", result)
+
+    def test_strips_standalone_table_cont_from_previous_page_paragraph(self):
+        # "Table 2-2 - cont'd from previous page" is a free-standing
+        # paragraph variant Docling emits after a page break.
+        markdown = (
+            "<!-- page_break -->\n\n"
+            "Table 2-2 - cont'd from previous page\n\n"
+            "| col | col |\n"
+        )
+
+        result = _clean_markdown_ocr_artifacts(markdown)
+
+        self.assertNotIn("cont'd from previous page", result.lower())
+        self.assertIn("| col | col |", result)
+
+    def test_preserves_inline_cont_d_on_next_page_mention(self):
+        # Must NOT strip inline mentions embedded in prose; only standalone
+        # lines qualify. Here the phrase is part of a sentence.
+        markdown = (
+            "See cont'd on next page subsection in the reference manual.\n"
+        )
+
+        result = _clean_markdown_ocr_artifacts(markdown)
+
+        self.assertIn("cont'd on next page", result)
+
 
 if __name__ == "__main__":
     unittest.main()

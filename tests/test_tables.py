@@ -71,6 +71,78 @@ class TableExportTests(unittest.TestCase):
         self.assertEqual(record["kind"], "document_index")
         self.assertTrue(record["is_toc"])
 
+    def test_build_table_manifest_records_blanks_columns_for_toc_table(self):
+        """Regression: TOC tables have no meaningful column schema — their
+        "header row" is the first TOC entry, not a header. Emitting those
+        strings as ``columns`` misleads agents that filter on column names.
+        Blank them out so the field explicitly signals "no schema here".
+        """
+        record = build_table_manifest_records(
+            doc_id="esp32",
+            table_index=1,
+            page_start=7,
+            page_end=7,
+            csv_path=Path("tables/table_0001.csv"),
+            label="document_index",
+            caption="",
+            columns=["", "4.1.1.3", "Ultra-Low-Power Coprocessor (ULP)", "37"],
+        )
+
+        self.assertTrue(record["is_toc"])
+        self.assertEqual(record["columns"], [])
+
+    def test_build_table_manifest_records_keeps_columns_for_regular_table(self):
+        # Guard against over-filtering — non-TOC tables keep their columns.
+        record = build_table_manifest_records(
+            doc_id="esp32",
+            table_index=8,
+            page_start=16,
+            page_end=16,
+            csv_path=Path("tables/table_0008.csv"),
+            label="table",
+            caption="Table 2-1. Pin Overview",
+            columns=["Pin No.", "Pin Name", "Type"],
+        )
+
+        self.assertFalse(record["is_toc"])
+        self.assertEqual(record["columns"], ["Pin No.", "Pin Name", "Type"])
+
+    def test_build_table_manifest_records_includes_row_count_when_provided(self):
+        """Regression: every table's ``rows`` field was ``null``. When
+        Docling exposes ``TableItem.data.num_rows`` (or the caller computes
+        it from the exported CSV), write that into the record so agents can
+        triage tables.index.jsonl by size.
+        """
+        record = build_table_manifest_records(
+            doc_id="esp32",
+            table_index=1,
+            page_start=64,
+            page_end=64,
+            csv_path=Path("tables/table_0001.csv"),
+            label="table",
+            caption="Table 5-1. Absolute Maximum Ratings",
+            columns=["Parameter", "Max"],
+            rows=12,
+        )
+
+        self.assertEqual(record["rows"], 12)
+
+    def test_build_table_manifest_records_row_count_none_when_unavailable(self):
+        # Docling may not expose num_rows for every table. ``rows`` stays
+        # None rather than being omitted so schema shape is stable.
+        record = build_table_manifest_records(
+            doc_id="esp32",
+            table_index=1,
+            page_start=64,
+            page_end=64,
+            csv_path=Path("tables/table_0001.csv"),
+            label="table",
+            caption="x",
+            columns=["A"],
+        )
+
+        self.assertIsNone(record["rows"])
+
     def test_build_table_manifest_records_without_columns_defaults_to_generic(self):
         record = build_table_manifest_records(
             doc_id="esp32",
@@ -112,6 +184,86 @@ class TableExportTests(unittest.TestCase):
             self.assertTrue((tables_dir / "table_0001.csv").exists())
             self.assertEqual(records[0].record["label"], "table")
             self.assertEqual(records[0].record["caption"], "Table 5-1. Absolute Maximum Ratings")
+
+    def test_export_tables_populates_row_count_from_docling_data(self):
+        """Regression: Docling's ``TableItem.data.num_rows`` carries the
+        structured data-row count. Wire it into the manifest record so
+        ``rows`` is no longer always null.
+        """
+        class FakeDataFrame:
+            columns = ["A", "B"]
+            def to_csv(self, path, index=False):
+                Path(path).write_text("A,B\n1,2\n3,4\n5,6\n", encoding="utf-8")
+
+        class FakeTable:
+            prov = [SimpleNamespace(page_no=1)]
+            # Docling exposes structured row count via data.num_rows
+            data = SimpleNamespace(num_rows=3)
+            label = "table"
+
+            def export_to_dataframe(self, doc=None):
+                return FakeDataFrame()
+            def export_to_html(self, doc=None):
+                return "<table></table>"
+            def export_to_markdown(self, doc=None):
+                return "Table 1. X\n\n| A | B |"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tables_dir = Path(tmp_dir) / "tables"
+            records = export_tables("doc", [FakeTable()], tables_dir)
+            self.assertEqual(records[0].record["rows"], 3)
+
+    def test_export_tables_row_count_falls_back_to_none_without_docling_data(self):
+        """If Docling does not expose num_rows, ``rows`` stays None. We do
+        NOT attempt to re-parse the CSV — keeping the code path narrow.
+        """
+        class FakeDataFrame:
+            columns = ["A"]
+            def to_csv(self, path, index=False):
+                Path(path).write_text("A\n1\n", encoding="utf-8")
+
+        class FakeTable:
+            prov = [SimpleNamespace(page_no=1)]
+            label = "table"
+            # no .data attribute
+
+            def export_to_dataframe(self, doc=None):
+                return FakeDataFrame()
+            def export_to_html(self, doc=None):
+                return "<table></table>"
+            def export_to_markdown(self, doc=None):
+                return "Table 1. X\n\n| A |"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tables_dir = Path(tmp_dir) / "tables"
+            records = export_tables("doc", [FakeTable()], tables_dir)
+            self.assertIsNone(records[0].record["rows"])
+
+    def test_export_tables_blanks_columns_for_toc_table(self):
+        """Integration: the document_index label triggers is_toc=True and
+        wipes the columns list — no mis-advertised schema on TOC tables.
+        """
+        class FakeDataFrame:
+            columns = ["", "4.1.1.3", "Ultra-Low-Power Coprocessor (ULP)", "37"]
+            def to_csv(self, path, index=False):
+                Path(path).write_text(",4.1.1.3,foo,37\n,4.1.1.4,bar,37\n", encoding="utf-8")
+
+        class FakeTable:
+            prov = [SimpleNamespace(page_no=8)]
+            label = "document_index"
+
+            def export_to_dataframe(self, doc=None):
+                return FakeDataFrame()
+            def export_to_html(self, doc=None):
+                return "<table></table>"
+            def export_to_markdown(self, doc=None):
+                return ""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tables_dir = Path(tmp_dir) / "tables"
+            records = export_tables("doc", [FakeTable()], tables_dir)
+            self.assertTrue(records[0].record["is_toc"])
+            self.assertEqual(records[0].record["columns"], [])
 
     def test_inject_table_sidecars_into_markdown_appends_links_after_each_matched_table(self):
         markdown = (

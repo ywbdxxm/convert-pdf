@@ -311,6 +311,19 @@ _CONTINUATION_HEADING_RE = re.compile(
     r"^#{1,6}\s+Cont(?:'d|inued)(?:\s+from\s+previous\s+page)?\s*$\n?",
     flags=re.IGNORECASE | re.MULTILINE,
 )
+# Match a continuation annotation emitted as a standalone paragraph (not a
+# heading) between two continuation tables. Covers:
+#   "Cont'd on next page"
+#   "Continued on next page"
+#   "cont'd from previous page"
+#   "Table 2-2 - cont'd from previous page"
+# The line must be the ENTIRE content of its own paragraph (anchored ^…$),
+# so inline prose mentions (" see cont'd on next page section ") stay intact.
+_CONTINUATION_PARAGRAPH_RE = re.compile(
+    r"^(?:Table\s+\d+(?:-\d+)?\s*[-–]\s*)?"
+    r"Cont(?:'d|inued)\s+(?:on\s+next|from\s+previous)\s+page\s*$\n?",
+    flags=re.IGNORECASE | re.MULTILINE,
+)
 
 
 def _clean_markdown_ocr_artifacts(markdown_text: str) -> str:
@@ -333,6 +346,7 @@ def _clean_markdown_ocr_artifacts(markdown_text: str) -> str:
     markdown_text = _PAGE_FOOTER_NUMBER_RE.sub(r"\1\n\n", markdown_text)
     markdown_text = _OCR_TABLE_SPLIT_RE.sub(r"T\1", markdown_text)
     markdown_text = _CONTINUATION_HEADING_RE.sub("", markdown_text)
+    markdown_text = _CONTINUATION_PARAGRAPH_RE.sub("", markdown_text)
     return markdown_text
 
 

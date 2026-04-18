@@ -105,9 +105,14 @@ def build_table_manifest_records(
     label: str,
     caption: str,
     columns: list[str] | None = None,
+    rows: int | None = None,
 ) -> dict:
     is_toc = label == "document_index"
     kind = "document_index" if is_toc else classify_table_kind(columns or [])
+    # TOC tables have no meaningful column schema — their "header row" is
+    # actually the first TOC entry. Blank the list so agents filtering
+    # tables.index.jsonl by column names don't get misled.
+    effective_columns: list[str] = [] if is_toc else list(columns) if columns else []
     record = {
         "table_id": f"{doc_id}:table:{table_index:04d}",
         "page_start": page_start,
@@ -117,9 +122,16 @@ def build_table_manifest_records(
         "caption": caption,
         "kind": kind,
         "is_toc": is_toc,
+        "rows": rows,
     }
-    if columns:
-        record["columns"] = list(columns)
+    # Keep the ``columns`` key present when there is data to advertise; emit
+    # an empty list explicitly for TOC tables so consumers see "no schema"
+    # rather than "field missing"; drop for non-TOC tables without columns
+    # to preserve the current contract of absence.
+    if is_toc:
+        record["columns"] = []
+    elif effective_columns:
+        record["columns"] = effective_columns
     return record
 
 
@@ -474,6 +486,14 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
         pages = [prov.page_no for prov in getattr(table, "prov", []) or [] if getattr(prov, "page_no", None) is not None]
         page_start = min(pages) if pages else None
         page_end = max(pages) if pages else None
+        # Docling exposes the structured row count on TableItem.data. Use it
+        # directly; if absent, leave rows=None rather than re-parse the CSV.
+        rows = None
+        docling_data = getattr(table, "data", None)
+        if docling_data is not None:
+            docling_rows = getattr(docling_data, "num_rows", None)
+            if isinstance(docling_rows, int) and docling_rows >= 0:
+                rows = docling_rows
         records.append(
             ExportedTable(
                 record=build_table_manifest_records(
@@ -485,6 +505,7 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
                     label=_stringify_label(getattr(table, "label", None)),
                     caption=extract_table_caption(table_markdown, table_html),
                     columns=columns,
+                    rows=rows,
                 ),
                 markdown=table_markdown,
             )
