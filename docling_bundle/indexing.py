@@ -3,7 +3,12 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-from docling_bundle.patterns import HEADING_NUMBER_RE, TABLE_CAPTION_RE
+from docling_bundle.patterns import (
+    HEADING_NUMBER_RE,
+    TABLE_CAPTION_RE,
+    clean_ocr_text,
+    normalize_heading_text,
+)
 
 
 NOISY_SECTION_IDS = {
@@ -134,6 +139,12 @@ def build_chunk_record(
     if not lineage:
         lineage = chunker_headings
 
+    # Phase 57b: ensure heading_path / section_id use normalized display
+    # text. Lineage built via build_doc_item_lineages is already normalized;
+    # the chunker_headings fallback path is not, so normalize here as a
+    # safety net. Normalization is idempotent.
+    lineage = [normalize_heading_text(entry) for entry in lineage]
+
     page_start, page_end = page_numbers_for_chunk(chunk)
     if page_start is None:
         citation = doc_id
@@ -152,8 +163,11 @@ def build_chunk_record(
         "heading_path": lineage,
         "page_start": page_start,
         "page_end": page_end,
-        "text": chunk.text,
-        "contextualized_text": contextualized_text,
+        # Phase 57a: reverse Docling's "T able" OCR split in chunk text so
+        # downstream consumers (cross_refs source-chunk matching, full-text
+        # search) see the same normalized form as document.md.
+        "text": clean_ocr_text(chunk.text),
+        "contextualized_text": clean_ocr_text(contextualized_text),
         "doc_item_count": len(doc_items),
         "table_like": is_table_like_chunk(chunk),
         "citation": citation,
@@ -390,10 +404,15 @@ def build_doc_item_lineages(
     for item, _ in doc.iterate_items():
         if _is_heading_item(item):
             text = _extract_heading_text(item)
+            # Noise filters operate on the raw text so exact matches against
+            # ``NOISY_TOC_HEADINGS`` ("Note:" vs "Note") keep firing. The
+            # normalization below only touches the display form we push
+            # onto the stack.
             if text and not _is_noisy_toc_heading(text) and text not in dropped:
-                is_numbered = _is_numbered_heading(text)
+                clean_text = normalize_heading_text(text)
+                is_numbered = _is_numbered_heading(clean_text)
                 if is_numbered:
-                    level = infer_heading_level(text)
+                    level = infer_heading_level(clean_text)
                 else:
                     docling_level = getattr(item, "heading_level", None)
                     if isinstance(docling_level, int) and docling_level > 0:
@@ -408,7 +427,7 @@ def build_doc_item_lineages(
                         level = deepest_numbered + 1 if deepest_numbered else 1
                 while stack and stack[-1][0] >= level:
                     stack.pop()
-                stack.append((level, text, is_numbered))
+                stack.append((level, clean_text, is_numbered))
         snapshots[_item_key(item)] = [entry[1] for entry in stack]
 
     return snapshots
@@ -477,7 +496,11 @@ def _collect_toc_raw_entries(doc) -> list[dict]:
             continue
         if _is_noisy_toc_heading(text):
             continue
-        raw.append({"heading": text, "page": _first_page(item)})
+        # Phase 57b: normalize display text after noise filter passes so
+        # the TOC / sections layers see identical clean headings ("Including"
+        # vs "Including:"). Filtering stays on raw text to preserve exact
+        # matches against NOISY_TOC_HEADINGS.
+        raw.append({"heading": normalize_heading_text(text), "page": _first_page(item)})
     return raw
 
 

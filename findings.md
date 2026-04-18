@@ -141,6 +141,41 @@ docling_bundle/patterns.py       → 共享正则（被 indexing / tables / aler
 
 **修复后**：`section_count` 137 → 136（唯一移除 `· IO MUX:`），bullet chunk 被 re-parent 到 `4.1.3.1 IO MUX and GPIO Matrix`，parent 的 page range 保持 40-40 不扩张。
 
+## 7c. Phase 57 audit — 2026-04-18 (re-run after P56)
+
+不重跑（commit 62bd40d 后产物与代码一致），直接在现有 bundle 上做**逐字段的深度审计**，以"agent 打开文件拿到答案的步数"为判据。Counts：87 pages / 7 chapters / 71 tables / 136 sections / 309 chunks / 47 cross_refs / 85 assets / 3 alerts。
+
+### 发现
+
+| # | 现象 | 证据 | 分类 |
+|---|---|---|---|
+| A1 | **18 条 chunk 的 `text` + `contextualized_text` 里 "Table" 仍是 "T able"** | `chunks.jsonl` 18 条含 `T able` 字样；document.md 已干净（0 条） | **修**（高优先级） |
+| A2 | **18/47 cross_refs 缺 `source_chunk_id`（38%）** | 根因 = A1：cross_refs 的 `raw` 是 "Table 1-1"（从 markdown 抽），chunk text 是 "T able 1-1"（未清洗），`_find_source_chunk` 子串匹配失败 | **修**（随 A1 一并修复） |
+| B1 | **13 条前言 section（p.1-7）以 `level=1` 占据 `sections.jsonl` 前排** | `Datasheet Version 2.2` / `Including:` / `ESP32-S3 Functional Block Diagram` / `Power consumption` / `Product Overview` / `Bluetooth ®` / `CPU and Memory` / `Wi-Fi` / `Peripherals` / `Power Management` / `RF Module` / `Security` / `Applications`，全部 `heading_path` 深度=1 | **评估**（加 `is_front_matter` 标记还是不动） |
+| B2 | **`section_id = "Including:"` 带尾冒号** | `sections.jsonl` 第 2 行；其他 135 条 section_id 均无尾标点 | **修**（低优先级，清理时一并做） |
+| C1 | **`## Note:` 作为 h2 出现在 document.md 第 199 行** | Docling 把 p.1 的 QR-code 指引块升格成 heading；TOC / sections 已过滤（`NOISY_TOC_HEADINGS`），markdown 没同步 | **不修** — 视觉不干扰阅读；`## Note:` 是常见 datasheet 正文前缀（e.g. 寄存器注脚），全局删 heading 会误伤 |
+| D1 | **Table_0066 (p.79) 列头崩坏**：21 列、`Type` 出现 3 次、`F3.F4` / `F3.` 这类 MultiIndex flatten 残骸 | `tables.index.jsonl`；CSV row0 就是列头；caption 已缺，已进 `table_without_caption` alert | **不修**（已由 `table_without_caption` alert 代理回原 PDF）；可选：加 `column_header_degraded` alert 做冗余提示 |
+| D2 | **Table_0015 (p.22) MultiIndex flatten**：`IO MUX Function 1, 2, 3.F0` 类列头 | `tables.index.jsonl`；8 列全部带 `.F0/.F1/...` 后缀 | **不修**（信息完整，agent 可解析；caption 缺失已进 alert） |
+| E1 | 4 条 figure cross_refs `target_page=null` | `Figure 2-2 / 2-3 / 7-1 / 7-2` | **不修**（Docling 无 figure 全局 id，P55 已记录） |
+| F1 | 整数完整性：0 orphan chunk / 0 dangling chunk_id / 0 bad page range / 0 rows=null | `sections` / `chunks` / `tables` 全层 | 健康 |
+
+### 根因分析（A1 ↔ A2 的耦合）
+
+P47 修的是 `document.md` 里的 `T able` → `Table`（`_clean_markdown_ocr_artifacts`/`_OCR_TABLE_SPLIT_RE`，在 `converter.py:329` 的最终 markdown 字符串层运行）。chunk 记录由 `HybridChunker` 在 DocItem 上构建（`converter.py:498-540` 附近），取的是 `TextItem.text` 原值，未经 markdown 清洗。因此 markdown 干净而 chunk 脏，导致 `cross_refs.py:_find_source_chunk` 用 markdown 抽出的 `raw="see Table 1-1"` 去 chunk text（"T able 1-1"）匹配时一致 miss。
+
+### 修复原则（沿用 Robustness Principle）
+
+- **A1 / A2**：在 chunk 记录构建的一端加同一个 word-boundary regex（`\bT (ables?)\b` → `T\1`），与 markdown 层共享 compiled pattern。word-boundary 保证不误伤 `T ype` / `T otal` 等。会影响的只有已被 OCR 断词的 Table 字样。**普适、零误伤**。
+- **B2**：在 `build_section_records` 结尾对 `section_id` 做尾标点清理（`:` / `,` / `.` / `;`）。**普适、零误伤**。
+- **B1**：加 `is_front_matter` 布尔字段，计算 = "section 的 `page_start` < 第一个 `is_chapter=true` section 的 `page_start`" ∧ "section_id 非编号前缀"。agent 仍能看见前言内容（chunk 不丢），但可一行过滤。README 表格按 `is_chapter` 展示原逻辑不变。**普适**；风险点：万一 PDF 没有编号章节（极罕见），flag 会降级为"无 front matter"，等于不动原状，**无负作用**。
+- **D1**（可选）：引入 `table_header_degraded` alert kind，判据 = 列数 > 12 **且** (列名重复短 token `Type` / `F\d` 出现 > 2 次 **或** MultiIndex 点分段数 ≥ 3)。仅当已是 `table_without_caption` 时做**冗余提示**，不作为唯一线索。**中等风险**——列数 > 12 的真实合法表（e.g. 复杂 register map）可能误触；因此限制为"同时无 caption 才加"。
+
+### 不修的理由（符合规则 5：回原 PDF）
+
+- D1 / D2 的结构性失真已由 `table_without_caption` alert 暴露给 agent，agent 会按契约回原 PDF，再修列头等于双重启发式。
+- C1 的 `## Note:` 在 markdown 里读起来无歧义；进入 TOC / sections / cross_refs 的通道已全部关闭。强删 heading 会侵蚀正文中合法的 Note 段。
+- E1 是 Docling 结构性缺口，在 P55 已记录。
+
 ## 8. 参考资料
 
 - Docling: <https://docling-project.github.io/docling/>

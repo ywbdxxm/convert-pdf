@@ -40,6 +40,7 @@ from docling_bundle.indexing import (
 )
 from docling_bundle.models import RuntimeConfig
 from docling_bundle.paths import DocumentPaths, build_document_paths
+from docling_bundle.patterns import OCR_TABLE_SPLIT_RE
 from docling_bundle.reading_bundle import build_readme
 from docling_bundle.tables import export_tables, inject_table_sidecars_into_markdown
 
@@ -303,7 +304,10 @@ def normalize_errors(errors: list | None) -> list[str]:
 
 
 _PAGE_FOOTER_NUMBER_RE = re.compile(r"(<!-- page_break -->)\n\n\d{1,3}\n\n")
-_OCR_TABLE_SPLIT_RE = re.compile(r"\bT (ables?)\b")
+# OCR split-word pattern lives in ``patterns.py`` so chunk-record construction
+# (``indexing.build_chunk_record``) can share the same normalization. See
+# ``OCR_TABLE_SPLIT_RE`` / ``clean_ocr_text``.
+_OCR_TABLE_SPLIT_RE = OCR_TABLE_SPLIT_RE
 # Match a continuation annotation that Docling has promoted into a markdown
 # heading. Requires the line to start with "#" markers and contain only the
 # continuation phrase — prose mentions inside paragraphs stay intact.

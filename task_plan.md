@@ -51,6 +51,45 @@
 
 **P56 前的评估（2026-04-18 第二轮审计）**：同时记录 5 条发现但**不修**（`findings.md` §7b）——非数字型子标题 level=1 偏高、Glossary 术语散出独立 heading、TOC 表列头垃圾（D 部分修复）、Uncaptioned 表 MultiIndex 列头混乱（`alerts.json` 已暴露）、4 条 figure cross_refs unresolved（Docling 不给 figure 全局 id）。以上都符合"过拟合风险 vs 收益"不平衡或已通过 alerts 暴露给 agent 回原 PDF 的契约。设计 spec: `docs/superpowers/specs/2026-04-18-docling-bundle-phase56-design.md`。
 
+### 计划中（Phase 57 — 2026-04-18 产物重审）
+
+重审证据：`findings.md §7c`。按 "影响 × 安全" 排序，每个子阶段 **RED→GREEN→重跑 datasheet** 独立闭环、不混批。
+
+**P57a [HIGH] — chunk OCR 断词清理 + cross_ref source 回连（耦合双修）**
+
+- 根因：`_clean_markdown_ocr_artifacts` 只跑在 markdown 字符串，chunk 由 DocItem 原值构建，18 条 chunk 的 `text` / `contextualized_text` 里 `T able` 未被替换；cross_refs 抽自 markdown（已清洗成 `Table`），`_find_source_chunk` 子串匹配失败 → 18/47 cross_refs 缺 `source_chunk_id`
+- 实现：把 `_OCR_TABLE_SPLIT_RE` 移到 `docling_bundle/patterns.py`（已有文件），在 `build_chunk_record` 构建 text/contextualized_text 时应用；word-boundary `\bT (ables?)\b` 保证不误伤 `T ype` / `T otal`
+- 验收：`chunks.jsonl` 零 `T able`；`cross_refs` 缺 `source_chunk_id` 的只剩 4 条 figure（unresolved）；其他 count 零回归
+
+**P57b [LOW] — section_id 尾标点清理**
+
+- 仅 `Including:` → `Including` 一条命中；其他 135 条 section_id 均无尾标点
+- 实现：`build_section_records` 在入库前对 section_id 做 `rstrip(":,;")`（`.` 不清，避免破坏编号 `4.1.1`）；`heading_path` 同步清理
+- 验收：`section_count` 不变；受影响 chunk 的 `section_id` / `heading_path[0]` 同步更新
+
+**P57c — `is_front_matter` 字段**（**决策：不做**）
+
+- 评估：13 条前言 section 不构成"明显异常"（它们是封面 Features 下的合法 feature bullets，内容可读），只是在 `sections.jsonl` 按顺序列举时排在前面
+- agent 可用现有字段组合 `is_chapter=false AND page_start < min(page for is_chapter=true)` 复现同样信号，不需新字段
+- 按 `开发要求.md` 规则 2（避免过度设计）与规则 4（谨慎启发式），**拒绝**添加冗余计算 flag
+
+**P57d — `table_header_degraded` alert**（**决策：不做**）
+
+- `table_without_caption` alert 已按规则 5 让 agent 回原 PDF；再加冗余 alert 是重复启发式
+- 按 `开发要求.md` 规则 2 / 4，**拒绝**添加冗余 alert 分类
+
+**不做（findings.md §7c 详述）**
+
+| 项 | 理由 |
+|---|---|
+| `## Note:` heading 从 markdown 里删 | 常见正文前缀，全局删会误伤合法 Note 段 |
+| Table_0066 / Table_0015 列头重建 | 已由 `table_without_caption` alert 路径回原 PDF |
+| 无编号子标题降级到 level=2 | "最近编号父级 +1" 启发式会误伤前言区合法 level-1 |
+| Glossary 术语 heading 合并 | "同页多条无编号 heading" 判据强过拟合 |
+| Figure cross_refs resolve | Docling 无 figure 全局 id，结构性缺口 |
+
+**推进顺序**：P57a（必做）→ P57b（随 a 或独立）→ P57c（待用户认可）→ 重跑重审 → P57d（若仍有必要）。每步单独 commit。
+
 ## Decisions Made（精选）
 
 | Decision | Rationale |

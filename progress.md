@@ -1,17 +1,46 @@
 # Progress
 
-## 当前状态（2026-04-18）
+## 当前状态（2026-04-18，Phase 57 完成）
 
 - 基线 PDF：`manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf` (87 页)
 - 最新 bundle：`manuals/processed/docling_bundle/esp32-s3-datasheet-en/`
-- 测试：188/188 通过
-- Counts（P56 后）：87 pages / 7 chapters / 71 tables / 47 cross_refs (43 resolved) / 85 assets / 136 sections / 309 chunks / 3 alerts
-- Chunk coverage: 309/309（sections.jsonl 覆盖全部 chunk，零 orphan）
-- Integrity: 全部 chunk_id / table_id / asset_id / csv_path 引用零破损
-- 新增产物字段：`chunks.heading_path` 深度 1-5（之前恒为 1）、`tables.rows`（之前恒 null）、`tables.columns=[]` for TOC tables
-- Design spec: `docs/superpowers/specs/2026-04-18-docling-bundle-phase56-design.md`
+- 测试：**208/208 通过**（P56 基线 188 + 本轮 20）
+- Counts：87 pages / 7 chapters / 71 tables / 47 cross_refs (43 resolved) / 85 assets / 136 sections / 309 chunks / 3 alerts（零回归）
+- P57 新指标：chunks 零 "T able" OCR 残留；sections / chunks / toc 零尾标点 heading；`Including:` → `Including`（三层一致）
+- Chunk coverage: 309/309；Integrity: 全部引用零破损
 
-## 最近 session（2026-04-18）
+## 最近 session（2026-04-18 Phase 57）
+
+**P57a + P57b 实施完成**（TDD RED→GREEN→重跑 datasheet）：
+
+- `docling_bundle/patterns.py`：新增 `OCR_TABLE_SPLIT_RE` / `clean_ocr_text` / `normalize_heading_text`（shared helpers）
+- `converter.py`：`_OCR_TABLE_SPLIT_RE` 改为引用 `patterns.OCR_TABLE_SPLIT_RE`（单一来源）
+- `indexing.py`：
+  - `build_chunk_record`：`text` / `contextualized_text` 应用 `clean_ocr_text`；`heading_path` 元素应用 `normalize_heading_text`（chunker_headings fallback 路径也兜底）
+  - `build_doc_item_lineages`：noise 过滤保持在原始文本上（`"Note:"` 仍被 `NOISY_TOC_HEADINGS` 捕获），过滤通过后 `clean_text = normalize_heading_text(text)` 再入栈
+  - `_collect_toc_raw_entries`：TOC 条目同样在过滤通过后做 normalize
+- 新增 20 测试：`clean_ocr_text` 7 / `normalize_heading_text` 7 / `build_chunk_record` OCR + normalize 3 / lineage + TOC 3
+
+**datasheet 重跑（77s / CUDA / no-ocr）实测指标**：
+
+| 指标 | P56 baseline | P57 后 |
+|---|---|---|
+| `chunks.jsonl` 含 "T able" | 18 | **0** |
+| `cross_refs.source_chunk_id` 缺失 | 18 (全 table) | 2 (全 section，pre-existing — 续页表 footnote 没进 chunk) |
+| `sections.jsonl` 尾冒号 section_id | 1 (`Including:`) | **0** |
+| `toc.json` 尾标点 heading | 1 | **0** |
+| `chunks.heading_path` / section_id 尾标点 | 1 | **0** |
+| 其他 counts (pages / tables / sections / chunks / alerts) | — | 零回归 |
+| Integrity (dangling / invalid refs) | 0 | **0** |
+
+**本轮重审但决策不做**（详见 `findings.md §7c`）：
+
+- **P57c（`is_front_matter` flag）**：按 `开发要求.md` 规则 2 / 4 评估，前言 section 不构成"明显异常"；agent 可用 `is_chapter=false AND page_start < first_chapter_page` 现成字段组合出同信号。添加冗余计算字段属过度设计
+- **P57d（`table_header_degraded` alert）**：`table_without_caption` alert 已按规则 5 让 agent 回原 PDF；冗余 alert 属重复启发式
+- **`## Note:` 从 markdown 删**：常见正文前缀，全局删会误伤合法 Note 段
+- **4 条 figure cross_refs resolve**：Docling 无 figure 全局 id（结构性缺口）
+
+## 更早完成 session（2026-04-18）
 
 **P56b（polish: Cont'd paragraphs / TOC columns / rows count）**：
 

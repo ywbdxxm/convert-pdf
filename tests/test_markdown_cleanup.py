@@ -1,6 +1,7 @@
 import unittest
 
 from docling_bundle.converter import _clean_markdown_ocr_artifacts
+from docling_bundle.patterns import clean_ocr_text, normalize_heading_text
 
 
 class CleanMarkdownOcrArtifactsTests(unittest.TestCase):
@@ -171,6 +172,77 @@ class CleanMarkdownOcrArtifactsTests(unittest.TestCase):
         result = _clean_markdown_ocr_artifacts(markdown)
 
         self.assertIn("cont'd on next page", result)
+
+
+class CleanOcrTextTests(unittest.TestCase):
+    """Phase 57a: chunk-level OCR artifact cleanup mirrors markdown-layer cleanup."""
+
+    def test_fixes_t_able_in_prose(self):
+        self.assertEqual(
+            clean_ocr_text("As shown in T able 1-1 ESP32-S3 Series Comparison"),
+            "As shown in Table 1-1 ESP32-S3 Series Comparison",
+        )
+
+    def test_fixes_t_ables_plural(self):
+        self.assertEqual(
+            clean_ocr_text("List of T ables"),
+            "List of Tables",
+        )
+
+    def test_preserves_capital_letter_plus_word(self):
+        # Legitimate subscript notation "V flash" / "A boot" / "T ype" must
+        # NOT be altered. Only the specific "T able(s)" word-boundary match.
+        for legit in ("V flash", "A boot", "T ype", "T otal", "V supply"):
+            self.assertEqual(clean_ocr_text(legit), legit)
+
+    def test_idempotent(self):
+        s = "See T able 2-3 and Table 2-4"
+        once = clean_ocr_text(s)
+        twice = clean_ocr_text(once)
+        self.assertEqual(once, twice)
+        self.assertEqual(once, "See Table 2-3 and Table 2-4")
+
+    def test_empty_input(self):
+        self.assertEqual(clean_ocr_text(""), "")
+
+    def test_none_input_returns_empty_or_raises_consistently(self):
+        # Defensive: the helper should handle non-str gracefully when chunk
+        # records have missing fields. Accept either empty string or identity
+        # return — tests pin current behaviour so regressions surface.
+        self.assertEqual(clean_ocr_text(None), None)
+
+
+class NormalizeHeadingTextTests(unittest.TestCase):
+    """Phase 57b: heading display normalization (trailing :,; cleanup)."""
+
+    def test_strips_trailing_colon(self):
+        self.assertEqual(normalize_heading_text("Including:"), "Including")
+
+    def test_strips_trailing_semicolon(self):
+        self.assertEqual(normalize_heading_text("Features;"), "Features")
+
+    def test_strips_trailing_comma(self):
+        self.assertEqual(normalize_heading_text("Parameters,"), "Parameters")
+
+    def test_preserves_trailing_period_to_avoid_breaking_numbered(self):
+        # Numbered heading like "4.1.1." must keep its structure; the
+        # sections layer may or may not use the trailing dot but stripping
+        # it could break downstream pattern assumptions.
+        self.assertEqual(normalize_heading_text("4.1.1."), "4.1.1.")
+
+    def test_preserves_interior_colon(self):
+        self.assertEqual(normalize_heading_text("Note: important"), "Note: important")
+
+    def test_strips_trailing_whitespace_before_punctuation(self):
+        self.assertEqual(normalize_heading_text("Clock Tree :"), "Clock Tree")
+
+    def test_idempotent(self):
+        once = normalize_heading_text("Including:")
+        twice = normalize_heading_text(once)
+        self.assertEqual(once, twice)
+
+    def test_empty_input(self):
+        self.assertEqual(normalize_heading_text(""), "")
 
 
 if __name__ == "__main__":

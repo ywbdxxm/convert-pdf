@@ -48,6 +48,77 @@ class IndexingTests(unittest.TestCase):
         self.assertEqual(record["page_end"], 2)
         self.assertEqual(record["citation"], "rm0090 p.1-2")
 
+    def test_build_chunk_record_cleans_ocr_artifacts_in_text(self):
+        # Phase 57a: DocItem text may contain OCR-split "T able" artifacts
+        # that the markdown-layer cleanup did not see. Chunk records must
+        # surface a normalized form so that cross_refs extracted from the
+        # cleaned markdown can match chunk text.
+        chunk = SimpleNamespace(
+            text="As shown in T able 1-1 ESP32-S3 Series Comparison",
+            meta=SimpleNamespace(
+                headings=["1.3 Chip Revision"],
+                doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=14)])],
+            ),
+        )
+
+        record = build_chunk_record(
+            doc_id="esp32-s3",
+            chunk_id="esp32-s3:0001",
+            chunk_index=1,
+            chunk=chunk,
+            contextualized_text="1.3 Chip Revision\nAs shown in T able 1-1 ESP32-S3",
+        )
+
+        self.assertIn("Table 1-1", record["text"])
+        self.assertNotIn("T able 1-1", record["text"])
+        self.assertIn("Table 1-1", record["contextualized_text"])
+        self.assertNotIn("T able 1-1", record["contextualized_text"])
+
+    def test_build_chunk_record_preserves_legit_capital_space_words(self):
+        # "V flash" / "A boot" / "T ype" must NOT be altered; only
+        # word-boundary "T able(s)" is an artifact.
+        chunk = SimpleNamespace(
+            text="Apply V flash at 3.3 V and measure T ype of I/O pad.",
+            meta=SimpleNamespace(
+                headings=["Electrical"],
+                doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=65)])],
+            ),
+        )
+
+        record = build_chunk_record(
+            doc_id="doc",
+            chunk_id="doc:0001",
+            chunk_index=1,
+            chunk=chunk,
+            contextualized_text="Electrical\nApply V flash at 3.3 V and measure T ype of I/O pad.",
+        )
+
+        self.assertIn("V flash", record["text"])
+        self.assertIn("T ype", record["text"])
+
+    def test_build_chunk_record_normalizes_heading_trailing_colon(self):
+        # Phase 57b: Docling promotes "Including:" to a heading on the
+        # cover page. section_id and heading_path should drop the colon
+        # so navigation by section_id stays clean.
+        chunk = SimpleNamespace(
+            text="ESP32-S3 list of variants",
+            meta=SimpleNamespace(
+                headings=["Including:"],
+                doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=1)])],
+            ),
+        )
+
+        record = build_chunk_record(
+            doc_id="doc",
+            chunk_id="doc:0001",
+            chunk_index=1,
+            chunk=chunk,
+            contextualized_text="Including:\nESP32-S3 list of variants",
+        )
+
+        self.assertEqual(record["section_id"], "Including")
+        self.assertEqual(record["heading_path"], ["Including"])
+
     def test_build_section_records_aggregates_chunks_by_section(self):
         chunks = [
             {
@@ -590,6 +661,23 @@ class TocTests(unittest.TestCase):
 
         self.assertEqual([e["heading"] for e in toc], ["2.3 IO Pins"])
 
+    def test_normalizes_trailing_colon_in_toc_heading(self):
+        # Phase 57b: TOC entries should show clean heading text.
+        # "Including:" passes noise filters (not in NOISY_TOC_HEADINGS) but
+        # the trailing colon is typographic noise — real navigation anchors
+        # don't end in punctuation.
+        items = [
+            self._heading("Including:", 1),
+            self._heading("2.1 Pin Layout", 15),
+        ]
+
+        toc = build_toc(self._doc(items))
+
+        self.assertEqual(
+            [e["heading"] for e in toc],
+            ["Including", "2.1 Pin Layout"],
+        )
+
     def test_drops_bullet_prefixed_heading(self):
         # Docling's layout analyzer sometimes promotes a bullet-list entry into
         # a heading when the line's typography looks heading-like. Any heading
@@ -940,6 +1028,34 @@ class HeadingLineageTests(unittest.TestCase):
         # never pushed anything at level 1 that could have popped the chapter.
         self.assertEqual(lineages[id(next_numbered)], ["4 Functional Description", "4.2 Peripherals"])
         self.assertEqual(lineages[id(p_under_next)], ["4 Functional Description", "4.2 Peripherals"])
+
+    def test_lineage_normalizes_trailing_colon_on_headings(self):
+        # Phase 57b: Docling promotes "Including:" to a heading. The
+        # lineage stack should carry the normalized "Including" so
+        # downstream section_id / heading_path / TOC use the clean form.
+        h = self._heading("Including:", 1)
+        p = self._paragraph("ESP32-S3, ESP32-S3FN8, ...", 1)
+
+        lineages = build_doc_item_lineages(self._doc([h, p]))
+
+        self.assertEqual(lineages[id(h)], ["Including"])
+        self.assertEqual(lineages[id(p)], ["Including"])
+
+    def test_lineage_keeps_noise_filter_semantics_after_normalization(self):
+        # "Note:" is in NOISY_TOC_HEADINGS and must be filtered BEFORE
+        # normalization; otherwise stripping the colon would produce
+        # "Note" (also in the filter set, but this proves filter still
+        # fires on the raw form as a safety net).
+        h = self._heading("4.1 Chapter", 10)
+        note = self._heading("Note:", 10)
+        p = self._paragraph("body", 10)
+
+        lineages = build_doc_item_lineages(self._doc([h, note, p]))
+
+        # Paragraph's lineage reflects chapter only — Note: did not push
+        self.assertEqual(lineages[id(p)], ["4.1 Chapter"])
+        # The note heading itself gets a snapshot but never appears on stack
+        self.assertEqual(lineages[id(note)], ["4.1 Chapter"])
 
     def test_dropped_repeat_labels_do_not_pollute_stack(self):
         # "Feature List" repeats under many numbered parents. Without
