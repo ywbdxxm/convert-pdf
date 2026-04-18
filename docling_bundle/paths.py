@@ -17,6 +17,7 @@ class DocumentPaths:
     chunks: Path
     tables_index: Path
     tables_dir: Path
+    cross_refs: Path
 
 
 def build_document_paths(output_root: Path, doc_id: str) -> DocumentPaths:
@@ -35,4 +36,5 @@ def build_document_paths(output_root: Path, doc_id: str) -> DocumentPaths:
         chunks=doc_dir / "chunks.jsonl",
         tables_index=doc_dir / "tables.index.jsonl",
         tables_dir=doc_dir / "tables",
+        cross_refs=doc_dir / "cross_refs.jsonl",
     )

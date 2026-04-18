@@ -1207,3 +1207,40 @@ jq -c '.[] | select(.kind=="pinout")' tables.index.jsonl
 
 - 8 个工程表仍无 caption — 多是历史版本表（p.83-86 revision history），caption 本身在 PDF 里就不存在，不是解析失败
 - 32 张 `generic` 表在 datasheet 上大多合理，但部分 comparison/功能表可能应归 `register`/`timing`，需要 TRM 样本才能验证
+
+## 2026-04-18 Phase 41 Implementation Results
+
+### Cross-reference extraction on datasheet
+
+```
+total cross_refs: 47
+kind distribution: {'section': 26, 'table': 17, 'figure': 4}
+resolved: 43 (91%)
+```
+
+All 4 unresolved are Figure references (no figure index yet). Section + Table
+resolution rate is 100%.
+
+### Sample jq usage for AI consumer
+
+查所有指向 Section 4.1.3.5 的引用：
+```sh
+jq -c 'select(.target=="4.1.3.5")' cross_refs.jsonl
+```
+
+查某页上所有出站跳转：
+```sh
+jq -c 'select(.source_page==16)' cross_refs.jsonl
+```
+
+从 p.16 (Pin Overview) 出发看可以跳到哪里：
+- 5 条 table 引用（Table 2-4, 2-6, 2-8, 2-10, 2-11），全部 resolve 到具体页
+
+### OCR 断词已处理
+
+`see T able 2-10` 这种 Docling 对字体识别错误的变体已被正则支持，不再遗漏。
+
+### 剩余缺口
+
+- Figure 不能 resolve，因为没有 `figures.index.jsonl`
+- `and` 连接的第二引用（`see Figure 2-3 and T able 2-13`）需要 "See" prefix 在两个都适用时才抽取；当前从 47 条已覆盖大部分，精度优先于召回

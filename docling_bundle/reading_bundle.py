@@ -16,6 +16,7 @@ def build_readme(
     alerts_path: str,
     toc_path: str = "toc.json",
     pages_index_path: str = "pages.index.jsonl",
+    cross_refs_path: str = "cross_refs.jsonl",
 ) -> str:
     lines = [
         f"# {doc_id}",
@@ -30,11 +31,12 @@ def build_readme(
         "## Start Here",
         "",
         "1. Read `document.md` for broad reading context.",
-        "2. Use `toc.json` for hierarchical heading navigation.",
+        "2. Use `toc.json` (filter `is_chapter=true`) for the chapter outline.",
         "3. Use `pages.index.jsonl` to look up all content on a given page.",
-        "4. Use `sections.jsonl` for section-level navigation.",
-        "5. Use `tables.index.jsonl` and `tables/` for structured table verification.",
-        "6. Return to the original PDF for final engineering verification.",
+        "4. Use `sections.jsonl` for fine-grained section navigation.",
+        "5. Use `tables.index.jsonl` (filter `kind`) for pinout/register/electrical table lookup.",
+        "6. Use `cross_refs.jsonl` to jump between referenced sections, tables, and figures.",
+        "7. Return to the original PDF for final engineering verification.",
         "",
         "## Key Files",
         "",
@@ -46,6 +48,7 @@ def build_readme(
         f"- Sections index: `{sections_index}`",
         f"- Chunks index: `{chunks_index}`",
         f"- Tables index: `{tables_index}`",
+        f"- Cross-references: `{cross_refs_path}`",
         f"- Alerts: `{alerts_path}`",
     ]
     if alerts:

@@ -18,6 +18,7 @@ from docling.pipeline.threaded_standard_pdf_pipeline import ThreadedStandardPdfP
 
 from docling_bundle.alerts import detect_markdown_alerts, detect_table_sidecar_alerts
 from docling_bundle.config import build_pdf_pipeline_options
+from docling_bundle.cross_refs import extract_cross_refs
 from docling_bundle.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
 from docling_bundle.indexing import attach_table_references, build_chunk_records, build_section_records, build_toc, build_pages_index, flag_suspicious_sections
 from docling_bundle.models import RuntimeConfig
@@ -408,6 +409,7 @@ def export_document_bundle(
         "tables_dir": paths.tables_dir.name,
         "toc": paths.toc.name,
         "pages_index": paths.pages_index.name,
+        "cross_refs": paths.cross_refs.name,
     }
 
     if aggregate_status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS} or combined_doc is None:
@@ -463,6 +465,9 @@ def export_document_bundle(
     pages_index = build_pages_index(chunk_records, table_records, alerts)
     write_jsonl(paths.pages_index, pages_index)
 
+    cross_refs = extract_cross_refs(markdown_text, toc=toc, table_records=table_records)
+    write_jsonl(paths.cross_refs, cross_refs)
+
     write_jsonl(paths.chunks, chunk_records)
     write_jsonl(paths.sections, section_records)
     write_jsonl(paths.tables_index, table_records)
@@ -483,6 +488,7 @@ def export_document_bundle(
             alerts_path=paths.alerts.name,
             toc_path=paths.toc.name,
             pages_index_path=paths.pages_index.name,
+            cross_refs_path=paths.cross_refs.name,
         ),
         encoding="utf-8",
     )

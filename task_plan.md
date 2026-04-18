@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中收敛“面向嵌入式开发的手册转换输出架构”，重点回答 `Docling` 当前 bundle 是否已接近最佳实践，以及 `OpenDataLoader PDF` 尤其 hybrid mode 的更优输出应当长什么样。
 
 ## Current Phase
-Phase 41: Cross-Reference Extraction
+Phase 42: Docling Asset Naming & Index
 
 ## Phases
 ### Phase 1: Research Refresh
@@ -298,12 +298,19 @@ Phase 41: Cross-Reference Extraction
 - Agent 可用 `jq '.[] | select(.kind==\"pinout\")' tables.index.jsonl` 一键筛所有引脚表
 
 ### Phase 41: Cross-Reference Extraction
-- [ ] 新增 `docling_bundle/cross_refs.py`，抽取 `See Section X.Y` / `Refer to Section X.Y` / `See Table X-Y` / `See Figure X-Y`
-- [ ] 输出 `cross_refs.jsonl`：`{source_chunk_id, target_kind, target_id, target_page, raw_match}`
-- [ ] 从 TOC / `tables.index.jsonl` 解析 target 的实际 page（能对上就填，对不上标 `unresolved: true`）
-- [ ] README 引用 `cross_refs.jsonl`，说明用法
-- [ ] 单元测试覆盖抽取 + 解析
-- **Status:** pending
+- [x] 新增 `docling_bundle/cross_refs.py`
+- [x] 匹配 `See|Refer to|shown in|as shown in + Section|Table|Figure + target`
+- [x] 通过 `<!-- page_break -->` 跟踪 source page
+- [x] Section 对 TOC resolve；Table 对 tables.index resolve；Figure 留 unresolved
+- [x] 处理 Docling OCR 的 "T able" 断词
+- [x] 10 个 cross_refs 测试（106 total passing）
+- [x] README 引用 cross_refs.jsonl 并给出用法
+- **Status:** complete
+
+**Phase 41 实测成果（ESP32-S3 datasheet）：**
+- 抽取 47 条交叉引用（26 section / 17 table / 4 figure）
+- Resolve 成功率 91%（43/47），未解决全部是 Figure（后续 Phase 若新增 figure index 可覆盖）
+- 每条引用带 `source_page` / `target_page` / `raw`，可直接 jq 跳转
 
 ### Phase 42: Docling Asset Naming & Index
 - [ ] 图片重命名为 `p{page:04d}_asset_{seq:03d}.png`（基于 docling document 的 prov page）
