@@ -89,6 +89,22 @@ def infer_heading_level(heading_text: str) -> int:
     return prefix.count(".") + 1
 
 
+def is_chapter_heading(heading_text: str) -> bool:
+    """A "chapter" is a numbered top-level heading like ``4 Functional
+    Description``. Intermediate numbered headings (``4.1 System``) and
+    non-numbered headings (``Features``) are NOT chapters. Same rule
+    that :func:`build_toc` uses for its ``is_chapter`` field — expose
+    as a helper so :func:`build_section_records` can reuse it without
+    duplicating the predicate.
+    """
+    text = (heading_text or "").strip()
+    if not text:
+        return False
+    if not _is_numbered_heading(text):
+        return False
+    return infer_heading_level(text) == 1
+
+
 def is_table_like_chunk(chunk) -> bool:
     for item in getattr(chunk.meta, "doc_items", []) or []:
         if item.__class__.__name__ == "TableItem":
@@ -263,6 +279,7 @@ def build_section_records(
                 "section_id": section_id,
                 "heading_path": chunk["heading_path"],
                 "heading_level": infer_heading_level(section_id),
+                "is_chapter": is_chapter_heading(section_id),
                 "page_start": chunk["page_start"],
                 "page_end": chunk["page_end"],
                 "chunk_count": 0,
@@ -286,6 +303,110 @@ def build_section_records(
             item["section_id"],
         ),
     )
+
+
+def augment_sections_with_navigational_parents(
+    doc_id: str,
+    leaf_sections: list[dict],
+    chunk_records: list[dict],
+    toc: list[dict],
+) -> list[dict]:
+    """Emit a "navigational parent" section record for every TOC heading
+    referenced in a chunk's ``heading_path`` but missing from
+    ``leaf_sections``.
+
+    Docling attaches most chunks to the deepest numbered heading, which
+    means top-level chapter headings (``4 Functional Description``) and
+    intermediate groupings (``4.1 System``, ``2.3 IO Pins``) have no
+    direct chunks and therefore produce no leaf section record. An
+    agent following the README's ``is_chapter=true`` hint to filter
+    ``sections.jsonl`` hit zero rows. This helper closes the gap.
+
+    Parent records carry:
+      * ``chunk_ids = []`` and ``chunk_count = 0`` — keeping the
+        "chunks are mutually exclusive across sections" invariant
+      * ``heading_path`` reconstructed as the TOC chain up to that
+        heading (from a representative chunk's lineage)
+      * ``is_chapter`` / ``heading_level`` from the TOC entry
+      * ``page_start`` from the TOC entry
+      * ``page_end`` from the latest descendant chunk's ``page_end``
+        (so the parent's span still covers its content)
+      * ``text_preview = ""`` and ``table_ids = []`` (filled later by
+        :func:`attach_table_references`)
+
+    Skips:
+      * TOC entries already present as leaf sections
+      * TOC entries not referenced by any chunk's ``heading_path``
+        (standalone decorative headings, Glossary terms, etc. — no
+        content belongs under them, so a navigational parent is
+        useless)
+      * ``suspicious=True`` TOC entries (heading-detection errors —
+        see :func:`flag_suspicious_sections`; resurrecting them would
+        reintroduce the ghost-span behavior the suspicious flag hides)
+    """
+    leaf_ids = {s["section_id"] for s in leaf_sections}
+
+    # Map heading → every chunk whose heading_path contains it. Also
+    # remember the chunk's full lineage so we can rebuild the parent's
+    # heading_path (the subchain ending at this heading).
+    referenced: dict[str, list[dict]] = {}
+    for chunk in chunk_records:
+        for ancestor in chunk.get("heading_path") or []:
+            referenced.setdefault(ancestor, []).append(chunk)
+
+    parents: list[dict] = []
+    for entry in toc:
+        heading = entry.get("heading")
+        if not heading or heading in leaf_ids:
+            continue
+        if entry.get("suspicious"):
+            continue
+        descendants = referenced.get(heading)
+        if not descendants:
+            continue
+        # Reconstruct heading_path up to this heading using any
+        # descendant's lineage — all descendants share the same
+        # ancestor chain up to the common parent by definition of
+        # ``heading_path``.
+        sample_path = descendants[0].get("heading_path") or [heading]
+        try:
+            cut = sample_path.index(heading) + 1
+        except ValueError:
+            cut = len(sample_path)
+        heading_path = sample_path[:cut]
+
+        page_start = entry.get("page")
+        # ``page_end`` should cover the content — take the max of all
+        # descendant ``page_end`` values (or fall back to page_start).
+        descendant_page_ends = [
+            d.get("page_end") for d in descendants if d.get("page_end") is not None
+        ]
+        page_end = max(descendant_page_ends) if descendant_page_ends else page_start
+
+        parents.append(
+            {
+                "doc_id": doc_id,
+                "section_id": heading,
+                "heading_path": heading_path,
+                "heading_level": entry.get("level") or infer_heading_level(heading),
+                "is_chapter": bool(entry.get("is_chapter")),
+                "page_start": page_start,
+                "page_end": page_end,
+                "chunk_count": 0,
+                "chunk_ids": [],
+                "text_preview": "",
+                "table_ids": [],
+            }
+        )
+
+    merged = list(leaf_sections) + parents
+    merged.sort(
+        key=lambda item: (
+            item["page_start"] if item.get("page_start") is not None else 10**9,
+            item["section_id"],
+        )
+    )
+    return merged
 
 
 def flag_suspicious_sections(

@@ -29,6 +29,7 @@ from docling_bundle.cross_refs import build_figure_page_map, extract_cross_refs
 from docling_bundle.images import filter_markdown_image_refs, picture_keep_flags, resolve_artifacts_dir
 from docling_bundle.indexing import (
     attach_table_references,
+    augment_sections_with_navigational_parents,
     build_chunk_records,
     build_doc_item_lineages,
     build_pages_index,
@@ -537,6 +538,19 @@ def export_document_bundle(
     tables = [item for item, _level in combined_doc.iterate_items() if isinstance(item, TableItem)]
     exported_tables = export_tables(doc_id=doc_id, tables=tables, tables_dir=paths.tables_dir, doc=combined_doc)
     table_records = [table.record for table in exported_tables]
+
+    # Build TOC first so augmentation (Phase 59a) can emit navigational
+    # parent section records for chapter / intermediate headings that
+    # have no direct chunks. ``build_toc`` only needs the leaf sections
+    # to check the ``suspicious`` flag, so it runs on them and the
+    # augmentation merges in the parents afterward.
+    toc = build_toc(combined_doc, section_records=section_records)
+    section_records = augment_sections_with_navigational_parents(
+        doc_id=doc_id,
+        leaf_sections=section_records,
+        chunk_records=chunk_records,
+        toc=toc,
+    )
     attach_table_references(chunk_records, section_records, table_records)
     manifest["table_count"] = len(table_records)
     manifest["chunk_count"] = len(chunk_records)
@@ -557,7 +571,6 @@ def export_document_bundle(
     manifest["alert_count"] = len(alerts)
     write_json(paths.alerts, alerts)
 
-    toc = build_toc(combined_doc, section_records=section_records)
     write_json(paths.toc, toc)
 
     asset_records = build_assets_index(doc_id, markdown_text, paths.doc_dir)

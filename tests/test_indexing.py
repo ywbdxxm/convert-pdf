@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from docling_bundle.indexing import (
     attach_table_references,
+    augment_sections_with_navigational_parents,
     build_chunk_record,
     build_chunk_records,
     build_doc_item_lineages,
@@ -13,6 +14,7 @@ from docling_bundle.indexing import (
     compute_dropped_repeat_labels,
     flag_suspicious_sections,
     infer_heading_level,
+    is_chapter_heading,
     section_key_from_headings,
 )
 
@@ -462,6 +464,220 @@ class HeadingLevelTests(unittest.TestCase):
         self.assertEqual(section_ids, {"1 Overview"})
         # Orphan doc:0001 isn't attached to anything — there is no parent
         self.assertEqual(sections[0]["chunk_ids"], ["doc:0002"])
+
+    def test_build_section_records_populates_is_chapter_flag(self):
+        """Phase 59c: section records gain an ``is_chapter`` field
+        mirroring TOC semantics (numbered level-1 heading). This lets
+        agents filter ``sections.jsonl`` by chapter without
+        cross-referencing ``toc.json`` or re-matching the
+        ``^\\d+\\s`` prefix themselves.
+        """
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "4.1 System", "heading_path": ["4.1 System"], "page_start": 36, "page_end": 36, "text": "System"},
+            {"chunk_id": "doc:0002", "section_id": "Features", "heading_path": ["Features"], "page_start": 3, "page_end": 3, "text": "Feature list"},
+        ]
+
+        sections = build_section_records("doc", chunks)
+
+        for s in sections:
+            self.assertIn("is_chapter", s)
+        by_id = {s["section_id"]: s for s in sections}
+        # Numbered level 1 would be is_chapter=True; 4.1 is level 2 so False
+        self.assertFalse(by_id["4.1 System"]["is_chapter"])
+        self.assertFalse(by_id["Features"]["is_chapter"])
+
+    def test_is_chapter_heading_numbered_level_one_only(self):
+        """Helper exposed for reuse: only ``^\\d+\\s<title>`` counts as
+        a chapter heading. ``4.1 System`` is not (level 2);
+        ``Features`` is not (not numbered); ``4 Functional Description``
+        is."""
+        self.assertTrue(is_chapter_heading("4 Functional Description"))
+        self.assertTrue(is_chapter_heading("1 Overview"))
+        self.assertFalse(is_chapter_heading("4.1 System"))
+        self.assertFalse(is_chapter_heading("Features"))
+        self.assertFalse(is_chapter_heading("Wi-Fi"))
+
+    def test_build_section_records_keeps_leaf_sections_unchanged(self):
+        """Phase 59a does not touch leaf sections (those with direct
+        chunks). Regression guard: the classic aggregation still works."""
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "4.2.1.1 UART", "heading_path": ["4 Functional Description", "4.2 Peripherals", "4.2.1 Connectivity", "4.2.1.1 UART"], "page_start": 51, "page_end": 51, "text": "UART intro"},
+        ]
+
+        sections = build_section_records("doc", chunks)
+
+        self.assertEqual(len(sections), 1)
+        self.assertEqual(sections[0]["section_id"], "4.2.1.1 UART")
+        self.assertEqual(sections[0]["chunk_ids"], ["doc:0001"])
+        self.assertEqual(sections[0]["page_start"], 51)
+
+
+class AugmentSectionsWithNavigationalParentsTests(unittest.TestCase):
+    """Phase 59a: ``sections.jsonl`` previously omitted any heading
+    without direct chunks — so all chapter headings (``4 Functional
+    Description``, ``5 Electrical Characteristics``, ``2 Pins``, etc.)
+    and intermediate groupings (``2.3 IO Pins``, ``4.1.3.3 Clock``)
+    were invisible there. Agents following the README's
+    "filter ``is_chapter=true``" guidance got empty results.
+
+    Fix: after leaf sections are built, walk the TOC and emit a
+    "navigational parent" record for every heading that appears in a
+    chunk's ``heading_path`` but has no leaf section. These records
+    carry ``chunk_ids=[]`` and ``chunk_count=0`` so the
+    chunks-are-mutually-exclusive invariant stays intact, and the
+    agent can distinguish navigation-only parents from leaf sections
+    via that zero count.
+    """
+
+    def test_adds_chapter_section_record_when_missing(self):
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "4.2.1.1 UART",
+             "heading_path": ["4 Functional Description", "4.2 Peripherals", "4.2.1 Connectivity", "4.2.1.1 UART"],
+             "page_start": 51, "page_end": 51, "text": "UART intro"},
+        ]
+        leaf_sections = build_section_records("doc", chunks)
+        toc = [
+            {"heading": "4 Functional Description", "level": 1, "page": 36, "is_chapter": True},
+            {"heading": "4.2 Peripherals", "level": 2, "page": 50, "is_chapter": False},
+            {"heading": "4.2.1 Connectivity", "level": 3, "page": 51, "is_chapter": False},
+            {"heading": "4.2.1.1 UART", "level": 4, "page": 51, "is_chapter": False},
+        ]
+
+        augmented = augment_sections_with_navigational_parents(
+            "doc", leaf_sections, chunks, toc
+        )
+
+        section_ids = {s["section_id"] for s in augmented}
+        self.assertIn("4 Functional Description", section_ids)
+        self.assertIn("4.2 Peripherals", section_ids)
+        self.assertIn("4.2.1 Connectivity", section_ids)
+        self.assertIn("4.2.1.1 UART", section_ids)
+
+    def test_navigational_parent_has_empty_chunk_ids_and_is_chapter_flag(self):
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "4.1 System",
+             "heading_path": ["4 Functional Description", "4.1 System"],
+             "page_start": 37, "page_end": 37, "text": "System"},
+        ]
+        leaf_sections = build_section_records("doc", chunks)
+        toc = [
+            {"heading": "4 Functional Description", "level": 1, "page": 36, "is_chapter": True},
+            {"heading": "4.1 System", "level": 2, "page": 37, "is_chapter": False},
+        ]
+
+        augmented = augment_sections_with_navigational_parents(
+            "doc", leaf_sections, chunks, toc
+        )
+
+        parent = next(s for s in augmented if s["section_id"] == "4 Functional Description")
+        self.assertEqual(parent["chunk_ids"], [])
+        self.assertEqual(parent["chunk_count"], 0)
+        self.assertTrue(parent["is_chapter"])
+        self.assertEqual(parent["page_start"], 36)
+        self.assertEqual(parent["heading_level"], 1)
+        self.assertEqual(parent["heading_path"], ["4 Functional Description"])
+        self.assertEqual(parent["text_preview"], "")
+        self.assertEqual(parent["table_ids"], [])
+
+    def test_leaf_sections_retain_original_chunk_ids_and_page_range(self):
+        """Augmentation must not mutate existing leaf section records."""
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "4.2.1.1 UART",
+             "heading_path": ["4 Functional Description", "4.2.1.1 UART"],
+             "page_start": 51, "page_end": 52, "text": "UART"},
+        ]
+        leaf_sections = build_section_records("doc", chunks)
+        toc = [
+            {"heading": "4 Functional Description", "level": 1, "page": 36, "is_chapter": True},
+            {"heading": "4.2.1.1 UART", "level": 4, "page": 51, "is_chapter": False},
+        ]
+
+        augmented = augment_sections_with_navigational_parents(
+            "doc", leaf_sections, chunks, toc
+        )
+        uart = next(s for s in augmented if s["section_id"] == "4.2.1.1 UART")
+
+        self.assertEqual(uart["chunk_ids"], ["doc:0001"])
+        self.assertEqual(uart["chunk_count"], 1)
+        self.assertEqual(uart["page_start"], 51)
+        self.assertEqual(uart["page_end"], 52)
+
+    def test_skip_toc_entry_not_referenced_by_any_chunk(self):
+        """A TOC entry that is never seen in ``heading_path`` is a
+        heading nobody's content belongs under — often a Glossary term
+        or a standalone decorative heading. Do not fabricate a
+        navigational parent for it; keep sections grounded in real
+        content."""
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "4.1 System",
+             "heading_path": ["4 Functional Description", "4.1 System"],
+             "page_start": 36, "page_end": 36, "text": "System"},
+        ]
+        leaf_sections = build_section_records("doc", chunks)
+        toc = [
+            {"heading": "Glossary term X", "level": 1, "page": 81, "is_chapter": False},
+            {"heading": "4 Functional Description", "level": 1, "page": 36, "is_chapter": True},
+            {"heading": "4.1 System", "level": 2, "page": 36, "is_chapter": False},
+        ]
+
+        augmented = augment_sections_with_navigational_parents(
+            "doc", leaf_sections, chunks, toc
+        )
+
+        section_ids = {s["section_id"] for s in augmented}
+        self.assertNotIn("Glossary term X", section_ids)
+        self.assertIn("4 Functional Description", section_ids)
+
+    def test_skips_suspicious_toc_entries(self):
+        """``suspicious=True`` TOC entries are heading-detection errors
+        (see ``flag_suspicious_sections``). Do not resurrect them as
+        navigational parents — they would drag back the ghost-span
+        behavior the suspicious flag is meant to hide."""
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "Note:",
+             "heading_path": ["Note:"],
+             "page_start": 10, "page_end": 10, "text": "A note"},
+        ]
+        leaf_sections = build_section_records("doc", chunks)
+        toc = [
+            {"heading": "Note:", "level": 1, "page": 10, "is_chapter": False, "suspicious": True},
+        ]
+
+        augmented = augment_sections_with_navigational_parents(
+            "doc", leaf_sections, chunks, toc
+        )
+
+        section_ids = {s["section_id"] for s in augmented}
+        self.assertNotIn("Note:", section_ids)
+
+    def test_navigational_parents_ordered_by_page_start(self):
+        """Parents and leaves interleave in reading order — sort by
+        ``page_start`` then ``section_id``, same as ``build_section_records``."""
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "4.1 System",
+             "heading_path": ["4 Functional Description", "4.1 System"],
+             "page_start": 37, "page_end": 37, "text": "System"},
+            {"chunk_id": "doc:0002", "section_id": "2.1 Pinout",
+             "heading_path": ["2 Pins", "2.1 Pinout"],
+             "page_start": 16, "page_end": 16, "text": "Pinout"},
+        ]
+        leaf_sections = build_section_records("doc", chunks)
+        toc = [
+            {"heading": "2 Pins", "level": 1, "page": 15, "is_chapter": True},
+            {"heading": "2.1 Pinout", "level": 2, "page": 16, "is_chapter": False},
+            {"heading": "4 Functional Description", "level": 1, "page": 36, "is_chapter": True},
+            {"heading": "4.1 System", "level": 2, "page": 37, "is_chapter": False},
+        ]
+
+        augmented = augment_sections_with_navigational_parents(
+            "doc", leaf_sections, chunks, toc
+        )
+        ids_in_order = [s["section_id"] for s in augmented]
+
+        self.assertEqual(
+            ids_in_order,
+            ["2 Pins", "2.1 Pinout", "4 Functional Description", "4.1 System"],
+        )
 
     def test_build_section_records_drops_repeated_unnumbered_label_ghost_sections(self):
         """Regression (Phase 53): "Feature List" / "Pin Assignment" style
