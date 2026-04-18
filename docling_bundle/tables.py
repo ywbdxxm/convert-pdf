@@ -316,25 +316,44 @@ def backfill_table_captions_from_markdown(markdown: str, exported_tables: list[E
 
 
 def inject_table_sidecars_into_markdown(markdown: str, exported_tables: list[ExportedTable]) -> str:
+    """Inject table sidecar links into markdown after each table.
+
+    Optimized to O(m + n log n) where m = len(markdown), n = len(exported_tables).
+    Previous implementation was O(n × m) due to repeated linear scans.
+    """
     if not exported_tables:
         return markdown.rstrip() + "\n"
 
-    cursor = 0
-    updated_parts: list[str] = []
-    unmatched: list[ExportedTable] = []
-
-    for exported_table in exported_tables:
+    # Build a list of all table occurrences in markdown (single O(m) scan)
+    matches: list[tuple[int, int, int]] = []  # (pos, end, table_index)
+    for i, exported_table in enumerate(exported_tables):
         table_markdown = exported_table.markdown.strip()
         if not table_markdown:
-            unmatched.append(exported_table)
             continue
+        # Find all occurrences of this table in markdown
+        start = 0
+        while True:
+            pos = markdown.find(table_markdown, start)
+            if pos < 0:
+                break
+            matches.append((pos, pos + len(table_markdown), i))
+            start = pos + len(table_markdown)
 
-        match_index = markdown.find(table_markdown, cursor)
-        if match_index < 0:
-            unmatched.append(exported_table)
-            continue
+    # Sort by position and deduplicate (keep first occurrence per table)
+    matches.sort(key=lambda x: x[0])
+    seen_indices: set[int] = set()
+    unique_matches: list[tuple[int, int, int]] = []
+    for match in matches:
+        table_idx = match[2]
+        if table_idx not in seen_indices:
+            unique_matches.append(match)
+            seen_indices.add(table_idx)
 
-        match_end = match_index + len(table_markdown)
+    # Inject sidecars
+    cursor = 0
+    updated_parts: list[str] = []
+    for _, match_end, table_idx in unique_matches:
+        exported_table = exported_tables[table_idx]
         updated_parts.append(markdown[cursor:match_end])
         updated_parts.append(f"\n\n{_build_table_sidecars_line(exported_table.record)}")
         cursor = match_end
@@ -342,6 +361,8 @@ def inject_table_sidecars_into_markdown(markdown: str, exported_tables: list[Exp
     updated_parts.append(markdown[cursor:])
     updated = "".join(updated_parts).rstrip()
 
+    # Append unmatched tables
+    unmatched = [exported_tables[i] for i in range(len(exported_tables)) if i not in seen_indices]
     if unmatched:
         appendix_lines = ["## Table Sidecars Appendix", ""]
         for exported_table in unmatched:

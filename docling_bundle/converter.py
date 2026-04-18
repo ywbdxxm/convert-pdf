@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
-from types import SimpleNamespace
 
 from docling.chunking import HybridChunker
 from docling.datamodel.base_models import ConversionStatus, InputFormat
@@ -26,6 +26,21 @@ from docling_bundle.models import RuntimeConfig
 from docling_bundle.paths import build_document_paths
 from docling_bundle.reading_bundle import build_readme
 from docling_bundle.tables import export_tables, inject_table_sidecars_into_markdown
+
+
+@dataclass(frozen=True)
+class CachedInputMetadata:
+    """Metadata about the input document from cache."""
+    page_count: int | None
+
+
+@dataclass(frozen=True)
+class CachedConversionResult:
+    """Cached conversion result loaded from window cache."""
+    status: ConversionStatus
+    document: DoclingDocument
+    errors: list[str]
+    input: CachedInputMetadata
 
 
 def make_doc_id(path: Path) -> str:
@@ -227,11 +242,11 @@ def load_cached_window_result(
         return None
 
     cached_page_count = input_page_count if input_page_count is not None else meta.get("input_page_count")
-    return SimpleNamespace(
+    return CachedConversionResult(
         status=status,
         document=document,
         errors=meta.get("errors", []),
-        input=SimpleNamespace(page_count=cached_page_count),
+        input=CachedInputMetadata(page_count=cached_page_count),
     )
 
 

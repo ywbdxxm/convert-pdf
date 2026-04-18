@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中收敛“面向嵌入式开发的手册转换输出架构”，重点回答 `Docling` 当前 bundle 是否已接近最佳实践，以及 `OpenDataLoader PDF` 尤其 hybrid mode 的更优输出应当长什么样。
 
 ## Current Phase
-Phase 47: sections.jsonl 加 chunk_ids + cross_refs.jsonl 加 source_chunk_id
+Phase 43: 代码整洁（converter.py 拆分 + O(n²) 消除 + SimpleNamespace → dataclass）
 
 ## Robustness Principle (2026-04-18)
 
