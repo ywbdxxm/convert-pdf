@@ -204,5 +204,83 @@ class ExtractCrossRefsFigureResolveTests(unittest.TestCase):
         self.assertTrue(refs[0]["unresolved"])
 
 
+class ExtractCrossRefsTargetIdTests(unittest.TestCase):
+    """Phase 59b: cross_refs populate ``target_id`` so agents can jump
+    from a reference directly to the target record without re-searching
+    by ``caption.startswith("Table X-Y")`` or
+    ``section_id.startswith("4.1.3.5")``."""
+
+    def test_section_cross_ref_gets_target_id_from_toc_heading(self):
+        markdown = "See Section 4.1.3.5 for PMU details."
+        toc = [{"heading": "4.1.3.5 PMU Overview", "page": 42}]
+
+        refs = extract_cross_refs(markdown, toc=toc)
+
+        self.assertEqual(refs[0]["target_id"], "4.1.3.5 PMU Overview")
+        self.assertEqual(refs[0]["target_page"], 42)
+
+    def test_section_cross_ref_target_id_matches_exact_target(self):
+        """If the TOC heading text equals the target (no trailing
+        descriptive words), target_id == target."""
+        markdown = "see Section 4"
+        toc = [{"heading": "4", "page": 36}]
+
+        refs = extract_cross_refs(markdown, toc=toc)
+
+        self.assertEqual(refs[0]["target_id"], "4")
+
+    def test_section_cross_ref_omits_target_id_when_not_in_toc(self):
+        markdown = "see Section 99.9 Nowhere"
+        toc = [{"heading": "1 Overview", "page": 1}]
+
+        refs = extract_cross_refs(markdown, toc=toc)
+
+        self.assertNotIn("target_id", refs[0])
+        self.assertTrue(refs[0]["unresolved"])
+
+    def test_table_cross_ref_gets_target_id_from_table_records(self):
+        markdown = "Refer to Table 2-5 for the modes."
+        tables = [
+            {
+                "table_id": "doc:table:0010",
+                "caption": "Table 2-5. Power Modes",
+                "page_start": 23,
+            }
+        ]
+
+        refs = extract_cross_refs(markdown, table_records=tables)
+
+        self.assertEqual(refs[0]["target_id"], "doc:table:0010")
+        self.assertEqual(refs[0]["target_page"], 23)
+
+    def test_table_cross_ref_omits_target_id_when_caption_missing(self):
+        """If a table record has no caption (uncaptioned table), the
+        cross-ref cannot bind to a specific ``table_id`` even if the
+        numeric target matches something. Stay conservative."""
+        markdown = "see Table 0-0 somewhere"
+        tables = [
+            {
+                "table_id": "doc:table:0015",
+                "caption": "",
+                "page_start": 22,
+            }
+        ]
+
+        refs = extract_cross_refs(markdown, table_records=tables)
+
+        self.assertNotIn("target_id", refs[0])
+
+    def test_figure_cross_ref_does_not_get_target_id(self):
+        """Docling provides no stable figure id — figure refs resolve
+        ``target_page`` via caption map but never get ``target_id``."""
+        markdown = "see Figure 2-2 for the scheme"
+        figure_map = {"Figure 2-2": 30}
+
+        refs = extract_cross_refs(markdown, figure_page_map=figure_map)
+
+        self.assertEqual(refs[0]["target_page"], 30)
+        self.assertNotIn("target_id", refs[0])
+
+
 if __name__ == "__main__":
     unittest.main()

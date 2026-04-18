@@ -48,15 +48,25 @@ def _normalize_kind(kind_text: str) -> str:
     return normalized
 
 
-def _resolve_section_page(target: str, toc: list[dict]) -> int | None:
+def _resolve_section(target: str, toc: list[dict]) -> tuple[int | None, str | None]:
+    """Find the TOC entry for a Section reference.
+
+    Returns ``(page, heading)`` — heading is used as the stable
+    ``target_id`` since ``sections.jsonl.section_id`` and
+    ``toc.json.heading`` are the same string for numbered sections.
+    """
     if not target:
-        return None
+        return None, None
     needle = f"{target} "
     for entry in toc:
         heading = entry.get("heading") or ""
         if heading == target or heading.startswith(needle):
-            return entry.get("page")
-    return None
+            return entry.get("page"), heading
+    return None, None
+
+
+def _resolve_section_page(target: str, toc: list[dict]) -> int | None:
+    return _resolve_section(target, toc)[0]
 
 
 _TABLE_CAPTION_TARGET_RE = re.compile(
@@ -123,9 +133,19 @@ def _resolve_figure_page(target: str, figure_page_map: dict[str, int]) -> int | 
     return figure_page_map.get(key)
 
 
-def _resolve_table_page(target: str, table_records: list[dict]) -> int | None:
+def _resolve_table(
+    target: str, table_records: list[dict]
+) -> tuple[int | None, str | None]:
+    """Find the table record whose caption begins with ``Table <target>``.
+
+    Returns ``(page_start, table_id)``. Uncaptioned tables cannot be
+    bound by reference number alone (the caption is what lets us match
+    the target) so they stay ``(None, None)`` — the alert pipeline
+    already flags them as ``table_without_caption`` and agents resolve
+    those via the original PDF.
+    """
     if not target:
-        return None
+        return None, None
     normalized_target = target.replace(" ", "")
     for record in table_records:
         caption = record.get("caption") or ""
@@ -134,8 +154,12 @@ def _resolve_table_page(target: str, table_records: list[dict]) -> int | None:
             continue
         caption_target = match.group(1).replace(" ", "")
         if caption_target == normalized_target:
-            return record.get("page_start")
-    return None
+            return record.get("page_start"), record.get("table_id")
+    return None, None
+
+
+def _resolve_table_page(target: str, table_records: list[dict]) -> int | None:
+    return _resolve_table(target, table_records)[0]
 
 
 def extract_cross_refs(
@@ -182,15 +206,18 @@ def extract_cross_refs(
                 "source_page": current_page,
                 "raw": raw_text,
             }
+            target_id: str | None = None
             if kind == "section":
-                target_page = _resolve_section_page(target, toc)
+                target_page, target_id = _resolve_section(target, toc)
             elif kind == "table":
-                target_page = _resolve_table_page(target, table_records)
+                target_page, target_id = _resolve_table(target, table_records)
             elif kind == "figure":
                 target_page = _resolve_figure_page(target, figure_page_map)
             else:
                 target_page = None
             record["target_page"] = target_page
+            if target_id:
+                record["target_id"] = target_id
             if target_page is None:
                 record["unresolved"] = True
 
