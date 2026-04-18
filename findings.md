@@ -243,6 +243,66 @@ P56a 引入这条过滤是为了防止 lineage promotion 把 Contents / List of 
 - **B（P58b）**：用 Docling 原生 `label="caption"` + prefix-anchored regex (`^Figure\s+...`)。**普适、零启发式（Docling 给的现成标签）**。
 - **C（P58c）**：`to_csv(..., header=False)` 仅对 `is_toc=true` 生效。**普适、零风险**。
 
+## 7e. Phase 59 audit — 2026-04-19 (re-run after P58)
+
+重跑 esp32-s3 datasheet 得到 `/tmp/esp32-p59/` 新 bundle（counts 与已提交一致：87 pages / 7 chapters / 71 tables / 136 sections / **339 chunks** / 47 cross_refs (47/47 resolved) / 85 assets / 3 alerts）。以"agent 打开文件拿答案的步数"为判据做字段级深度审计。
+
+### 本轮新发现
+
+| # | 现象 | 证据 | Severity |
+|---|---|---|---|
+| **A** | **`sections.jsonl` 缺所有 top-level chapter 和中间数字 section**（14 个 TOC 条目在 sections 里无对应记录） | `1 ESP32-S3 Series Comparison` / `2 Pins` / `4 Functional Description` / `5 Electrical Characteristics` 等全部 7 个 `is_chapter=true` 以及 `1.2 Comparison` / `2.3 IO Pins` / `4.1.3.3 Clock` / `4.1.3.9 XTAL32K Watchdog Timers` / `5.6 Current Consumption` / `Features` / `Glossary` / `Related Documentation and Resources` / `ESP32-S3 Series` 等非叶 heading 均无 section 记录 | **HIGH**（README 建议"filter is_chapter=true"但 sections 没这些 heading） |
+| **B** | `sections.jsonl` **没有 `is_chapter` 字段**（`toc.json` 有，sections 没），agent 只能 cross-ref 或用正则识别 `^\d+\s` 判定 | `sections.jsonl` 字段：`doc_id / section_id / heading_path / heading_level / page_start / page_end / chunk_count / chunk_ids / text_preview / table_ids`（无 `is_chapter`）| **MEDIUM**（README 提示"chapter outline"由 toc.json 给，但 sections 没同步标记，两层 schema 不对齐） |
+| **C** | **cross_refs.jsonl 的 `target_id` 未填**（47 条全部没有 `target_id` key） | `xr[0]` 只有 `kind / raw / source_chunk_id / source_page / target / target_page` | **MEDIUM**（agent 从 cross-ref → 目标表/section 记录要再搜 `caption.startswith("Table 1-1")` / `section_id.startswith("4.1.3.5")`，多一跳） |
+| **D** | **80 个 `table_like=True` chunk 的 `text` 以 `\n` 或 `\n ` 开头**（Docling HybridChunker 的 table serialization leading-whitespace 伪 artifact） | `p13` / `p16` 等的 pinout chunk text：`'\n ESP32-S3R8, VDD_SPI Voltage 4 = 3.3 V...'` | **LOW**（视觉瑕疵，不影响搜索；但在 contextualized_text 里也会出现类似 preview 不整洁） |
+| **E** | **`tables.index.jsonl` 的 `rows` 字段与 CSV 实际数据行不对齐**（所有 65 个非 TOC 表 `rows = CSV lines`，等于 Docling num_rows 含 header 的计数；TOC 表因 P58c 写入 `header=False` 也 +1 偏差出现了 1 条：table_0002 `rows=45 / CSV=44`） | 66/71 表 `rows` 与 CSV 数据行不一致；语义是 Docling 原生 `num_rows`（包含 header 行），不是 data rows | **LOW**（字段语义没 README 说明；agent 粗略按 rows 过滤"大表"够用，但精确行数差 1） |
+| **F** | 41 个 non-chapter level-1 section / 8 个 Glossary 小写术语 | P55/P58 §7b, §7d 已决 | **不修** |
+
+### A 的证据与后果
+
+`4 Functional Description` 在 chunks.jsonl 里 **124 条 chunk** 的 `heading_path` 包含它；在 TOC 里 `is_chapter=true, page=36`；但 `sections.jsonl` 查 `section_id == "4 Functional Description"` 返回 **0 条**。agent 问"第 4 章讲什么"的第一直觉操作会 miss。
+
+### A 的根因
+
+`build_section_records` 把 chunk 按 `section_id = heading_path[-1]`（叶子 heading）分组。因此只有"直接挂 chunk 的 heading"进 sections。顶层 chapter 和中间分组 heading 下面没有 direct chunk（Docling 把内容挂在最深 numbered heading），所以它们在 sections 层消失。
+
+### A 的修复思路（多方案对比）
+
+| 方案 | 优点 | 缺点 | 风险 |
+|---|---|---|---|
+| (1) 为每个 TOC 条目都建 section 记录（含无 direct chunk 的父级） | sections.jsonl 与 toc.json 1:1 对应；agent 能找到 "4 Functional Description" | 引入"空 chunk_ids 的 section"（chunk_count=0），和现有"0 empty chunk_ids section"的一致性契约冲突 | 中 |
+| (2) 给 chapter/中间 heading 的 section 记录填入**descendant 聚合 chunk_ids**（把 `4.1.*` 全部 chunks 累加到 `4 Functional Description`） | 简单、符合"按章查阅"直觉 | chunks 重复出现在多个 section（叶子 + 所有祖先），`sections.jsonl` 的"chunks 互斥分组"契约被打破；pages.index.section_ids 也要重算 | 高 — 跨契约 |
+| (3) 只补空 chunk_ids 的 "navigational parent" 记录，带 `is_navigation_only=true` 标记 | 保持 chunks 互斥分组；agent 仍能按 section_id 定位 chapter；加一个显式 flag 解释"为什么 chunk_ids=[]" | schema 变复杂；但这个 flag 语义清楚 | 低 |
+| (4) **不动 sections**，只在 **README 修正导航建议**：把 "filter is_chapter=true" 的建议从第 2 步挪到专门说明"从 toc.json 拿到 chapter.page 后用 `jq '.[] \| select(.page_start<=PAGE and PAGE<=.page_end)'` 查 sections"；增加"用 toc.json 按 prefix 找 section" | 零代码改动，只改 agent 使用契约 | agent 多一步 | 极低 |
+
+**推荐 (3)**：最小 schema 变动（+1 字段 + 1 布尔），对 agent 最直接（一步 `section_id == '4 Functional Description'` 就能拿到聚合信息）。同时 B（`is_chapter` 字段）也顺便解决。但需评估"empty chunk_ids 的 section 是否破坏其他消费者"。
+
+### B、C、D、E 的修复方向
+
+- **B** — `build_section_records` 对每条 section 计算 `is_chapter = _is_chapter_heading(section_id)`（同 toc.json 的判据，提取共享 helper）。零风险。
+- **C** — `extract_cross_refs` 在 resolve `target_page` 的同时记录 `target_id`：
+  - section 类型：扫 `toc` / section_records 找 `heading.startswith(target + " ")`，取 `section_id`
+  - table 类型：扫 `table_records` 找 `caption` 的 `Table X-Y` 前缀匹配，取 `table_id`
+  - figure 类型：暂无（Docling 无 figure id）
+  - 无匹配时不加 `target_id`。零风险。
+- **D** — `clean_ocr_text` 已清洗 `T able`；新增 leading-whitespace trim（`text.lstrip()` / `contextualized_text.lstrip()`）对 `table_like=True` 的 chunk。这是 Docling serialization 的 artifact 而非信息，零损失。
+- **E** — 两个选项：
+  - (E1) 把 `rows` 字段语义改成 "CSV 数据行数"（非 TOC = num_rows - 1；TOC = num_rows），即 data-row-count；README / 字段注释同步更新。
+  - (E2) 保持 Docling 原生 `num_rows` 语义，但 README 明确注明"包含 header 行"。
+  - 推荐 (E1)：更符合 agent 直觉"rows 就是数据行数"；对 TOC 表 header=False 写入后仍正确。
+
+### 不修的项（沿用 P55/P58 结论）
+
+| 项 | 理由 |
+|---|---|
+| 41 个 non-chapter level-1 section | P55 §7b 已决（前言 + 非数字子标题 + Glossary 术语）；任何判据会误伤合法前言 |
+| p.22 Table_0015 / p.79 Table_0066 无 caption + 列头崩坏 | `alerts.json: table_without_caption` 契约回原 PDF |
+| p.27 Table 2-9 被识别成图 | alert + fallback image |
+| 4 条 figure cross_refs `target_id` 缺失 | Docling 无 figure 全局 id（P58b 已让 target_page resolve，但无稳定 id 可引） |
+| `Cont'd from previous page` h2 / `## Note:` / `## Contents` / `## List of *` 仍在 document.md | 它们在 TOC/sections/chunks 层已过滤；删 md heading 会破坏正文上下文可读性 |
+| `## Note:` x8 h2 in md | 合法 note 块前缀 |
+| "Submit Documentation Feedback" x1 链接 | 是 Espressif 的正式 feedback URL，不是 OCR 垃圾 |
+
 ## 8. 参考资料
 
 - Docling: <https://docling-project.github.io/docling/>

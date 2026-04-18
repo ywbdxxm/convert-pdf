@@ -1,12 +1,71 @@
 # Progress
 
-## 当前状态（2026-04-18，Phase 58 完成）
+## 当前状态（2026-04-19，Phase 59 完成）
+
+- 重跑 esp32-s3 datasheet 实测：**87 pages / 7 chapters / 71 tables / 145 sections / 339 chunks / 47 cross_refs (47/47 resolved, 43 with target_id) / 85 assets / 3 alerts**
+- 测试：**240/240 通过**（P58 baseline 220 + P59 新增 20）
+- P59 四个 commit 已推进：`3605c7c` P59b → `3846774` P59d → `0828bea` P59e → `1a38690` P59a+c
+
+## Phase 59 实施总结（2026-04-19）
+
+### P59b（commit `3605c7c`）— cross_refs 填 `target_id`
+
+- `_resolve_section` / `_resolve_table` 改签名返回 `(page, id)`；`_resolve_section_page` / `_resolve_table_page` 作为薄 back-compat 包装
+- `extract_cross_refs` 有 target_id 时写入 record；figure 不写（Docling 无 figure id）；无 caption 的 table 不写
+- 效果：section xref 26/26 带 target_id；table xref 17/17 带 table_id；figure xref 4/4 按设计不带
+- 新 6 测试
+
+### P59d（commit `3846774`）— chunks text 去除前导空白
+
+- `build_chunk_record` 在 `clean_ocr_text` 之后 `.lstrip()` 清理 `text` / `contextualized_text`
+- HybridChunker 在续页表序列化时注入的 `\n ` 前缀消除（80 条 → 0）
+- 内部换行保留
+- 新 2 测试
+
+### P59e（commit `0828bea`）— `rows` = data-row count
+
+- `export_tables` 改逻辑：从 `table_cells` 里统计 `column_header=True` 的不同 `start_row_offset_idx` 个数，从 `num_rows` 中减去
+- 效果：71/71 表的 `rows` 与 CSV 数据行数（`wc -l - 1`，TOC 表 `wc -l`）完全对齐
+  - `table_0008`（2 级 MultiIndex header）：rows 20 → 18
+  - `table_0002`（TOC）：rows 45 → 44
+- is_toc 特殊分支移除，因为即使 TOC 表在 Docling 内部模型里也有 column_header 行；规则统一为"减去 header 行数"
+- 更新 3 既有测试 + 新 2 测试（multi-level header / zero-row guard）
+
+### P59a+c（commit `1a38690`）— navigational parent sections + `is_chapter` 字段
+
+- 核心缺口：sections.jsonl 原本仅包含有直接 chunk 的叶子 heading → 所有 chapter / 中间 heading 缺席 → README 的 `filter is_chapter=true` 建议在 sections 层拿不到东西
+- 新增 `augment_sections_with_navigational_parents`：遍历 TOC，对于"chunk.heading_path 里出现过 + 不是已有 leaf section + 不是 suspicious"的 heading 补 1 条 navigational parent 记录
+- 不破坏 chunks 互斥分组（`chunk_ids=[]`/`chunk_count=0`），`is_chapter` 字段标识角色
+- `attach_table_references` 移到 augment 之后，parent 也拿到覆盖 page span 的 table_ids（支持"第 4 章有哪些表"查询）
+- `build_section_records` 每条叶子 section 同步写 `is_chapter` 字段（`is_chapter_heading` 新 helper，与 `build_toc` 共享判据）
+- 效果：sections 136 → 145（+9 navigational parent）；7 chapters 全部可用 `filter is_chapter=true` 查到
+- 新 11 测试（augment 行为 + is_chapter helper 判据）
+- integrity：chunks 互斥 / 0 重复 section_id / 0 bad page range / is_chapter 与 toc 一致
+
+## Phase 59 最终 baseline（post-commit 1a38690）
+
+| 指标 | P58 end | P59 end |
+|---|---|---|
+| sections | 136 | **145** (+9 nav parents) |
+| sections with is_chapter=true 可查询 | 字段缺 | **7 chapters** |
+| chunks | 339 | 339 |
+| chunks starting with whitespace | 80 | **0** |
+| tables | 71 | 71 |
+| `rows` == CSV data lines | 5/71 | **71/71** |
+| cross_refs total | 47 | 47 |
+| cross_refs resolved | 47 | 47 |
+| cross_refs with target_id | 0 | **43** (section + table) |
+| alerts | 3 | 3 |
+| 测试 | 220/220 | **240/240** |
+| Integrity | 全绿 | 全绿 |
+
+## Phase 58 session 总结（2026-04-18 已完成）
 
 - 重跑 esp32-s3 datasheet 实测：**87 pages / 7 chapters / 71 tables / 136 sections / 339 chunks / 47 cross_refs (47/47 resolved, 100%) / 85 assets / 3 alerts**
 - 测试：**220/220 通过**（P57 baseline 208 + P58a 2 + P58b 9 + P58c 1）
 - P58 三个 commit 已推进：`da0bd80` P58a → `bac833b` P58b → `b519f4d` P58c
 
-## Phase 58 实施总结（2026-04-18）
+## Phase 58 实施总结（2026-04-18 已完成）
 
 ### P58a（commit `da0bd80`）— chunks 恢复 28 条表脚注 / 引脚图例
 
@@ -31,34 +90,7 @@
 - 效果：6 个 TOC CSV 首行从 `['0','1','2','3']` 变为真实 TOC 首条（如 `['Product Overview', ..., '2']` / `['1-1', 'ESP32-S3 Series Comparison', '13']`）；65 个非 TOC 表保持真实列头
 - 新 1 测试 + 6 处 FakeDataFrame 签名更新接受 `header` kwarg
 
-## Phase 58 最终 baseline（post-commit b519f4d）
-
-| 指标 | P57 end | P58 end |
-|---|---|---|
-| chunks | 309 | **339** (+30 recovered) |
-| sections | 136 | 136 |
-| tables | 71 | 71 |
-| cross_refs total | 47 | 47 |
-| cross_refs resolved | 43 (91%) | **47 (100%)** |
-| cross_refs 缺 source_chunk_id | 2 | **0** |
-| alerts | 3 | 3 |
-| TOC CSV row0 噪声 | 5 个 | **0** |
-| heading_path depth 分布 (d1/d2/d3/d4/d5) | 19/86/92/100/12 | 19/107/101/100/12 |
-| 测试 | 208/208 | **220/220** |
-| Integrity (dangling refs) | 0 | 0 |
-
 ## Phase 57 session 摘要（2026-04-18 已完成）
-
-## Phase 57 session 摘要（2026-04-18 已完成）
-
-- 基线 PDF：`manuals/raw/espressif/esp32s3/esp32-s3_datasheet_en.pdf` (87 页)
-- 最新 bundle：`manuals/processed/docling_bundle/esp32-s3-datasheet-en/`
-- 测试：**208/208 通过**（P56 基线 188 + 本轮 20）
-- Counts：87 pages / 7 chapters / 71 tables / 47 cross_refs (43 resolved) / 85 assets / 136 sections / 309 chunks / 3 alerts（零回归）
-- P57 新指标：chunks 零 "T able" OCR 残留；sections / chunks / toc 零尾标点 heading；`Including:` → `Including`（三层一致）
-- Chunk coverage: 309/309；Integrity: 全部引用零破损
-
-## 最近 session（Phase 57 实施）
 
 **P57a + P57b 实施完成**（TDD RED→GREEN→重跑 datasheet）：
 
@@ -88,76 +120,6 @@
 - **P57d（`table_header_degraded` alert）**：`table_without_caption` alert 已按规则 5 让 agent 回原 PDF；冗余 alert 属重复启发式
 - **`## Note:` 从 markdown 删**：常见正文前缀，全局删会误伤合法 Note 段
 - **4 条 figure cross_refs resolve**：Docling 无 figure 全局 id（结构性缺口）
-
-## 更早完成 session（2026-04-18）
-
-**P56b（polish: Cont'd paragraphs / TOC columns / rows count）**：
-
-- G — document.md 里 14 条独立 `Cont'd on next page` / `Table X-Y - cont'd from previous page` 段落清掉（原来的 heading-only 清理没抓到段落形式）。新 `_CONTINUATION_PARAGRAPH_RE` 锚定行边界，inline 散文提及保留
-- D — TOC 表（`is_toc=true`）的 `columns` 改成 `[]`，不再暴露 Docling 误识别的行数据当表头（`["0","1","2"]` / `["","4.1.1.3","...","37"]`）
-- C — 所有表的 `rows` 字段从 `TableItem.data.num_rows` 填入（原来恒 null），agent 可按表大小筛选
-- 10 新测试，188/188 通过；esp32-s3 bundle counts 零回归；所有 71 张表现在都有 rows，所有 6 张 TOC 表 columns=[]
-
-**P56a（heading breadcrumbs）**：
-
-- 核心问题：chunks.jsonl 每条 chunk 的 `heading_path` 深度恒为 1，只有直接父 heading，无章节上下文。agent 做关键词搜索拿到 chunk 但看不到它属于哪个章
-- 新增 `build_doc_item_lineages`：doc 顺序遍历 `iterate_items()`，维护 `(level, text, is_numbered)` 栈，每个 item 快照当前栈。查找 key 用 `self_ref`（HybridChunker 会重新包装 DocItem，`id()` 会 miss 到；`self_ref` 稳定）
-- 层级规则：编号前缀权威（`4.1.3.5` → 4）；非编号 heading 优先用 Docling 的 `heading_level`，否则挂在最深的编号祖先之下（level = max_numbered + 1），不 pop 编号骨架（防止 `BACKUP32K_CLK` 这种章内粗体子标题把 `4 Functional Description` 顶出）
-- `dropped_repeat_labels`（Feature List 等 30x 重复标签）也从栈排除，防止污染祖先
-- `section_id` 仍是 `heading_path[-1]`，sections.jsonl 分组语义不变
-- 补漏：`build_chunk_records` 现在用 chunker 原始 leaf 判定 NOISY_SECTION_IDS 以过滤 TOC-region chunk（防止 lineage 提升把之前被 section_id 规则 reject 的 Contents / List of Tables 内容复活）
-- 9 新测试，178/178 通过；datasheet counts 零回归；UART chunks 现在正确带 `[4 Functional Description, 4.2 Peripherals, 4.2.1 Connectivity Interface, 4.2.1.1 UART Controller]` 四级链；depth 分布 19(d1)/86(d2)/92(d3)/100(d4)/12(d5)
-
-**P55（bullet-prefixed heading filter）**：
-
-- 按 `开发要求.md` 重跑 datasheet 全量审计（77s / CUDA / no-ocr）：计数与 P54 baseline 完全一致（3 alerts 继续如预期暴露回原 PDF 的那几张表）
-- TOC / sections / chunks / cross_refs / assets / tables.index 全层 integrity 扫描零破损
-- 剩余结构性问题中符合"普适 + 低风险"标准的只有一个：Docling 把 `· IO MUX:` 这类**以 Unicode 项目符号（U+00B7 / U+2022 等）开头的行**升格成 heading，于是它进 TOC 成了 level-1 锚点、进 sections.jsonl 成了独立 section
-- 根因：`_is_noisy_toc_heading` 只过滤硬编码名单 + table-caption 正则 + noisy-text pattern，没处理 bullet-prefix
-- 修复：新增 `_BULLET_HEADING_PREFIX_RE = re.compile(r"^[·•◦▪▫►◆∙⬧]")`（只管 Unicode 项目符号，ASCII `-` / `*` / `+` 不碰以免误伤 `Wi-Fi` / `2.4 GHz` / `Low-Power Modes`），在 `_is_noisy_toc_heading` 里加一条判定分支
-- 已有 P54 orphan re-parenting 路径自动接住被过滤的 chunk，内容不丢
-- 3 新测试（TOC 过滤 / 相邻 ASCII 字符保留 / sections 层 re-parenting 保持 parent page range）
-- 结果：`section_count` 137 → 136；`· IO MUX:` 不再出现在 TOC，内容挂回 `4.1.3.1 IO MUX and GPIO Matrix` 的 `chunk_ids`，parent 的 page range 未扩张（40-40 保持）；其他 count 零回归；167/167 通过
-- 其他观察到但**不修**的问题（见 `findings.md` Phase 55 节 & `task_plan.md` Decisions Made）：非数字型子标题（`CPU Clock` / `General Features` 等）level=1 偏高、Glossary 术语散成独立 heading、TOC 表列头是垃圾 —— 都属于过拟合高风险，agent 通过 `is_chapter=true` 过滤即可绕开
-
-**P54（orphan chunk 重新归属 + table-caption leak）**：
-
-- P53 commit 后重跑 datasheet 深度审计发现：
-  1. 53 条 chunk 从 sections.jsonl 彻底丢失——heading_path 是 `Feature List` / `Pin Assignment` / `Note:` 的 chunk 现在没有 section 收留，agent 从 section tree 导航到 `4.2.1.1 UART Controller` 只能看到 intro 段，看不到它的 feature bullets
-  2. `Table 2-9. Peripheral Pin Assignment` 作为 table caption 被 Docling 层分析器升格成 heading，漏进 sections.jsonl（TOC 用 `TABLE_CAPTION_RE` 过滤掉了，sections 没同步）
-- 修复策略：`build_section_records` 的 orphan 判定改成和 TOC 同一规则（`_is_noisy_toc_heading(section_id) or section_id in dropped_repeat_labels`）；orphan chunk 按 doc 顺序 re-parent 到最近的真实 section，但**不扩张 parent 的 page range**（避免 ghost-span 从侧门回来）
-- 4 新测试 + 已有测试保持绿；164/164 通过
-- 结果：section_count 138→137；chunk coverage 256/309 → 309/309；`4.2.1.1 UART Controller` 现在正确含 intro + Feature List + Pin Assignment 三条 chunk，page 范围仍是 p.51-51；`Table 2-9` 的 note chunk 被合并回 `2.3.5 Peripheral Pin Assignment`
-- Full integrity sweep：0 issue；7 chapters / 71 tables / 47 cross_refs (43 resolved) / 85 assets 全部引用零破损
-
-**P53（ghost sections：Feature List / Pin Assignment）**：
-
-- 重新审视 bundle 产物发现 `sections.jsonl` 仍有两个 ghost section：
-  - `"Feature List"`：30 chunks，p.36-59（28% 文档，刚好低于 30% suspicious 阈值）
-  - `"Pin Assignment"`：15 chunks，p.51-60
-- 根因：`build_toc` 通过 `TOC_REPEAT_DROP_THRESHOLD=3` 过滤了重复的无编号 heading，但 `build_section_records` 只过滤硬编码的 `NOISY_TOC_HEADINGS`（Note/Notes），没同步 repeat-count 规则 → 两层导航不一致
-- 修复：提取 `collect_heading_occurrences` / `compute_dropped_repeat_labels` 两个 helper，converter 计算一次 `dropped_repeat_labels` 传给 sections 和 toc；`build_toc` 内部也改为用同一 helper
-- 7 新测试（section 过滤 + 保留 + collect_heading_occurrences + compute_dropped_repeat_labels 边界）
-- 重跑 datasheet：`section_count` 140 → 138，chunks.jsonl 里 30 条 Feature List chunks 仍在（只是不再作为独立 section 出现），其他 count 零回归
-- 测试：160/160 通过
-
-## 早前 session（2026-04-18）
-
-当天分六轮深度审计 + 修复（Phase 47-52），见 git log 和 `task_plan.md` Phases 段。
-
-- integrity 扫描零破损：全部 `csv_path` / `assets.path` / `cross_refs.source_chunk_id` / `chunk_id` 引用完整
-- 唯一命中"明显异常"：2 张非 TOC 表 caption 缺失 (p.22 / p.79)，bundle 对 agent silent failure
-- 修复：新增 `detect_missing_caption_alerts`（纯结构检查，非启发式），挂进 alerts pipeline
-- 3 新测试（正面 + 过滤 TOC + 过滤有 caption）
-- 重跑 datasheet：`alert_count` 1 → 3，其他 count 零回归
-
-**P51（caption ordering bug + ghost section filter）**：
-
-- 发现 `export_tables` 在 backfill 之前误跑 continuation 启发式 → 列头相似的不同表被错链（Table 6-10 被打成 "Table 6-9 (cont'd)"）
-- 发现 `build_section_records` 没过滤 `NOISY_TOC_HEADINGS` → "Note:" 成 ghost section 横跨 62% 文档
-- TDD RED-GREEN 双修复；`section_count` 141 → 140；零其他回归
-
-**P47-P50**：manifest 计数补齐 / `T able` OCR 清理 / backfill prefix bug / MultiIndex 镜像列头 / H2 `Cont'd` 清理 / electrical 分类放宽。
 
 ## 历史归档（2026-04-12 ~ 2026-04-17）
 

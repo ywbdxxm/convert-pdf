@@ -130,6 +130,100 @@
 
 **推进顺序**：P58a（必做，高影响）→ 重跑 → P58b（必做或紧随）→ 重跑 → P58c（用户确认后）→ 重跑。每步单独 commit，测试先 RED。
 
+### 已完成（Phase 59 — 2026-04-19 第四轮产物审计 + 实施）
+
+**Baseline 变化**：sections 136→145 (+9 navigational parents) / is_chapter=true 可用 0→7 chapters / cross_refs 43 条新增 `target_id` / table `rows` 字段与 CSV 数据行对齐 / 80 条 chunks 去除前导空白 / 测试 220→240 / counts 其他零回归 / integrity 全绿。
+
+详见 `progress.md` "Phase 59 实施总结"。
+
+### 计划背景（Phase 59 之前）
+
+**审计证据详见 `findings.md §7e`**。判据：`开发要求.md` 规则 2（避免过度设计）+ 规则 4（谨慎启发式）+ 规则 5（处理不好的回原 PDF）。
+
+本轮发现 **1 个 HIGH + 2 个 MEDIUM + 2 个 LOW**，其余重复项按历史结论不修。每条 **RED→GREEN→重跑 datasheet** 独立 commit，不混批。
+
+---
+
+**P59a [HIGH] — sections.jsonl 补齐 top-level chapter 与中间 navigational parent 记录**
+
+- **现象**：`4 Functional Description` / `2 Pins` / `5 Electrical Characteristics` 等所有 7 个 chapter 和 7 个中间 heading（`1.2 Comparison` / `2.3 IO Pins` / `4.1.3.3 Clock` / `4.1.3.9 XTAL32K Watchdog Timers` / `5.6 Current Consumption` / `Features` / `Glossary` / `Related Documentation and Resources` / `ESP32-S3 Series`）在 `toc.json` 有、`chunks.jsonl` 的 `heading_path` 引用、但在 `sections.jsonl` **无记录**。README "filter is_chapter=true" 的导航建议在 sections 层兑现不了
+- **根因**：`build_section_records` 按 `section_id = heading_path[-1]`（叶子）分组，顶层 / 中间 heading 下无 direct chunk 时就被丢
+- **修复**（方案 3 — 最小变动）：
+  1. 在 section 记录里加 `is_chapter: bool` 字段（同步 B 修复）
+  2. 为每条 TOC 条目（排除 `suspicious=true`、排除 dropped labels），若在 chunks 的 `heading_path` 出现过但不在 sections 里，补一条 "navigational parent" section 记录：
+     - `section_id = toc.heading`
+     - `heading_path = <祖先链>`（lineage 可复用 `build_doc_item_lineages` 的结果）
+     - `heading_level = toc.level`
+     - `is_chapter = toc.is_chapter`
+     - `page_start = toc.page`
+     - `page_end = <最晚一个 heading_path 包含它的 chunk 的 page_end>`
+     - `chunk_ids = []`（保持"chunks 互斥分组"契约不破）
+     - `chunk_count = 0`
+     - `text_preview = ""`
+     - `table_ids = []`
+- **验收**：
+  - `sections.jsonl` section_count 136 → **≥ 150**（新增至少 14 条：7 chapters + ~7 中间 heading）
+  - `sections.jsonl` 包含 `section_id == "4 Functional Description"` 记录，`is_chapter=true, page_start=36`
+  - 原叶子 section 的 `chunk_ids` / `page_range` 不变
+  - `pages.index` 不回归；`cross_refs` / `tables` 不回归
+- **普适性**：规则普适（所有手册都有 chapter heading），`chunk_ids=[]` 语义明确（新字段 `is_chapter` + 现有 `chunk_count=0` 组合已明确区分"叶子 section" vs "navigational parent"）
+- **测试**（RED 先）：
+  - TOC 有 chapter heading `1 Overview`，无直接 chunk 但子 section `1.1 Scope` 有 chunk → sections.jsonl 应含 `1 Overview`（`is_chapter=true, chunk_ids=[], page_start=toc page`）
+  - 叶子 section 的 `chunk_ids` / `page_start-end` 保持原值
+  - `heading_path` 中间 heading 出现但非 TOC → 不补（避免为每条中间 non-numbered 锚点都造幽灵 section）
+
+---
+
+**P59b [MEDIUM] — cross_refs 填入 `target_id`**
+
+- **现象**：47 条 cross_refs 全部缺 `target_id`，agent 从 xref 跳到目标表/section 记录要再搜
+- **修复**：`extract_cross_refs` 在 resolve `target_page` 的同时记录：
+  - `kind="section"`：`target_id` = 找到 `section.section_id.startswith(target + " ")` 或 `== target` 的 section
+  - `kind="table"`：`target_id` = 找到 `table.caption` 以 `Table <target>` 开头的 `table_id`
+  - `kind="figure"`：不填（Docling 无 figure 全局 id）
+  - 无匹配 → 不加 key
+- **验收**：
+  - 26 条 section xref 至少有对应 section 的都拿到 `target_id`（验证每条 `target_id` 存在于 sections 里）
+  - 17 条 table xref 同理
+  - 4 条 figure 不变
+- **测试**：单测已有 `_resolve_section_page` / `_resolve_table_page`，加覆盖 `target_id` 的断言即可
+
+---
+
+**P59c [MEDIUM] — sections.jsonl 加 `is_chapter` 字段**
+
+已并入 P59a（与新增 navigational parent 一起加）。单独列出以在测试里明确覆盖"叶子 section 也带 `is_chapter=false`"。
+
+---
+
+**P59d [LOW] — chunk text 去掉 table_like 的 leading whitespace**
+
+- **现象**：80 个 `table_like=True` chunk 的 `text` 以 `\n` 或 `\n ` 开头，是 Docling HybridChunker 的 table 序列化 artifact
+- **修复**：`build_chunk_record` 在 `clean_ocr_text` 之后对 `text` / `contextualized_text` 做 `.lstrip()`（或更保守的 `re.sub(r'^[\s\n]+', '', ...)`）
+- **验收**：
+  - chunks.jsonl 零 chunk 以 `\n` 或 `\n ` 开头
+  - 非 table_like chunk 不受影响（它们已经不以空白开头，lstrip 是幂等操作）
+- **测试**：lstrip 的幂等性；table_like chunk 前导空白清除；保留内部换行（只 strip 前导）
+
+---
+
+**P59e [LOW] — `rows` 字段语义改为 "data rows"**
+
+- **现象**：`rows` 当前是 Docling `num_rows`（含 header），所有 65 个非 TOC 表 `rows == CSV 行数`，实际数据行是 `rows - 1`；TOC 表 P58c 之后 header=False，Docling `num_rows` 仍包含 header 的概念行
+- **修复**：`export_tables` 中 `rows = max(docling_data.num_rows - 1, 0) if not is_toc else docling_data.num_rows`（TOC 表所有行都是"数据"，非 TOC 表减去 header）
+- **验收**：
+  - 所有非 TOC 表 `rows = CSV lines - 1`
+  - TOC 表 `rows = CSV lines`（P58c 后 header=False）
+  - table_0002: rows=44, CSV=44 ✓
+  - table_0007: rows=8, CSV=9 (1 header + 8 data) ✓
+- **测试**：修改 `test_export_tables_populates_row_count_from_docling_data` 使 `num_rows=3` 时 `rows=2`（header 扣掉）
+
+---
+
+**推进顺序**：P59b → P59d → P59e（小而独立）→ P59a+c（大改动，需扫描消费者）。每步单独 commit；P59a 是 schema 扩张，单独 audit。
+
+**不修**（findings.md §7e 表）：41 non-chapter level-1 sections / p.22+p.79 table 列头 / p.27 Table 2-9 / 4 figure target_id / `## Note:` 等 h2 in md / `Submit Documentation Feedback` 链接。
+
 ## Decisions Made（精选）
 
 | Decision | Rationale |
