@@ -186,19 +186,36 @@ class TableExportTests(unittest.TestCase):
             self.assertEqual(records[0].record["caption"], "Table 5-1. Absolute Maximum Ratings")
 
     def test_export_tables_populates_row_count_from_docling_data(self):
-        """Regression: Docling's ``TableItem.data.num_rows`` carries the
-        structured data-row count. Wire it into the manifest record so
-        ``rows`` is no longer always null.
+        """Regression: Docling's ``TableItem.data.num_rows`` is the total
+        grid row count (every header grid row + data rows). The
+        bundle's ``rows`` field carries the *data-row* count so it
+        matches what an agent counting lines in the CSV (minus the
+        flattened header) would see.
+
+        Single-header-row table with ``num_rows=5`` (1 header + 4 data)
+        reports ``rows=4``.
         """
         class FakeDataFrame:
             columns = ["A", "B"]
             def to_csv(self, path, index=False, header=True):
-                Path(path).write_text("A,B\n1,2\n3,4\n5,6\n", encoding="utf-8")
+                Path(path).write_text("A,B\n1,2\n3,4\n5,6\n7,8\n", encoding="utf-8")
+
+        class FakeCell:
+            def __init__(self, start_row_offset_idx, column_header):
+                self.start_row_offset_idx = start_row_offset_idx
+                self.column_header = column_header
 
         class FakeTable:
             prov = [SimpleNamespace(page_no=1)]
-            # Docling exposes structured row count via data.num_rows
-            data = SimpleNamespace(num_rows=3)
+            # 1 header row (row 0) + 4 data rows (1-4)
+            data = SimpleNamespace(
+                num_rows=5,
+                table_cells=[
+                    FakeCell(0, True), FakeCell(0, True),
+                    FakeCell(1, False), FakeCell(2, False),
+                    FakeCell(3, False), FakeCell(4, False),
+                ],
+            )
             label = "table"
 
             def export_to_dataframe(self, doc=None):
@@ -211,7 +228,121 @@ class TableExportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             tables_dir = Path(tmp_dir) / "tables"
             records = export_tables("doc", [FakeTable()], tables_dir)
-            self.assertEqual(records[0].record["rows"], 3)
+            self.assertEqual(records[0].record["rows"], 4)
+
+    def test_export_tables_row_count_subtracts_multi_level_header(self):
+        """Phase 59e: pin-map tables often have a 2-level MultiIndex
+        header. Docling counts both header grid rows in ``num_rows``,
+        and flattens them into a single CSV header line. Detect the
+        actual number of header grid rows from ``table_cells`` and
+        subtract that many, so ``rows == data_rows`` (matches
+        ``wc -l CSV - 1``).
+        """
+        class FakeDataFrame:
+            columns = ["Pin", "Type"]
+            def to_csv(self, path, index=False, header=True):
+                Path(path).write_text("Pin,Type\n1,IO\n2,IO\n", encoding="utf-8")
+
+        class FakeCell:
+            def __init__(self, start_row_offset_idx, column_header):
+                self.start_row_offset_idx = start_row_offset_idx
+                self.column_header = column_header
+
+        class FakeTable:
+            prov = [SimpleNamespace(page_no=16)]
+            # 2 header rows (0, 1) + 2 data rows (2, 3); num_rows=4
+            data = SimpleNamespace(
+                num_rows=4,
+                table_cells=[
+                    FakeCell(0, True), FakeCell(0, True),
+                    FakeCell(1, True), FakeCell(1, True),
+                    FakeCell(2, False), FakeCell(3, False),
+                ],
+            )
+            label = "table"
+
+            def export_to_dataframe(self, doc=None):
+                return FakeDataFrame()
+            def export_to_html(self, doc=None):
+                return "<table></table>"
+            def export_to_markdown(self, doc=None):
+                return "Table 2-1. Pinout\n\n| Pin | Type |"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tables_dir = Path(tmp_dir) / "tables"
+            records = export_tables("doc", [FakeTable()], tables_dir)
+            # num_rows (4) - 2 header rows = 2 data rows
+            self.assertEqual(records[0].record["rows"], 2)
+
+    def test_export_tables_row_count_for_toc_table_subtracts_header(self):
+        """Phase 59e: TOC tables also have a ``column_header=True`` row
+        in Docling's internal model (even though P58c writes the CSV
+        with ``header=False``). The subtraction from the header-row
+        count happens uniformly for all tables — ``is_toc`` only
+        affects whether the header is *written* to the CSV file.
+
+        Docling's TOC table_0002 on the datasheet: num_rows=45 with
+        1 column_header row, 44 data rows, CSV written with 44 lines.
+        """
+        class FakeDataFrame:
+            columns = ["", "4.1.1.3", "Ultra-Low-Power", "37"]
+            def to_csv(self, path, index=False, header=True):
+                # header=False in real TOC call, so only 44 data rows written
+                Path(path).write_text(",4.1.1.3,foo,37\n" * 44, encoding="utf-8")
+
+        class FakeCell:
+            def __init__(self, start_row_offset_idx, column_header):
+                self.start_row_offset_idx = start_row_offset_idx
+                self.column_header = column_header
+
+        class FakeTocTable:
+            prov = [SimpleNamespace(page_no=8)]
+            data = SimpleNamespace(
+                num_rows=45,
+                table_cells=[
+                    FakeCell(0, True), FakeCell(0, True),
+                ] + [FakeCell(i, False) for i in range(1, 45)],
+            )
+            label = "document_index"
+
+            def export_to_dataframe(self, doc=None):
+                return FakeDataFrame()
+            def export_to_html(self, doc=None):
+                return "<table></table>"
+            def export_to_markdown(self, doc=None):
+                return ""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tables_dir = Path(tmp_dir) / "tables"
+            records = export_tables("doc", [FakeTocTable()], tables_dir)
+            self.assertEqual(records[0].record["rows"], 44)
+
+    def test_export_tables_row_count_zero_when_num_rows_is_zero(self):
+        """Guard against underflow: a num_rows=0 table stays rows=0,
+        not -1. (Docling never emits num_rows=0 for real tables but the
+        invariant still matters.)
+        """
+        class FakeDataFrame:
+            columns = ["A"]
+            def to_csv(self, path, index=False, header=True):
+                Path(path).write_text("A\n", encoding="utf-8")
+
+        class FakeTable:
+            prov = [SimpleNamespace(page_no=1)]
+            data = SimpleNamespace(num_rows=0, table_cells=[])
+            label = "table"
+
+            def export_to_dataframe(self, doc=None):
+                return FakeDataFrame()
+            def export_to_html(self, doc=None):
+                return "<table></table>"
+            def export_to_markdown(self, doc=None):
+                return ""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tables_dir = Path(tmp_dir) / "tables"
+            records = export_tables("doc", [FakeTable()], tables_dir)
+            self.assertEqual(records[0].record["rows"], 0)
 
     def test_export_tables_row_count_falls_back_to_none_without_docling_data(self):
         """If Docling does not expose num_rows, ``rows`` stays None. We do

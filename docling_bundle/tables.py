@@ -495,14 +495,29 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
         pages = [prov.page_no for prov in getattr(table, "prov", []) or [] if getattr(prov, "page_no", None) is not None]
         page_start = min(pages) if pages else None
         page_end = max(pages) if pages else None
-        # Docling exposes the structured row count on TableItem.data. Use it
-        # directly; if absent, leave rows=None rather than re-parse the CSV.
+        # Docling's ``TableItem.data.num_rows`` is the *total grid* row
+        # count including every header grid row. Tables with a single
+        # header row have num_rows = 1 + data_rows; tables with a
+        # 2-level MultiIndex header (common in pin-map tables) have
+        # num_rows = 2 + data_rows. Count distinct header grid-row
+        # indices from ``table_cells`` and subtract so ``rows`` reports
+        # *data rows* — what an agent counting CSV lines (minus the
+        # written header) would see. Even TOC tables have a
+        # ``column_header=True`` row in Docling's internal model, so
+        # the same subtraction applies uniformly; the ``is_toc`` branch
+        # from P58c only affects whether that header row is *written*
+        # to the CSV file.
         rows = None
         docling_data = getattr(table, "data", None)
         if docling_data is not None:
             docling_rows = getattr(docling_data, "num_rows", None)
             if isinstance(docling_rows, int) and docling_rows >= 0:
-                rows = docling_rows
+                header_row_idx = {
+                    c.start_row_offset_idx
+                    for c in (getattr(docling_data, "table_cells", None) or [])
+                    if getattr(c, "column_header", False)
+                }
+                rows = max(docling_rows - len(header_row_idx), 0)
         records.append(
             ExportedTable(
                 record=build_table_manifest_records(
