@@ -199,6 +199,33 @@
 2. 更新 `docs/architecture.md` 的 roadmap 表格（Phase 39 标 complete）
 3. 每个 phase 结束：重跑 datasheet + 记录实测结果 + commit + push
 
+## 2026-04-18 Sixth Pass (Phase 51)
+
+- Re-ran audit of the Phase 50 bundle at user request.
+- Found two previously undetected universal bugs:
+  1. **Caption ordering bug in `export_tables`**
+     - `propagate_continuation_captions` ran BEFORE `backfill_table_captions_from_markdown`.
+     - When Docling missed a table's native caption but markdown had it as a heading,
+       the column-match continuation heuristic filled the empty slot with the previous
+       table's caption. Backfill then saw a non-empty caption and skipped it.
+     - Concrete symptom: Table 6-10 (125 Kbps) labeled as "Table 6-9 2 Mbps (cont'd)";
+       Tables 0058 / 0064 kept raw `Table 6-X - cont'd from previous page` captions
+       because the previous-table number no longer matched.
+  2. **`Note:` ghost section in sections.jsonl**
+     - TOC filtered `Note:` / `Notes:` via `NOISY_TOC_HEADINGS`, but
+       `build_section_records` did not apply the same filter.
+     - Result: a ghost `Note:` section aggregated 8 scattered chunks and 30 tables,
+       spanning 62% of the document (`suspicious: true`).
+- TDD RED-GREEN for both fixes.
+- Fix A: Removed the premature propagate call from `export_tables`; the
+  remaining call inside `inject_table_sidecars_into_markdown` now runs after backfill.
+- Fix B: Added `NOISY_TOC_HEADINGS` filter to `build_section_records`.
+- Regenerated esp32-s3 datasheet bundle and verified:
+  - Table 6-10 / 6-14 caption chains now correctly resolved (2 raw cont'd → 0).
+  - `section_count` 141 → 140; zero `suspicious` sections remaining.
+  - Zero regressions on page/table/chunk/alert/cross-ref/toc/kind distributions.
+- Full suite: 150/150 tests pass.
+
 ## 2026-04-18 Fifth Pass (Phase 50)
 
 - Re-ran deep audit of `esp32-s3_datasheet_en.pdf` bundle against Robustness Principle

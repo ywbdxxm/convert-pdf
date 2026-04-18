@@ -537,6 +537,168 @@ class TableExportTests(unittest.TestCase):
         self.assertEqual(_clean_column_header("Pin No."), "Pin No.")
         self.assertEqual(_clean_column_header("Rate"), "Rate")
 
+    def test_end_to_end_prefers_markdown_context_caption_over_continuation(self):
+        """Regression for the caption ordering bug.
+
+        Mirrors ESP32-S3 Table 6-9 → Table 6-10 on adjacent pages:
+          - Docling extracts both tables but attaches caption only to the first.
+          - Markdown between the two tables shows "Table 6-10. 125 Kbps" as the
+            second table's true title.
+          - Columns match, pages are adjacent — column-match continuation
+            would falsely label the second table as "Table 6-9 (cont'd)".
+
+        Expected: after export_tables + inject_table_sidecars_into_markdown
+        (the real pipeline), table 2 gets "Table 6-10. 125 Kbps", NOT a
+        continuation of table 1.
+        """
+        class FakeDataFrame:
+            def __init__(self, columns, row):
+                self.columns = columns
+                self._row = row
+
+            def to_csv(self, path, index=False):
+                Path(path).write_text(
+                    ",".join(self.columns) + "\n" + ",".join(self._row) + "\n",
+                    encoding="utf-8",
+                )
+
+        class FakeTable:
+            def __init__(self, page, columns, row, markdown, html):
+                self.prov = [SimpleNamespace(page_no=page)]
+                self.label = "table"
+                self._columns = columns
+                self._row = row
+                self._markdown = markdown
+                self._html = html
+
+            def export_to_dataframe(self, doc=None):
+                return FakeDataFrame(self._columns, self._row)
+
+            def export_to_markdown(self, doc=None):
+                return self._markdown
+
+            def export_to_html(self, doc=None):
+                return self._html
+
+        cols = ["Parameter", "Min", "Typ", "Max", "Unit"]
+        table_a_md = (
+            "| Parameter | Min | Typ | Max | Unit |\n"
+            "|-----------|-----|-----|-----|------|\n"
+            "| A1        | 1   | 2   | 3   | dBm  |"
+        )
+        table_b_md = (
+            "| Parameter | Min | Typ | Max | Unit |\n"
+            "|-----------|-----|-----|-----|------|\n"
+            "| B1        | 4   | 5   | 6   | dBm  |"
+        )
+        table_a = FakeTable(
+            page=73,
+            columns=cols,
+            row=["A1", "1", "2", "3", "dBm"],
+            # Docling attaches caption natively for table A
+            markdown="Table 6-9. 2 Mbps\n\n" + table_a_md,
+            html="<table><tr><th>Table 6-9. 2 Mbps</th></tr></table>",
+        )
+        table_b = FakeTable(
+            page=74,
+            columns=cols,
+            row=["B1", "4", "5", "6", "dBm"],
+            # Docling misses caption natively for table B
+            markdown=table_b_md,
+            html="<table></table>",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tables_dir = Path(tmp_dir) / "tables"
+            exported = export_tables("esp32", [table_a, table_b], tables_dir)
+
+            # Pipeline-level markdown that has Table 6-10 heading before table B
+            markdown = (
+                "Table 6-9. 2 Mbps\n\n"
+                + table_a_md + "\n\n"
+                + "Table 6-10. 125 Kbps\n\n"
+                + table_b_md + "\n"
+            )
+            inject_table_sidecars_into_markdown(markdown, exported)
+
+        self.assertEqual(exported[0].record["caption"], "Table 6-9. 2 Mbps")
+        self.assertEqual(exported[1].record["caption"], "Table 6-10. 125 Kbps")
+        self.assertNotIn("continuation_of", exported[1].record)
+
+    def test_inject_normalizes_explicit_cont_after_backfill_fills_previous(self):
+        """Chained path: backfill fills the *previous* table's caption from
+        markdown, then an explicit 'Table X-Y - cont'd from previous page'
+        caption on the next table must number-match and normalize.
+
+        Regression for Tables 6-10 / 6-14 on ESP32-S3 datasheet where the
+        cont'd marker survived as raw text because the previous caption was
+        mis-filled by the pre-backfill propagation pass.
+        """
+        markdown = (
+            "Table 6-10. 125 Kbps\n\n"
+            "| Parameter | Min | Typ | Max | Unit |\n"
+            "|-----------|-----|-----|-----|------|\n"
+            "| row1      | 1   | 2   | 3   | dBm  |\n\n"
+            "Table sidecar: [CSV](tables/table_0057.csv) | `esp32:table:0057`\n\n"
+            "<!-- page_break -->\n\n"
+            "Table 6-10 - cont'd from previous page\n\n"
+            "| Parameter | Min | Typ | Max | Unit |\n"
+            "|-----------|-----|-----|-----|------|\n"
+            "| row2      | 4   | 5   | 6   | dBm  |\n\n"
+            "Table sidecar: [CSV](tables/table_0058.csv) | `esp32:table:0058`\n"
+        )
+        exported_tables = [
+            ExportedTable(
+                record={
+                    "table_id": "esp32:table:0057",
+                    "page_start": 73,
+                    "page_end": 73,
+                    "csv_path": "tables/table_0057.csv",
+                    "label": "table",
+                    "caption": "",  # Native extraction missed it
+                    "columns": ["Parameter", "Min", "Typ", "Max", "Unit"],
+                    "is_toc": False,
+                },
+                markdown=(
+                    "| Parameter | Min | Typ | Max | Unit |\n"
+                    "|-----------|-----|-----|-----|------|\n"
+                    "| row1      | 1   | 2   | 3   | dBm  |"
+                ),
+            ),
+            ExportedTable(
+                record={
+                    "table_id": "esp32:table:0058",
+                    "page_start": 74,
+                    "page_end": 74,
+                    "csv_path": "tables/table_0058.csv",
+                    "label": "table",
+                    "caption": "Table 6-10 - cont'd from previous page",
+                    "columns": ["Parameter", "Min", "Typ", "Max", "Unit"],
+                    "is_toc": False,
+                },
+                markdown=(
+                    "| Parameter | Min | Typ | Max | Unit |\n"
+                    "|-----------|-----|-----|-----|------|\n"
+                    "| row2      | 4   | 5   | 6   | dBm  |"
+                ),
+            ),
+        ]
+
+        inject_table_sidecars_into_markdown(markdown, exported_tables)
+
+        self.assertEqual(
+            exported_tables[0].record["caption"],
+            "Table 6-10. 125 Kbps",
+        )
+        self.assertEqual(
+            exported_tables[1].record["caption"],
+            "Table 6-10. 125 Kbps (cont'd)",
+        )
+        self.assertEqual(
+            exported_tables[1].record["continuation_of"],
+            "esp32:table:0057",
+        )
+
     def test_backfill_ignores_generic_headings(self):
         markdown = (
             "## Pin Assignment\n\n"

@@ -446,6 +446,18 @@ def _clean_column_header(col: str) -> str:
 
 
 def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[ExportedTable]:
+    """Export tables to CSV + build manifest records.
+
+    Caption-inheritance via :func:`propagate_continuation_captions` is
+    intentionally NOT run here. It must run AFTER
+    :func:`backfill_table_captions_from_markdown` has had a chance to recover
+    captions from markdown context, otherwise the column-match heuristic
+    can fill an empty caption with the previous table's title before the
+    correct title (available as a markdown heading above the table) is seen.
+
+    The full bundle pipeline calls :func:`inject_table_sidecars_into_markdown`
+    which performs backfill and propagation in the correct order.
+    """
     tables_dir.mkdir(parents=True, exist_ok=True)
     records: list[ExportedTable] = []
     for index, table in enumerate(tables, start=1):
@@ -478,5 +490,4 @@ def export_tables(doc_id: str, tables, tables_dir: Path, doc=None) -> list[Expor
             )
         )
 
-    propagate_continuation_captions(records)
     return records

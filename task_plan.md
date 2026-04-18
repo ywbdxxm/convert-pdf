@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中收敛“面向嵌入式开发的手册转换输出架构”，重点回答 `Docling` 当前 bundle 是否已接近最佳实践，以及 `OpenDataLoader PDF` 尤其 hybrid mode 的更优输出应当长什么样。
 
 ## Current Phase
-Phase 50 complete (markdown noise heading cleanup + relaxed electrical classifier). Next: Phase 44（测试安全网）或用户决定。
+Phase 51 complete (caption ordering bug + noisy ghost section filter). Next: Phase 44（测试安全网）或用户决定。
 
 ## Robustness Principle (2026-04-18)
 
@@ -491,6 +491,34 @@ Phase 50 complete (markdown noise heading cleanup + relaxed electrical classifie
 - 只匹配独占一行的 heading，inline prose（"Cont'd on next page"）保持不动
 - electrical 分类器用 `\bmin\b|\btyp\b|\bmax\b` word-boundary，不会误伤 "Minimum"/"Maximum"/"Typical"
 - 需要 ≥2 个信号 + fallback 到 generic 是保守策略；单一信号表（如 `Min (µs)` 独一列）继续保持 generic
+
+### Phase 51: Caption Ordering Bug + Ghost Section Filter (2026-04-18 sixth pass)
+- [x] 第六遍 audit 在用户要求重跑后仔细检查 bundle 产物
+- [x] 发现 bug A：`export_tables()` 在 `backfill` 之前先跑 `propagate_continuation_captions`，导致列头相似的表被错误链接为 continuation，后续 backfill 因 caption 非空而无法纠正
+- [x] 发现 bug B：`build_section_records` 没有对等 `build_toc` 的 `NOISY_TOC_HEADINGS` 过滤，导致 `Note:` 等散落标签聚合成跨 62% 文档的 ghost section
+- [x] TDD：先加端到端测试（export_tables + inject_table_sidecars_into_markdown 配合使用时 caption 正确）
+- [x] TDD：加 section filter 测试（`Note:` / `Notes:` 被过滤；合法 numbered / non-numbered heading 保留）
+- [x] 移除 `export_tables` 末尾的 `propagate_continuation_captions(records)` 调用
+- [x] 在 `build_section_records` 开头加入 `NOISY_TOC_HEADINGS` 过滤
+- [x] 150 tests 全部通过
+- [x] 重跑 `esp32-s3_datasheet_en.pdf` 并验证修复效果
+- **Status:** complete
+
+**Phase 51 实测成果（ESP32-S3 datasheet）：**
+- Table 6-10 / 6-14 caption 链路修复：
+  - Table 0057 p.73：caption 从 `Table 6-9. 2 Mbps (cont'd)`（错）→ `Table 6-10. 125 Kbps`（正）
+  - Table 0058 p.74：caption 从 raw `Table 6-10 - cont'd from previous page` → 规范化 `Table 6-10. 125 Kbps (cont'd)`，`continuation_of=0057`
+  - Table 0063/0064 同类型链路同样修复
+- Raw `cont'd from previous page` caption：2 → 0
+- `Note:` ghost section 移除：`section_count` 141 → 140，`suspicious` section 1 → 0
+- 零回归：`table_count=71`, `chunk_count=309`, `alert_count=1`, `chapter_outline=7`, `cross_refs=47/43 (91%)`, `kind=electrical=27/pinout=13/strap=1/revision=4/generic=20` 全部不变
+- 非 TOC 表 caption 覆盖率 63/65 (97%)，剩 2 张无 caption 的表 (p.22/p.79) 是 Docling 原生 column-header 裂变/OCR 乱码，非本层可修
+
+**普遍适用性验证：**
+- Bug A 根因是两个启发式的操作顺序，不是 ESP32 特有；任何 vendor 的 PDF 只要 Docling 偶尔漏 native caption 就会触发
+- Bug B 的 `NOISY_TOC_HEADINGS = {Note:, Notes:, Note, Notes}` 集合已存在多轮未扩充，不是新增过拟合
+- 两条修复都带反面测试：Fix A 的 "end-to-end 必须优先 markdown 标题" + Fix B 的 "numbered / non-numbered real sections must survive"
+- 所有已知的 continuation 链路在 148 → 150 测试扩充下依然稳定
 
 ### Phase 49: CSV Column Header Cleanup (2026-04-18 fourth pass)
 - [x] 第四遍 audit 覆盖之前未检查的区域：document.html / document.json schema / assets 一致性 / chunk contextualization / section text_preview / schema cross-reference integrity / CSV header quality

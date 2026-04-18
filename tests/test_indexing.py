@@ -238,6 +238,48 @@ class HeadingLevelTests(unittest.TestCase):
         pins = [s for s in sections if s["section_id"] == "2 Pins"][0]
         self.assertEqual(pins["chunk_ids"], ["doc:0003"])
         self.assertEqual(pins["chunk_count"], 1)
+
+    def test_build_section_records_drops_noisy_toc_heading_aggregates(self):
+        """Regression: repeated local labels like "Note:" must not become
+        ghost sections that aggregate scattered chunks across the document.
+
+        These labels are already filtered from the TOC (build_toc uses
+        NOISY_TOC_HEADINGS). sections.jsonl must apply the same filter so
+        the two navigation layers stay consistent.
+        """
+        chunks = [
+            # Real section with a proper numbered heading
+            {"chunk_id": "doc:0001", "section_id": "2.1 Pin Layout", "heading_path": ["2.1 Pin Layout"], "page_start": 15, "page_end": 15, "text": "Pin layout"},
+            # Scattered "Note:" chunks across the document — ghost section
+            {"chunk_id": "doc:0002", "section_id": "Note:", "heading_path": ["Note:"], "page_start": 7, "page_end": 7, "text": "First note"},
+            {"chunk_id": "doc:0003", "section_id": "Note:", "heading_path": ["Note:"], "page_start": 40, "page_end": 40, "text": "Middle note"},
+            {"chunk_id": "doc:0004", "section_id": "Note:", "heading_path": ["Note:"], "page_start": 60, "page_end": 60, "text": "Later note"},
+            # Variants we also filter from TOC
+            {"chunk_id": "doc:0005", "section_id": "Notes:", "heading_path": ["Notes:"], "page_start": 20, "page_end": 20, "text": "Notes para"},
+        ]
+
+        sections = build_section_records("doc", chunks)
+
+        section_ids = {s["section_id"] for s in sections}
+        self.assertIn("2.1 Pin Layout", section_ids)
+        self.assertNotIn("Note:", section_ids)
+        self.assertNotIn("Notes:", section_ids)
+
+    def test_build_section_records_keeps_real_sections_intact(self):
+        """Sanity guard for fix B: numbered sections and ordinary
+        non-numbered headings (e.g. chapter titles) must NOT be dropped.
+        Only the specific NOISY_TOC_HEADINGS set is filtered.
+        """
+        chunks = [
+            {"chunk_id": "doc:0001", "section_id": "Features", "heading_path": ["Features"], "page_start": 1, "page_end": 1, "text": "Feature list"},
+            {"chunk_id": "doc:0002", "section_id": "Wi-Fi", "heading_path": ["Wi-Fi"], "page_start": 2, "page_end": 2, "text": "Wi-Fi details"},
+            {"chunk_id": "doc:0003", "section_id": "1 Overview", "heading_path": ["1 Overview"], "page_start": 3, "page_end": 3, "text": "Overview"},
+        ]
+
+        sections = build_section_records("doc", chunks)
+
+        section_ids = {s["section_id"] for s in sections}
+        self.assertEqual(section_ids, {"Features", "Wi-Fi", "1 Overview"})
     def test_builds_reverse_index_from_chunks_and_tables(self):
         chunks = [
             {"chunk_id": "doc:0001", "page_start": 1, "page_end": 1},

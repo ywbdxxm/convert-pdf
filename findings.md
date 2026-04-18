@@ -1846,3 +1846,48 @@ that would over-fit to one PDF.
 
 Rule "避免过拟合" says stop here unless a new PDF surfaces a new class of
 issue.
+
+## 2026-04-18 Sixth Pass: Caption Ordering + Ghost Section Filter
+
+After Phase 50, a sixth audit (triggered by user request to re-check the
+regenerated bundle) surfaced two new classes of universal issue.
+
+### Issue 1: caption ordering bug
+
+`export_tables()` ran `propagate_continuation_captions()` BEFORE the caller
+had a chance to run `backfill_table_captions_from_markdown()`. When Docling
+missed a caption natively but the heading was present in markdown, the
+column-match continuation heuristic filled the empty slot with the previous
+table's caption. Backfill later found the caption non-empty and skipped it.
+
+Fixed by removing the premature call. Backfill now populates captions from
+markdown context first; continuation runs once afterwards inside
+`inject_table_sidecars_into_markdown`.
+
+Symptom on ESP32-S3 datasheet (pre-fix):
+
+- Table 0057 p.73 labeled `Table 6-9 2 Mbps (cont'd)` but content is 125 Kbps.
+- Tables 0058 / 0064 kept raw `Table 6-X - cont'd from previous page` because
+  the previous-table number no longer matched.
+
+Post-fix: Table 0057 is `Table 6-10. 125 Kbps`; 0058 / 0064 normalized to
+`Table 6-X ... (cont'd)` with `continuation_of` pointing at the correct parent.
+
+### Issue 2: `Note:` ghost section
+
+`build_toc()` filtered `NOISY_TOC_HEADINGS = {Note:, Notes:, Note, Notes}`,
+but `build_section_records()` did not. A single `Note:` section_id
+aggregated 8 scattered chunks and 30 tables, spanning 62% of the document.
+
+Fixed by applying the same filter in `build_section_records`. `section_count`
+dropped 141 → 140; zero `suspicious: true` sections remaining.
+
+### Not fixed (by design)
+
+- Table 0015 p.22 — Docling emits `Pin` / `Pin No.` for the same logical
+  column on adjacent pages, defeating the continuation column-match check.
+  Relaxing the match would create false positives. Deferred.
+- Table 0066 p.79 — Docling OCR produced garbled multi-level column headers.
+  No heuristic fix without over-fitting. Deferred.
+- 4 unresolved figure cross-refs — requires a figure index, tracked in
+  Phase 46.

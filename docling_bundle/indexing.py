@@ -127,9 +127,19 @@ def build_chunk_record(doc_id, chunk_id, chunk_index, chunk, contextualized_text
 
 
 def build_section_records(doc_id, chunk_records):
+    """Aggregate chunks into section records, skipping noisy local labels.
+
+    ``NOISY_TOC_HEADINGS`` (``Note:`` / ``Notes:`` / etc.) are section-internal
+    labels that the chunker can repeat across the document. The TOC already
+    filters them via :func:`build_toc`; dropping them here too keeps both
+    navigation layers consistent and prevents ghost sections that span a
+    large fraction of the document by aggregating scattered paragraphs.
+    """
     grouped = {}
     for chunk in chunk_records:
         section_id = chunk["section_id"]
+        if section_id in NOISY_TOC_HEADINGS:
+            continue
         section = grouped.setdefault(
             section_id,
             {
