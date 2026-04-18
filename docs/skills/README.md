@@ -4,8 +4,9 @@ This directory is a **read-only archive** (mirror) of files that live in the use
 
 | Archive path | Live path | Purpose |
 |---|---|---|
-| `CLAUDE.global.md` | `~/.claude/CLAUDE.md` | Global user-level directive telling Claude to invoke the skill on embedded-dev tasks |
-| `using-manual-bundles/SKILL.md` | `~/.claude/skills/using-manual-bundles/SKILL.md` | Skill: how to consume `manuals/processed/docling_bundle/<doc_id>/` |
+| `CLAUDE.global.md` | `~/.claude/CLAUDE.md` | Global user-level entry-point directing Claude to the relevant skill per task category |
+| `using-manual-bundles/SKILL.md` | `~/.claude/skills/using-manual-bundles/SKILL.md` | Skill: how to consume `manuals/processed/docling_bundle/<doc_id>/` (this project's primary deliverable) |
+| `ai-workstation-architecture/SKILL.md` | `~/.claude/skills/ai-workstation-architecture/SKILL.md` | Skill: portable 6-layer architecture for any Linux / WSL / GPU AI workstation — Python / venv / uv / micromamba / torch / CUDA / Docker / mirrors / caches. Architecture + hard rules travel; env names / paths / mirror URLs are per-host and must be re-anchored. |
 
 ## Why it's archived here
 
@@ -18,10 +19,13 @@ The global config files are outside the project directory (`~/.claude/`), so the
 ## Deploy to a new machine
 
 ```sh
-mkdir -p ~/.claude/skills/using-manual-bundles
+mkdir -p ~/.claude/skills/using-manual-bundles ~/.claude/skills/ai-workstation-architecture
 cp docs/skills/using-manual-bundles/SKILL.md ~/.claude/skills/using-manual-bundles/SKILL.md
+cp docs/skills/ai-workstation-architecture/SKILL.md ~/.claude/skills/ai-workstation-architecture/SKILL.md
 cp docs/skills/CLAUDE.global.md ~/.claude/CLAUDE.md   # or merge into existing
 ```
+
+> `ai-workstation-architecture` is **machine-portable**: the 6-layer architecture, tool-to-layer mapping, hard rules, and known pitfalls apply to any Linux / WSL / GPU host. The re-anchor commands at the top of the skill discover per-host values (base env path, mirror config, driver / CUDA version) on entry. Deploy it on any machine; nothing in the skill is hardcoded to one box.
 
 ## Testing the skill (TDD-for-skills, see superpowers:writing-skills)
 
