@@ -213,6 +213,79 @@ class IndexingTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertIn("Operating voltage range", records[0]["text"])
 
+    def test_build_chunk_records_keeps_chunk_mixing_content_with_footer(self):
+        """Phase 60 silent-failure fix: when a chunk's text mixes real
+        content with the page-footer phrase "Submit Documentation
+        Feedback" (Docling occasionally leaks the page_footer into a
+        content chunk), the chunk must be kept with the footer phrase
+        stripped — not rejected wholesale.
+
+        Real-world case from TRM p.1030: 5 I2C register bit descriptions
+        concatenated into one chunk that also happened to carry the
+        footer phrase near the end; the old filter dropped the entire
+        chunk, losing I2C_SCL_ST_TO_INT_RAW / I2C_DET_START_INT_RAW etc.
+        from chunks.jsonl entirely.
+        """
+        mixed_text = (
+            "- I2C_SCL_ST_TO_INT_RAW The raw interrupt bit for I2C_SCL_ST_TO_INT. (R/SS/WTC)\n"
+            "- I2C_SCL_MAIN_ST_TO_INT_RAW The raw interrupt bit for I2C_SCL_MAIN_ST_TO_INT. (R/SS/WTC)\n"
+            "- I2C_DET_START_INT_RAW The raw interrupt bit for I2C_DET_START_INT. (R/SS/WTC)\n"
+            "Submit Documentation Feedback\n"
+            "1030"
+        )
+        chunks = [
+            SimpleNamespace(
+                text=mixed_text,
+                meta=SimpleNamespace(
+                    headings=["Register 27.22. I2C_INT_RAW_REG (0x0020)"],
+                    doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=1030)], label="text")],
+                ),
+            ),
+        ]
+
+        records = build_chunk_records(
+            doc_id="esp32-s3-trm",
+            chunks=chunks,
+            contextualize=lambda chunk: chunk.text,
+        )
+
+        self.assertEqual(len(records), 1)
+        kept_text = records[0]["text"]
+        # Real content preserved
+        self.assertIn("I2C_SCL_ST_TO_INT_RAW", kept_text)
+        self.assertIn("I2C_DET_START_INT_RAW", kept_text)
+        # Footer phrase stripped
+        self.assertNotIn("Submit Documentation Feedback", kept_text)
+
+    def test_build_chunk_records_still_drops_footer_only_chunk(self):
+        """Regression guard for the classic case: a chunk that is
+        *only* the feedback footer (possibly wrapped in markdown link
+        syntax) must still be dropped — not kept with empty content."""
+        chunks = [
+            SimpleNamespace(
+                text="[Submit Documentation Feedback](https://example.com)",
+                meta=SimpleNamespace(
+                    headings=["5.2 Recommended Operating Conditions"],
+                    doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=64)], label="text")],
+                ),
+            ),
+            SimpleNamespace(
+                text="  Submit Documentation Feedback  \n",
+                meta=SimpleNamespace(
+                    headings=["5.2 Recommended Operating Conditions"],
+                    doc_items=[SimpleNamespace(prov=[SimpleNamespace(page_no=64)], label="text")],
+                ),
+            ),
+        ]
+
+        records = build_chunk_records(
+            doc_id="esp32-s3",
+            chunks=chunks,
+            contextualize=lambda chunk: chunk.text,
+        )
+
+        self.assertEqual(records, [])
+
     def test_build_chunk_records_filters_page_number_only_noise(self):
         chunks = [
             SimpleNamespace(

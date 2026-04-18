@@ -40,9 +40,36 @@ CONTINUATION_MARKER_SECTION_IDS = {
 # subset (:data:`TOC_DROP_SECTION_IDS`).
 NOISY_SECTION_IDS = TOC_DROP_SECTION_IDS | CONTINUATION_MARKER_SECTION_IDS
 
+# Phrases Docling occasionally leaks from page_footer into a content
+# chunk. Historically the filter rejected the entire chunk on match,
+# which was correct for footer-only chunks ("Submit Documentation
+# Feedback" alone) but wrong when the footer phrase was concatenated
+# with real content (TRM p.1030 lost 5 I2C register bit descriptions
+# this way). :func:`_strip_noisy_text_phrases` removes the phrase in
+# place; :func:`should_keep_chunk_record` then rejects only the
+# now-empty chunks.
 NOISY_TEXT_PATTERNS = [
-    re.compile(r"submit documentation feedback", re.IGNORECASE),
+    re.compile(r"\[?submit documentation feedback\]?(?:\([^)]*\))?", re.IGNORECASE),
 ]
+
+
+def _strip_noisy_text_phrases(text: str) -> str:
+    """Remove occurrences of :data:`NOISY_TEXT_PATTERNS` from ``text``
+    and collapse the whitespace they leave behind.
+
+    Content chunks with an embedded footer phrase lose only the phrase
+    (preserving the legitimate bullets / paragraphs around it); chunks
+    consisting of nothing but the phrase collapse to empty string so
+    :func:`should_keep_chunk_record` can drop them.
+    """
+    if not text:
+        return text
+    cleaned = text
+    for pattern in NOISY_TEXT_PATTERNS:
+        cleaned = pattern.sub("", cleaned)
+    # Collapse blank lines that the removal created and trim edges.
+    cleaned = re.sub(r"[ \t]*\n[ \t]*\n+", "\n\n", cleaned).strip()
+    return cleaned
 
 # Headings that only make sense inside a parent section context
 # ("Note:" standalone, "Features" as a sub-header, "Feature List", etc.).
@@ -124,9 +151,6 @@ def should_keep_chunk_record(record: dict) -> bool:
         return False
     if text.isdigit():
         return False
-    for pattern in NOISY_TEXT_PATTERNS:
-        if pattern.search(text):
-            return False
     return True
 
 
@@ -207,8 +231,16 @@ def build_chunk_record(
         # continuation-page table serializations with ``\n `` which is a
         # formatting artifact, not information. Only leading whitespace
         # is stripped so internal paragraph breaks stay intact.
-        "text": clean_ocr_text(chunk.text).lstrip(),
-        "contextualized_text": clean_ocr_text(contextualized_text).lstrip(),
+        # Phase 60 silent-failure fix: strip the "Submit Documentation
+        # Feedback" footer phrase that Docling occasionally leaks into
+        # a content chunk, so a mixed chunk keeps its real content
+        # instead of being rejected wholesale by
+        # ``should_keep_chunk_record``. Footer-only chunks collapse to
+        # empty and are then dropped as before.
+        "text": _strip_noisy_text_phrases(clean_ocr_text(chunk.text).lstrip()),
+        "contextualized_text": _strip_noisy_text_phrases(
+            clean_ocr_text(contextualized_text).lstrip()
+        ),
         "doc_item_count": len(doc_items),
         "table_like": is_table_like_chunk(chunk),
         "citation": citation,
