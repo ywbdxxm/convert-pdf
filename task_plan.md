@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中收敛“面向嵌入式开发的手册转换输出架构”，重点回答 `Docling` 当前 bundle 是否已接近最佳实践，以及 `OpenDataLoader PDF` 尤其 hybrid mode 的更优输出应当长什么样。
 
 ## Current Phase
-Phase 43: Code Quality Cleanup
+Phase 45 complete. Next: 43/44 (code quality + tests) or TRM 验证。
 
 ## Robustness Principle (2026-04-18)
 
@@ -376,11 +376,47 @@ Phase 43: Code Quality Cleanup
 - [ ] 考虑从 unittest 迁到 pytest + fixtures
 - **Status:** pending
 
-### Phase 45: README Richness & Final Validation
-- [ ] README 增补：章节大纲（top-10 chapters from TOC）/ top-N 重要表格 / 前 3 条告警 + 下一步提示
-- [ ] 用 datasheet 跑全量 regression 并逐项对比 audit 里列出的 AI 消费痛点
-- [ ] 获得 TRM 许可后用 TRM 跑一次，确认大文档下这些改动的效果
-- [ ] 提交 / 推送收尾
+### Phase 45: README Richness
+- [x] Chapter Outline 段（只列 `is_chapter=true`，上限 40 条，超出显示 … N more）
+- [x] Table Breakdown 段（按 kind 归类，过滤 document_index）
+- [x] Cross-Reference Summary 段（total / resolved / kind 分布）
+- [x] Alerts 段：image_path 以 `→ fallback image <path>` 附在行尾
+- [x] 空输入优雅退化（无 chapter / table / cross_ref / alert 时对应段不出现）
+- [x] 7 个 README 新测试（127 total passing）
+- **Status:** complete
+
+**Phase 45 实测成果（ESP32-S3 datasheet README）：**
+- 章节大纲：7 条真实章节，每行带页码
+- 表格分布：pinout=13 / electrical=15 / strap=1 / revision=4 / generic=32
+- 交叉引用：total=47, resolved=43 (91%), section=26 / table=17 / figure=4
+- Alert 直接带 fallback image 路径，agent 无需再翻 alerts.json
+
+**普遍适用性验证：**
+- `is_chapter` 过滤对任何 PDF 都适用，无章节的文档自动不出现该段
+- 40 条上限对 TRM 场景也合理（ESP32-S3 TRM 实际章节 ~18 条）
+- Table kind 分布对所有 PDF 可用（不认识的 kind 会单独列出）
+- Cross-refs 英文限定但有数据就展示，没数据就不展示
+
+### Phase 43: Code Quality Cleanup
+- [ ] 拆分 `converter.py`（531 行）为 `pipeline.py`（窗口/缓存/转换）+ `exporter.py`（bundle 落盘）
+- [ ] 消除 `inject_table_sidecars_into_markdown` 的 O(n²) 扫描
+- [ ] `SimpleNamespace` 换成 frozen dataclass
+- [ ] 运行 `ruff` + `black` 做一轮统一
+- **Status:** pending
+
+### Phase 44: Test Coverage Enhancement
+- [ ] 添加 1-2 页的合成 PDF 端到端集成测试（真正从 PDF 跑到 bundle）
+- [ ] 添加 `docling_bundle.cli.main()` 测试
+- [ ] 错误路径测试（损坏 PDF / 空输入 / 无法写 output）
+- [ ] 边界测试（单页 / 纯图片页 / 无表格文档）
+- [ ] 把 bundle 链接完整性做成独立 regression test
+- [ ] 考虑从 unittest 迁到 pytest + fixtures
+- **Status:** pending
+
+### Phase 46: TRM Validation (deferred, user permission required)
+- [ ] 获用户许可后用 TRM 跑一次完整转换
+- [ ] 核对 toc / kind / cross_refs / assets 在 1531 页大文档上的表现
+- [ ] 记录大文档边界情况
 - **Status:** pending
 
 ## Key Questions

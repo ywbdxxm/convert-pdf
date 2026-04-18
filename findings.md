@@ -1319,3 +1319,46 @@ jq -c 'select(.page == 27)' pages.index.jsonl
 - 不改文件名（避免 JSON/HTML 内部引用断链）
 - 缺失文件 `missing: true` 显式标出（bundle 完整性可在外部做 regression test）
 - 只依赖 docling markdown 里共通的 `![Image](...)` + `<!-- page_break -->`，所有 PDF 通用
+
+## 2026-04-18 Phase 45 Implementation Results
+
+### README 内容升级
+
+现有 README 从"文件清单"升级为"工作台"：
+
+```
+## Chapter Outline
+- p.13: 1 ESP32-S3 Series Comparison
+- p.15: 2 Pins
+... (7 chapters)
+
+## Table Breakdown
+- pinout: `13`
+- electrical: `15`
+- strap: `1`
+- revision: `4`
+- generic: `32`
+
+## Cross-Reference Summary
+- Total: `47` (resolved: `43` / 91%)
+- section: `26`
+- table: `17`
+- figure: `4`
+
+## Alerts
+- table_caption_followed_by_image_without_sidecar p.27: Table 2-9. Peripheral Pin Assignment → fallback image `assets/image_000025_xxx.png`
+```
+
+Agent 打开 bundle 后不再需要先跑 jq 脚本；README 本身告诉它：这本手册长什么样、有哪些表、哪些地方需要警惕。
+
+### 普遍适用性
+
+| 改动 | 空输入退化 | 其他手册行为 |
+|---|---|---|
+| Chapter Outline | 无 `is_chapter=true` → 整段不出现 | 小手册/无编号章节的文档不显示 |
+| Table Breakdown | 无表或只有 document_index → 整段不出现 | 纯文本文档不显示 |
+| Cross-Ref Summary | 无 cross_refs → 整段不出现 | 非英文手册 cross_refs 空则不显示 |
+| Alert fallback_image | 没有 image_path 就不加后缀 | 其他 alert kind 原样显示 |
+| 40-chapter 上限 | 对超大 TRM 截断并提示"… N more" | 小手册不受影响 |
+
+所有改动都是"只加不减"—— 有数据就展示，没数据就静默。不可能让某场景变差。
