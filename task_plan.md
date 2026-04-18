@@ -136,6 +136,17 @@
 
 详见 `progress.md` "Phase 59 实施总结"。
 
+### 已完成（Phase 60 — 2026-04-19 完整 TRM 验证 + silent-failure 修复）
+
+用户叫停"无休止 +/-优化"，改为跑完整 TRM（1531 页）核查是否还有真问题。审计结果：
+
+- 10+ 个"候选改进点"中只有 **1 个是违反 `开发要求.md` 规则 5 的 silent-failure**，其余均属 Docling OCR 层缺陷 或 已有 alert 契约 或 修了会破坏 datasheet（违反 rule 4 跨 vendor 约束）
+- **唯一必修（commit `df84175`）**：`NOISY_TEXT_PATTERNS` 从"整块 chunk 拒绝"改为"短语剥离 + 空则丢弃"。TRM p.1030 的 5 条 I2C 寄存器位描述从 silent-lost 恢复回 chunks.jsonl
+- TRM chunks 3786 → 3793（+7 恢复）；pages.index 1530 → 1531；datasheet 零回归
+- **最终产物已落盘到 `manuals/processed/docling_bundle/`**（datasheet + TRM）
+
+详见 `progress.md` "Phase 60 实施总结"。
+
 ### 计划背景（Phase 59 之前）
 
 **审计证据详见 `findings.md §7e`**。判据：`开发要求.md` 规则 2（避免过度设计）+ 规则 4（谨慎启发式）+ 规则 5（处理不好的回原 PDF）。

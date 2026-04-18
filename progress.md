@@ -1,12 +1,54 @@
 # Progress
 
-## 当前状态（2026-04-19，Phase 59 完成）
+## 当前状态（2026-04-19，Phase 60 完成 — 完整 TRM 验证 + 最终产物已落盘）
 
-- 重跑 esp32-s3 datasheet 实测：**87 pages / 7 chapters / 71 tables / 145 sections / 339 chunks / 47 cross_refs (47/47 resolved, 43 with target_id) / 85 assets / 3 alerts**
-- 测试：**240/240 通过**（P58 baseline 220 + P59 新增 20）
-- P59 四个 commit 已推进：`3605c7c` P59b → `3846774` P59d → `0828bea` P59e → `1a38690` P59a+c
+**产物位置**：
+- `manuals/processed/docling_bundle/esp32-s3-datasheet-en/`（87 pages, 23s）
+- `manuals/processed/docling_bundle/esp32-s3-technical-reference-manual-en/`（1531 pages, ~24min）
 
-## Phase 59 实施总结（2026-04-19）
+**测试**：242/242 通过（P59 baseline 240 + P60 新增 2）
+
+**Phase 60 — 唯一必修发现（完整 TRM 审计触发）**：
+
+### P60-TRM-fix（commit `df84175`）— 页脚短语 footer 导致 silent chunk drop
+
+- **bug**：`NOISY_TEXT_PATTERNS` 之前用 `re.search` 判断并**丢弃整块 chunk**。Docling 偶尔会把 page_footer "Submit Documentation Feedback" 与正文 list_item 合并在同一 chunk；过滤器把整块 chunk 连同正文一起删除
+- **TRM 实测损失**：**7 条 substantive chunk** 被静默丢弃，包括 p.1030 的 5 条 I2C 寄存器位描述（`I2C_SCL_ST_TO_INT_RAW` / `I2C_DET_START_INT_RAW` 等）
+- **违反 `开发要求.md` 规则 5**：silent failure（agent 在 chunks.jsonl 里查 `I2C_SCL_ST_TO_INT_RAW` 返回 0，且无 alert 提示）
+- **修复**：把 filter 策略从"整块拒绝"改成"剥离短语"。新增 `_strip_noisy_text_phrases` 在 `build_chunk_record` 里对 text / contextualized_text 做就地清理：footer 单独成块 → 清理后为空 → 保持之前丢弃语义；混合内容 + footer → 只剥离 footer，保留正文
+- **regex 微扩**：`\[?submit documentation feedback\]?(?:\([^)]*\))?` 额外覆盖 markdown link 形态 `[Submit Documentation Feedback](url)`
+- **测试**：2 新测试 — 混合场景 chunk 保留 + 纯 footer chunk 仍被丢弃；既有"filter_feedback_link_noise"（纯 footer 拒收）保持绿
+
+### TRM 实测结果对比
+
+| 指标 | fix 前 | fix 后 |
+|---|---|---|
+| chunks | 3786 | **3793** (+7) |
+| I2C_SCL_ST_TO_INT_RAW 查得 | 0 | **1** |
+| I2C_SCL_MAIN_ST_TO_INT_RAW 查得 | 0 | **1** |
+| I2C_DET_START_INT_RAW 查得 | 0 | **1** |
+| pages.index 覆盖 | 1530/1531 | **1531/1531**（p.1030 回归）|
+| chunks 含 "Submit Documentation Feedback" | 若干 | **0** |
+| sections / tables / alerts | — | 667 / 1663 / 380（其他 count 零回归） |
+
+### Datasheet 实测（零回归）
+
+| 指标 | P59 end | P60 end |
+|---|---|---|
+| 所有 counts | 145 sec / 339 chunks / 71 tables / 47 xrefs (100% resolved) / 85 assets / 3 alerts | **完全一致**（datasheet 无 footer-leak 场景） |
+
+### TRM 其他观察（**不修**，全部符合 rule 4/5 历史结论）
+
+| 项 | 理由 |
+|---|---|
+| 371 条 `table_without_caption` alert（56% 表无 "Table X-Y" caption） | TRM 寄存器 / 指令编码表确实没标 `Table`；`alerts.json` 让 agent 回原 PDF（规则 5）|
+| 9 条 `empty_table_sidecar` alert | Docling 输出空表结构；alert 已暴露 |
+| `is_chapter=True` 97 条（含 `1. Internal ROM 0`, `7 . 1. 1 Overview` 类 OCR 乱码）| Docling 层 OCR artifact + TRM 特殊编号（空格 `7 . 1`）；任何 heuristic 修复会破坏 datasheet，违反 rule 4 跨 vendor 约束 |
+| `"Continued from the previous page..."` 4 种变体 heading | fix 生效后内容正常落盘；原以为要扩 `CONTINUATION_MARKER_SECTION_IDS`，实际上根因是 footer filter，变体 filter 不需要 |
+| `Notice` ghost section 29 页（p.844-873）| 法律条款段确实 29 页一整块，不是 Docling 错 |
+| `7 . 1. 1 Overview` 型 OCR 空格错位 | Docling 层；heuristic 收缩会破坏合法的 `7 . 1`（大纲编号分隔符） |
+
+## Phase 59 session 总结（2026-04-19 已完成）
 
 ### P59b（commit `3605c7c`）— cross_refs 填 `target_id`
 
