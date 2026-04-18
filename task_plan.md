@@ -1,669 +1,98 @@
-# Task Plan: PDF / AI 工作站架构与嵌入式手册输出架构
+# Task Plan: docling_bundle 手册转换产线
 
 ## Goal
-为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中收敛“面向嵌入式开发的手册转换输出架构”，重点回答 `Docling` 当前 bundle 是否已接近最佳实践，以及 `OpenDataLoader PDF` 尤其 hybrid mode 的更优输出应当长什么样。
+
+把芯片手册 PDF 转成对 Code Agent（Claude Code / Codex）友好的结构化 bundle，让 agent 能：按章导航、按页回溯、按表筛选、按引用跳转、并且对处理不好的页面知道"回原 PDF"。
+
+评价标准只有一个：**agent 实际查阅 `manuals/processed/docling_bundle/<doc_id>/` 时的使用体验**（见 `开发要求.md`）。
 
 ## Current Phase
-Phase 52 complete (table_without_caption alert — 用户指示最后一轮). 本轮优化告一段落。后续除非遇到新 PDF 暴露新类问题,不再继续扩展 docling_bundle。
 
-## Robustness Principle (2026-04-18)
+**Phase 52 complete — 用户宣告停止点（2026-04-18）。**
 
-> **改动必须是对所有 PDF 普遍适用的优化，而不是只针对当前 datasheet 过拟合。**
+除非新 PDF 暴露新类问题，不再继续扩展 `docling_bundle`。未落地的 Phase 44（测试安全网）和 Phase 46（TRM 验证）保留为 backlog。
+
+## Robustness Principle
+
+> **改动必须对所有 PDF 普遍适用，不为单一 datasheet 过拟合。**
 > **避免为改善一个场景而在另一个场景恶化。**
->
-> 操作层：
-> - 每个启发式都要过一遍"在其他 chip vendor 手册里会发生什么"
-> - 有地理/排版/命名风险的启发式必须要有 adjacency / number-match / text-pattern 多重约束
-> - 添加 fallback 到 conservative 类（如 `generic`）而不是强行分类
-> - `kind=generic` 是安全分类，不要为了填满 kind 分类率而降低精度
-> - 测试必须覆盖：正常场景、相似但无关场景、跨 vendor 差异场景
+
+操作层：
+
+- 每个启发式都要过一遍"在其他 vendor 手册里会发生什么"
+- 有地理/排版/命名风险的启发式必须要有 adjacency / number-match / text-pattern 多重约束
+- 添加 fallback 到 conservative 类（如 `kind=generic`）而不是强行分类
+- 测试必须覆盖：正常场景、相似但无关场景、跨 vendor 差异场景
+- **处理不好的表 / 图 / 页直接在 `alerts.json` 里暴露，让 agent 回原 PDF**（规则 5）
 
 ## Phases
-### Phase 1: Research Refresh
-- [x] 恢复上一轮 PDF 工具调研结论
-- [x] 核对 `Docling`、`MinerU API`、`pdf-reader-mcp` 相关事实
-- [x] 核对本机 WSL / GPU 当前状态
-- **Status:** complete
 
-### Phase 2: Environment Design
-- [x] 给出本地 vs 云端 API 的现实取舍
-- [x] 给出 WSL 全局 CUDA / Python / 容器基础环境设计
-- [x] 给出 `Docling` 探索目录结构设计
-- **Status:** complete
+### 完成阶段（历史摘要）
 
-### Phase 3: User Approval
-- [x] 向用户展示 2-3 个实现路径
-- [x] 给出推荐方案和风险
-- [x] 等待用户确认后再开始实施
-- **Status:** complete
+**P1–P7 (环境与架构打底)**：WSL + RTX 4060 Laptop GPU 工作站架构、共享 AI base (`torch + CUDA`)、docling 项目级 overlay、WSL / conda / uv / pip 镜像统一、bootstrap + verify 脚本落地。
 
-### Phase 4: Environment Implementation
-- [x] 新建 `docling` 探索目录
-- [x] 配置 WSL 全局 GPU / Python / 构建环境
-- [x] 清理未完成的重型下载与缓存残留
-- [x] 统一 `conda` / `uv` / `pip` 国内镜像配置
-- [x] 在新镜像策略下重建共享 `AI base`
-- [x] 建立项目级隔离环境与验证脚本
-- **Status:** complete
+**P8–P17 (方向收敛)**：第一性原理下的手册产出结构论证、RAG 边界认知、避免 NIH 反复自检、确认 Docling 是 ingest 层而非 RAG 应用。
 
-### Phase 5: Verification & Documentation
-- [x] 验证 GPU、Python、Docling、后续 OCR/VLM 基础可用
-- [x] 补齐设计审计文档与执行脚本
-- [x] 更新 README / findings / progress
-- [x] 提交并推送
-- **Status:** complete
+**P18–P28 (多工具对比 → 最终收敛)**：对比 Docling / Marker / MinerU / Unstructured / PyMuPDF4LLM / RAGFlow 的能力边界；阶段性保留 `docling_bundle` 与 `OpenDataLoader hybrid` 两条线做对照；最终因资源聚焦裁剪到只做 docling。
 
-### Phase 6: Shared AI Base Design
-- [x] 总结当前 CUDA Python 依赖安装瓶颈
-- [x] 设计共享 `AI base` 环境分层
-- [x] 明确未来项目如何复用该基础环境
-- **Status:** complete
+**P29–P34 (Bundle 结构整形)**：`manuals/processed/docling_bundle/<doc_id>/` 目录规范落地；单入口 `README.md` + 机器入口 `manifest.json`；窗口缓存挪出 bundle；默认 table sidecar 收敛到单一 CSV；OpenDataLoader 归档。
 
-### Phase 7: Workstation Architecture Design
-- [x] 明确这台工作站未来的主负载类型
-- [x] 设计 `Host -> WSL -> Docker -> AI base -> Project -> Data` 分层边界
-- [x] 给出长期提效优先级与落地顺序
-- **Status:** complete
+**P35–P42 (导航层与证据层)**：`toc.json` + `is_chapter` + `suspicious` 传播、`pages.index.jsonl` 反向索引、`sections.jsonl` heading_level、`tables.index.jsonl` + kind 分类 + continuation 链路、`cross_refs.jsonl` 页码 resolve、`assets.index.jsonl` 不改文件名方案。
 
-### Phase 8: Docling Batch Program Design
-- [x] 明确“给 AI/我自己查阅嵌入式手册”的最优产物形态
-- [x] 设计多 PDF 批处理、文档索引和后续检索结构
-- [x] 明确哪些信息应保留为原文、哪些应做结构化摘录
-- **Status:** complete
+**P45 (README 可读性)**：章节大纲 + 表格分布 + cross-ref 摘要 + alert fallback image 都直接进 `README.md`，agent 无需先 `jq`。
 
-### Phase 9: Table References And Large PDF Resilience
-- [x] 将表格 sidecar 更直接地挂回 `document.md`
-- [x] 为表格 manifest 增加 `label/caption` 元数据
-- [x] 为大 PDF 增加窗口级缓存和恢复
-- [x] 用真实样本验证缓存复跑与表格引用
-- **Status:** complete
+**P47–P52 (六轮深度审计)**：
 
-### Phase 10: Architecture Gap Review
-- [x] 重新核对 Docling 官方 chunking / batch / table / figure / visual grounding / OCR 文档
-- [x] 对当前产物与原始 PDF 做一轮问题审计
-- [x] 收敛“第一性原理下”的最佳实践与当前缺口
-- **Status:** complete
+- P47：manifest `chunk_count` / `section_count` 补齐；独立页码行 / `T able` OCR 断词清理；`_clean_markdown_ocr_artifacts` 辅助函数
+- P48：`backfill_table_captions_from_markdown` prefix bug（`Table sidecars:` vs `Table sidecar:` 单复数不一致）+ `Revision History` 等短标题 caption fallback
+- P49：Docling MultiIndex flatten 产生的 `X.X` 镜像列头收敛
+- P50：`## Cont'd from previous page` H2 markdown 清理 + `classify_table_kind` electrical/timing 放宽到 ≥2 of {min, typ, max} word-boundary
+- P51：**caption 排序 bug**——`export_tables` 在 backfill 之前误跑 `propagate_continuation_captions` 导致错链；`NOISY_TOC_HEADINGS` 同步到 `build_section_records` 过滤 `Note:` ghost section
+- **P52（停止点）**：`detect_missing_caption_alerts` 把 Docling 漏 caption 的非 TOC 表暴露为 `table_without_caption` alert，直接指引 agent 回原 PDF
 
-### Phase 11: Incremental Hardening
-- [x] 为窗口缓存补 conversion signature
-- [x] 为阅读层增加 `document.html`
-- [x] 增加疑似“表格退化成图片”告警
-- [x] 用 `ESP32-S3` 和 `STM32H743VI` 样本验证
-- **Status:** complete
-
-### Phase 12: ESP32-S3 TRM Evaluation
-- [x] 用 Docling 处理 `esp32-s3_technical_reference_manual_en.pdf`
-- [x] 完整等待 1531 页转换结束
-- [x] 评估输出规模、表格、告警、chunk/section 结果
-- [x] 增加空 table sidecar 告警
-- **Status:** complete
-
-### Phase 13: Docling Architecture Documentation
-- [x] 总结嵌入式开发场景下的 Docling 手册处理架构
-- [x] 解释设计初衷、产物含义、AI 使用流程和配置方式
-- [x] 总结 Docling 优缺点和当前样本评估结果
-- [x] 更新 README 和 AGENTS 文档入口
-- **Status:** complete
-
-### Phase 14: RAG Best Practice Review
-- [x] 解释 RAG 的第一性原理、用途和边界
-- [x] 对比当前 Docling 产物与完整 RAG 系统的差距
-- [x] 给出芯片手册转换成 AI 可理解查阅资产的最佳实践
-- **Status:** complete
-
-### Phase 15: RAG Documentation
-- [x] 将 RAG 总结落入 `docs/architecture/` 独立文档
-- [x] 明确后续轻量检索层需要在当前工程开发
-- [x] 明确现成 RAG 软件应作为后续集成层而不是当前基础
-- **Status:** complete
-
-### Phase 16: RAG Scope Reality Check
-- [x] 核对 Docling 官方定位是否本来就是 RAG ingest 组件而非完整应用
-- [x] 调研是否已有开源 RAG 应用/框架可直接复用
-- [x] 重新评估对当前“AI 查芯片手册”需求的实际提升和最小必要投入
-- **Status:** complete
-
-### Phase 17: Docling Complexity Reality Check
-- [x] 量化当前 Docling 包装代码、测试和文档规模
-- [x] 区分 Docling 解析能力边界与本项目工程化包装复杂度
-- [x] 明确当前阶段应停止继续扩展 Docling 工程，转向试用现成 RAG/文档问答工具
-- **Status:** complete
-
-### Phase 18: Avoid NIH Tooling Review
-- [x] 对照 Docling/Marker/MinerU/Unstructured/PyMuPDF4LLM/RAGFlow 现有能力
-- [x] 标记当前自研代码中可能重复造轮子的部分
-- [x] 明确当前实现只是实验基线，不是已证明的最佳路线
-- **Status:** complete
-
-### Phase 19: Refactor Replacement Analysis
-- [x] 按 `docling_bundle` 模块拆分职责
-- [x] 对照现成工具能力，标记可替代、应保留、应冻结/删除的部分
-- [x] 给出第一性原理下的重构方向和推荐路线
-- **Status:** complete
-
-### Phase 20: Output Schema Reality Check
-- [x] 核对当前项目哪些部分是 Docling 原生 API，哪些是自定义包装
-- [x] 重新判断 `manuals/processed/<doc_id>` 是否应该作为所有工具的强制输出结构
-- [x] 明确多工具 A/B 下更合理的原始输出与最小归一化结构
-- **Status:** complete
-
-### Phase 21: Evaluation Framework Design
-- [x] 设计基于 Docling 原生工具的 baseline runner
-- [x] 设计多工具 raw output + minimal evidence normalization 框架
-- [x] 明确哪些现成软件先接入，哪些暂缓
-- [x] 等用户确认设计后再写实现计划
-- **Status:** complete
-
-### Phase 22: External-First Tooling Research
-- [x] 暂停并记录 `manual_eval` 自研框架方向，不继续实现
-- [x] 调研 Docling 官方/生态中已有的 RAG 和文档问答集成最佳实践
-- [x] 调研成熟 PDF/RAG 工具软件，优先寻找可直接使用的方案
-- [x] 形成外部工具优先的试用顺序和验收标准
-- **Status:** complete
-
-### Phase 23: Local-Free Tooling Plan Cleanup
-- [x] 根据 WSL + RTX 4060、本地免费优先、不测 RAGFlow/Unstructured 的约束重排工具候选
-- [x] 纳入 OpenDataLoader PDF、OpenDataLoader LangChain consumer、Dify、AnythingLLM、Kotaemon、Open WebUI、Docling 集成、Marker/MinerU/PyMuPDF4LLM 的试用顺序
-- [x] 更新总计划文档
-- [x] 压缩 `findings.md` / `progress.md`
-- [x] 优化 `README.md`
-- **Status:** complete
-
-### Phase 24: Agentic File Retrieval Reframe
-- [x] 确认核心方向是 PDF 转结构化文件后让 Codex/agent 直接检索，而非默认传统 RAG
-- [x] 将 OpenDataLoader/Docling/LangChain/LlamaIndex 组合定位为文件资产和 metadata 验证路径
-- [x] 将 Dify/AnythingLLM/Kotaemon/Open WebUI 降级为文件检索不足时的消费者/UI 候选
-- **Status:** complete
-
-### Phase 25: Agentic Tool Candidate Expansion
-- [x] 继续探索适合 Agentic 文件检索的本地/免费 PDF 转换器和文件资产生成工具
-- [x] 纳入 LiteParse、MarkItDown、PaperFlow、PaddleOCR-VL、HURIDOCS、Markdrop/pdfmd 等候选
-- [x] 将当前 `docling_bundle` 明确纳入冻结 baseline 对比
-- **Status:** complete
-
-### Phase 26: Optional Docling Batch Unfreeze Boundaries
-- [x] 分析如果不冻结 `docling_bundle`，哪些优化仍符合 Agentic 文件检索方向
-- [x] 明确只允许 page slices、folder index、quality summary、hard-page images、native chunk comparison 等薄改动
-- [x] 明确禁止继续在 `docling_bundle` 中构建 RAG/search/table 修复/VLM/多工具框架
-- **Status:** complete
-
-### Phase 27: OpenDataLoader Docling Comparison Planning
-- [x] 将下一轮范围收敛到 `docling_bundle` baseline、OpenDataLoader local、OpenDataLoader hybrid
-- [x] 仅保留 OpenDataLoader LangChain 与 Docling LlamaIndex/LangChain 作为 metadata spot-check；Docling 原生输出只在需要区分 core vs wrapper 时临时启用
-- [x] 明确比较重点是文件资产质量、metadata、页码、bbox、表格和原 PDF 回溯能力
-- **Status:** complete
-
-### Phase 28: Docling Batch Optimization Documentation
-- [x] 记录 `docling_bundle` 相对 Docling 原生输出的额外包装层
-- [x] 记录允许解冻后可做的薄优化方向
-- [x] 记录禁止继续做的方向，防止再次回到 NIH / 自研 RAG 路线
-- **Status:** complete
-
-### Phase 29: OpenDataLoader Output Handling Decision
-- [x] 说明 OpenDataLoader raw 输出不应被强行捏成当前 `manuals/processed/<doc_id>` 同构结构
-- [x] 保留当前 `manuals/processed` 中真正有价值的 agent-friendly 设计思想
-- [x] 给出 OpenDataLoader 更合适的 raw + thin overlay 输出策略
-- **Status:** complete
-
-### Phase 30: Docling Output Architecture Assessment
-- [x] 判断当前 `manuals/processed/<doc_id>` 对 Docling 是否算最优
-- [x] 区分哪些产物来自 Docling 原生导出，哪些来自我们自己的包装和 heuristic
-- [x] 给出更干净的 Docling raw/overlay 分层建议
-- **Status:** complete
-
-### Phase 31: Manual Output Architecture Reassessment
-- [x] 复核 `docling_bundle` 当前代码与 `manuals/processed` 样本的职责边界
-- [x] 识别当前 bundle 中入口层、证据层、运行层、缓存层的混杂与冗余
-- [x] 调研 `OpenDataLoader PDF` 官方仓库与 hybrid mode 官方输出/元数据设计
-- [x] 基于“只看 Codex 查阅效果”的标准形成两条产线的最终目录方案
-- [x] 向用户展示收敛方案并获得“各跑各的、各自从零思考最佳实践”的方向确认
-- [x] 安装 OpenDataLoader 所需的 Java 11+ WSL 系统依赖
-- [x] 实跑 `OpenDataLoader PDF` hybrid mode 并把输出放入独立目录
-- [x] 完善 `docling_bundle` 输出目录并与 `OpenDataLoader` 做最终对比测试
-- [x] 写出最终设计文档并等待用户审阅
-- **Status:** complete
-
-### Phase 32: Docs Consolidation And Mainline Sync
-- [x] 清理 `docs/` 下过时陈旧的文档
-- [x] 收敛当前有效文档集并建立新的 docs index
-- [x] 写出下一步 `OpenDataLoader` / `docling_bundle` 优化路线
-- [x] 将功能分支同步回 `main`
-- **Status:** complete
-
-### Phase 33: Final Bundle Optimization Waves
-- [x] 为 `OpenDataLoader` 增加更强的 quality alerts / runtime report / README 引导
-- [x] 为 `docling_bundle` 增加更强的 alert page surfacing 和 quality summary
-- [x] 用真实 datasheet 产物复测新 bundle 行为，确认改动确实提升 Codex 使用效果
-- [x] 在每一波稳定改动后提交并推送
-- **Status:** complete
-
-### Phase 34: Executive Reporting
-- [x] 用中文整理一份面向老板的完整现状汇报
-- [x] 覆盖需求、方案、架构、实现、产物、使用方式、优缺点、改进方向
-- [x] 将报告加入 docs 入口
-- **Status:** complete
-
-### Phase 35: Clean Regeneration Of ESP32-S3 Outputs
-- [ ] 用 `opendataloader_hybrid` 完整重跑 `ESP32-S3 datasheet`
-- [ ] 用 `opendataloader_hybrid` 完整重跑 `ESP32-S3 TRM`
-- [ ] 用 `docling_bundle` 完整重跑 `ESP32-S3 datasheet`
-- [ ] 用 `docling_bundle` 完整重跑 `ESP32-S3 TRM`
-- [ ] 记录本轮重跑结果与输出状态
-- **Status:** in_progress
-
-### Phase 36: Active Documentation Noise Cleanup
-- [x] 审计活动文档中仍描述旧 bundle 结构的内容
-- [x] 删除仍会误导当前使用者的历史长报告
-- [x] 统一 README、项目报告、架构说明、状态文档、roadmap 到当前真实产物
-- [x] 用真实 bundle facts 和测试结果复核文档
-- **Status:** complete
-
-### Phase 37: Deep Project Audit
-- [x] 以 AI 消费者视角深度审计全部代码、产物、文档、测试
-- [x] 识别导航层关键缺陷（heading level 丢失、无页码反向索引、表格 caption 不足）
-- [x] 识别代码质量可改善点（converter.py 过度集中、正则重复、ODL 冗余循环）
-- [x] 识别测试缺口（无集成测试、CLI 未覆盖、无错误路径测试）
-- [x] 输出完整审计报告 `AUDIT_REPORT.md` 含分阶段优化计划
-- **Status:** complete
-
-### Phase 38: Navigation Layer Enhancement (Audit Phase 1)
-- [x] 生成 `toc.json` 层级目录树（docling）
-- [x] 生成 `pages.index.jsonl` 页码反向索引（docling）
-- [x] 修复 sections.jsonl heading_level（docling）
-- [x] 增强表格 caption 覆盖率（docling）
-- [x] 标记 document_index 表格（docling）
-- [x] 提取共享正则常量到 patterns.py
-- [x] 更新 paths / manifest / README 包含新产物
-- [x] 新增 16 个测试，全部通过（71 total）
-- **Status:** complete
-
-> **Scope note (2026-04-18)**：用户明确本轮只修 Docling、不动 ODL。
-> 验证只用 `esp32-s3_datasheet_en.pdf` 做日常迭代，TRM 要等显式许可再跑。
-> 基于重跑后的真实 bundle 观察，Phase 39-45 被重写。
-
-### Phase 39: Docling TOC Quality Fix
-- [x] `build_toc()` 过滤 `NOISY_SECTION_IDS` / `NOISY_TEXT_PATTERNS`
-- [x] 过滤 `TABLE_CAPTION_RE` 匹配的表格 caption 误识
-- [x] 过滤 "Feature List" / "Pin Assignment" / "Note:" 类重复非编号 heading（count > 2）
-- [x] 标 `is_chapter: true` 在编号 L1 heading（真实章节）
-- [x] 把 `flag_suspicious_sections` 的标记回写到 TOC
-- [x] 新增 10 个 TOC 测试（83 total passing）
-- **Status:** complete
-
-**Phase 39 实测成果（ESP32-S3 datasheet）：**
-- TOC 条目数 212 → 151（29% 噪声移除）
-- `is_chapter: true` 精确匹配 7 个真实章节
-- "Cont'd from previous page" ×5 / "Feature List" ×29 / "Pin Assignment" ×15 / "Note:" ×8 / 表格 caption 全部清理
-- `suspicious` 在 TOC 中 propagation 链路可用（本 datasheet "Note:" 被前置过滤所以未触发）
-
-### Phase 40: Docling Table Caption & Classification
-- [x] 续页表通过 CSV header 匹配从上一表继承 caption + 写 `continuation_of`
-- [x] 基于 CSV header 启发式标注 `kind: pinout | strap | register | electrical | timing | revision | document_index | generic`
-- [x] 在 `tables.index.jsonl` 输出 `kind` / `columns` / `continuation_of` 字段
-- [x] 13 个 Phase 40 测试（96 total passing）
-- **Status:** complete
-
-**Phase 40 实测成果（ESP32-S3 datasheet）：**
-- Kind 分布：`document_index: 6`, `pinout: 13`, `strap: 1`, `electrical: 15`, `revision: 4`, `generic: 32`
-- 缺 caption 的工程表：17 → 8（覆盖率 74% → 89%）
-- 3 个续页表自动继承 caption：Table 2-1 (p.17)、Table 6-9 (p.73)、Table 6-13 (p.75)
-- Agent 可用 `jq '.[] | select(.kind==\"pinout\")' tables.index.jsonl` 一键筛所有引脚表
-
-### Phase 41: Cross-Reference Extraction
-- [x] 新增 `docling_bundle/cross_refs.py`
-- [x] 匹配 `See|Refer to|shown in|as shown in + Section|Table|Figure + target`
-- [x] 通过 `<!-- page_break -->` 跟踪 source page
-- [x] Section 对 TOC resolve；Table 对 tables.index resolve；Figure 留 unresolved
-- [x] 处理 Docling OCR 的 "T able" 断词
-- [x] 10 个 cross_refs 测试（106 total passing）
-- [x] README 引用 cross_refs.jsonl 并给出用法
-- **Status:** complete
-
-**Phase 41 实测成果（ESP32-S3 datasheet）：**
-- 抽取 47 条交叉引用（26 section / 17 table / 4 figure）
-- Resolve 成功率 91%（43/47），未解决全部是 Figure（后续 Phase 若新增 figure index 可覆盖）
-- 每条引用带 `source_page` / `target_page` / `raw`，可直接 jq 跳转
-
-### Phase 41.5: Robustness Pass (applied after user reminder about over-fit risk)
-- [x] 续页 caption 继承加 **page adjacency** 约束（同页或下一页才继承），防止远页相似 header 被误链
-- [x] 续页继承新增向后页守卫（禁止向前跳页）
-- [x] 识别并正规化 Docling 显式 "Table X-Y - cont'd from previous page" caption 到统一 `(cont'd)` 格式
-- [x] 续页 number 与前表 number 必须匹配才正规化（防 Docling 字符误识跨表链错）
-- [x] 支持链式续页（多页跨行时 caption 保持单后缀，不出现 `(cont'd) (cont'd)`）
-- [x] `TOC_REPEAT_DROP_THRESHOLD` 从 2 放宽到 3，保留偶发 2 次合法重复
-- [x] 新增 7 个 robustness test（113 total passing）
-- **Status:** complete
-
-**Phase 41.5 实测效果：**
-- 续页表检测 3 → 10（+7 条 Docling 显式 "- cont'd from previous page" 现在被正规化）
-- 所有 10 条 continuation 表统一成 `<base> (cont'd)` 格式，agent 可直接 `jq 'select(.continuation_of)'` 一键取全部续页
-- TOC / kind 分布 / cross-refs 数字无 regression
-
-### Phase 42: Docling Asset Index (re-scoped)
-- [x] ~~改文件名~~ 放弃：会断 document.json / document.html 的引用，regression 风险大
-- [x] 新增 `assets.index.jsonl`：`{asset_id, path, page, md_line, size_bytes, missing?}`
-- [x] 改进 `build_pages_index` 接受 `asset_records`，输出 `asset_ids` 字段
-- [x] README / manifest 加入 `assets.index.jsonl`
-- [x] 缺失文件以 `missing: true` 显式暴露，不静默
-- [x] 7 个 assets test + 1 个 pages index 补测（120 total passing）
-- **Status:** complete
-
-**Phase 42 实测成果（ESP32-S3 datasheet）：**
-- 抽取 85 条图片资源记录，覆盖 74 个页
-- 0 个 missing（链接完整性 OK）
-- p.27 的 table_caption_followed_by_image_without_sidecar alert 现在可以双向验证：alert 有 image_path，assets.index 有 asset_id 和 size_bytes
-- agent 用 `jq 'select(.page==N)' assets.index.jsonl` 列出任意页图片，用 `jq 'select(.size_bytes>50000)'` 筛掉小图标
-- 无 regression：TOC 151/7、tables 71/10 cont、cross_refs 47/43 全部一致
-
-**Phase 42 robustness 回顾（普遍适用性）：**
-- 只依赖 docling markdown 里 `![Image](assets/...)` 格式和 `<!-- page_break -->`，所有 docling 产出都这样（不是 datasheet 特有）
-- 放弃改文件名避免 document.json/html 的内部引用断链（跨 PDF 通用的 regression 风险）
-- 缺失文件显式 `missing: true` 而不是 skip，避免 bundle 变脏而不报
-
-### Phase 43: Code Quality Cleanup
-- [x] ~~拆分 `converter.py`~~（546 行可接受，跳过以降低测试回归风险）
-- [x] 消除 `inject_table_sidecars_into_markdown` 的 O(n²) 扫描（优化为 O(m + n log n)）
-- [x] `SimpleNamespace` 换成 frozen dataclass（`CachedConversionResult` + `CachedInputMetadata`）
-- [x] ~~创建 `utils.py`~~（已删除：Phase 43 创建了但从未 import，是死代码）
-- [x] ~~运行 `ruff` + `black`~~（未安装，跳过）
-- [x] 删除 `utils.py` 死代码
-- [x] 移除 `export_document_bundle` 中的 `windows` 死代码循环
-- [x] 补全 `converter.py` 7 处缺失类型注解
-- **Status:** complete
+### Backlog（用户触发再开）
 
 ### Phase 44: Test Coverage Enhancement
-- [ ] 添加 1-2 页的合成 PDF 端到端集成测试（真正从 PDF 跑到 bundle）
-- [ ] 添加 `docling_bundle.cli.main()` 测试
-- [ ] 错误路径测试（损坏 PDF / 空输入 / 无法写 output）
-- [ ] 边界测试（单页 / 纯图片页 / 无表格文档）
-- [ ] 把 bundle 链接完整性做成独立 regression test
-- [ ] 考虑从 unittest 迁到 pytest + fixtures
+
+- [ ] 1-2 页合成 PDF 端到端集成测试（从 PDF 跑到 bundle）
+- [ ] `docling_bundle.cli.main()` 覆盖
+- [ ] 错误路径（损坏 PDF / 空输入 / 无法写 output）
+- [ ] 边界（单页 / 纯图片页 / 无表格文档）
+- [ ] Bundle 链接完整性作为独立 regression test
+- [ ] 可选：从 unittest 迁移到 pytest + fixtures
 - **Status:** pending
 
-### Phase 45: README Richness
-- [x] Chapter Outline 段（只列 `is_chapter=true`，上限 40 条，超出显示 … N more）
-- [x] Table Breakdown 段（按 kind 归类，过滤 document_index）
-- [x] Cross-Reference Summary 段（total / resolved / kind 分布）
-- [x] Alerts 段：image_path 以 `→ fallback image <path>` 附在行尾
-- [x] 空输入优雅退化（无 chapter / table / cross_ref / alert 时对应段不出现）
-- [x] 7 个 README 新测试（127 total passing）
-- **Status:** complete
+### Phase 46: TRM Validation
 
-**Phase 45 实测成果（ESP32-S3 datasheet README）：**
-- 章节大纲：7 条真实章节，每行带页码
-- 表格分布：pinout=13 / electrical=15 / strap=1 / revision=4 / generic=32
-- 交叉引用：total=47, resolved=43 (91%), section=26 / table=17 / figure=4
-- Alert 直接带 fallback image 路径，agent 无需再翻 alerts.json
+- [ ] 用户显式许可后用 `esp32-s3_technical_reference_manual_en.pdf` (1531 页) 跑完整转换
+- [ ] 核对 toc / kind / cross_refs / assets / alerts 在大文档上的表现
+- [ ] 记录超大文档边界情况
+- **Status:** pending（需用户许可）
 
-**普遍适用性验证：**
-- `is_chapter` 过滤对任何 PDF 都适用，无章节的文档自动不出现该段
-- 40 条上限对 TRM 场景也合理（ESP32-S3 TRM 实际章节 ~18 条）
-- Table kind 分布对所有 PDF 可用（不认识的 kind 会单独列出）
-- Cross-refs 英文限定但有数据就展示，没数据就不展示
+## Decisions Made（精选）
 
-### Phase 43: Code Quality Cleanup
-- [x] ~~拆分 `converter.py`~~（546 行可接受，跳过以降低测试回归风险）
-- [x] 消除 `inject_table_sidecars_into_markdown` 的 O(n²) 扫描（优化为 O(m + n log n)）
-- [x] `SimpleNamespace` 换成 frozen dataclass（`CachedConversionResult` + `CachedInputMetadata`）
-- [x] 创建 `utils.py`（共享工具函数）
-- [x] ~~运行 `ruff` + `black`~~（未安装，跳过）
-- **Status:** complete
-
-### Phase 44: Test Coverage Enhancement
-- [ ] 添加 1-2 页的合成 PDF 端到端集成测试（真正从 PDF 跑到 bundle）
-- [ ] 添加 `docling_bundle.cli.main()` 测试
-- [ ] 错误路径测试（损坏 PDF / 空输入 / 无法写 output）
-- [ ] 边界测试（单页 / 纯图片页 / 无表格文档）
-- [ ] 把 bundle 链接完整性做成独立 regression test
-- [ ] 考虑从 unittest 迁到 pytest + fixtures
-- **Status:** pending
-
-### Phase 46: TRM Validation (deferred, user permission required)
-- [ ] 获用户许可后用 TRM 跑一次完整转换
-- [ ] 核对 toc / kind / cross_refs / assets 在 1531 页大文档上的表现
-- [ ] 记录大文档边界情况
-- **Status:** pending
-
-### Phase 47: Output Quality Polish (2026-04-18 datasheet rerun)
-- [x] 重跑 `esp32-s3_datasheet_en.pdf` 后系统审计输出产物
-- [x] 补全 `manifest.json` 缺失的 `chunk_count` / `section_count`
-- [x] 去除 Docling OCR 把页脚页码识别为独立文本行的 2 处残留（p.27, p.79）
-- [x] 修复 Docling OCR "T able" / "T ables" 断词残留（26 处）
-- [x] 为 CLI `--output` 加 help 文本，避免嵌套目录误用
-- [x] 新增 `_clean_markdown_ocr_artifacts` 共享函数 + 8 个单元测试
-- [x] 保持 `F image` / `V flash` / `A boot` 等合法下标符号不动
-- [x] 全量 131 个测试通过（含 8 个新测试）
-- [x] 重跑验证：TOC 151/7、Tables 71、Sections 141、Cross refs 47/43、Alerts 1 全部无回归
-- **Status:** complete
-
-**Phase 47 实测成果（ESP32-S3 datasheet）：**
-- 独立页码行：2 → 0（页脚噪音清理）
-- `T able` 断词：25 → 0
-- `T ables` 断词：1 → 0
-- `manifest.json`：新增 `chunk_count=309` / `section_count=141`
-- 合法符号保持不动：`F image=8`, `V flash=3`, `A boot=2` 全部完整保留
-
-**普遍适用性验证：**
-- 独立页码清除只在 `<!-- page_break -->` 紧跟的数字行上生效，行内数字不会被误删
-- `T able(s)` 修复仅针对"T"+空格+"able(s)"模式，避免误伤其他大写字母+空格+单词的技术符号
-- 两个修复都带测试保护，包括"不误伤合法内容"的边界用例
-
-### Phase 48: Caption Backfill Bug + Heading Fallback (2026-04-18 third pass)
-- [x] 在 `tables_index.jsonl` 中发现 14 张表缺 caption，逐一 triage
-- [x] 定位 `backfill_table_captions_from_markdown` silent bug：prefix `Table sidecars:` 不匹配实际注入的 `Table sidecar:`（单复数不一致），整个 backfill 自 Phase 41 起从未生效
-- [x] 补一条 heading fallback：当 backfill 只找到 `## Revision History` / `## Datasheet Versioning` 这类短标题且在 allowlist 里时，采用为 caption
-- [x] 更新测试用例里错误的 `Table sidecars:` 字符串
-- [x] 新增 2 个测试：heading fallback 的正反案例
-- [x] 全量 133 个测试通过
-- [x] 实测：有 caption 的表从 57/71 提到 63/71；非 TOC 表 caption 覆盖率从 88% 提到 97%
-- **Status:** complete
-
-**Phase 48 实测成果（ESP32-S3 datasheet）：**
-- Revision History (p83-86): 4 张表全部获得 caption 并形成 `(cont'd)` 续页链
-- Datasheet Versioning (p80): 识别为 caption
-- Table 6-6 RX Adjacent Channel Rejection (p72): backfill bug 修复后自动找回 caption
-- Table 6-7 Bluetooth LE Frequency (p72): 同上
-- 剩余 2 张无 caption 的表 (p22, p79) 是 Docling 原生列头乱码问题，不是 bug
-
-**普遍适用性验证：**
-- `Table sidecar:` 单复数修复对所有 PDF 生效，不是 ESP32 特例
-- heading fallback 用 allowlist (`Revision History` / `Document Change Notification` / `Datasheet Versioning`) 严格约束，不会误把 "Pin Assignment" / "Features" 等通用标题升级为 table caption
-- 所有 chip vendor datasheet 都有"Revision History"章节，不是 Espressif 特有
-
-### Phase 50: Markdown Noise Heading + Relaxed Electrical Classifier (2026-04-18 fifth pass)
-- [x] 第五遍 audit 发现：`document.md` 还残留 `## Cont'd from previous page` 这种 Docling OCR 产物 heading（已在 TOC/chunks/sections 过滤掉，markdown 层没同步）
-- [x] 第五遍 audit 发现：`classify_table_kind` 的 electrical 判定过严（要求 `{parameter, min, typ, max}` 严格子集），实际 datasheet 里 `Min (dBm)` / `Parameter 1` / `Symbol` 都会绕过
-- [x] `_clean_markdown_ocr_artifacts` 增加 `_CONTINUATION_HEADING_RE`，清理 `^#+ Cont'd/Continued from previous page$` heading，保留 inline 文本
-- [x] `classify_table_kind` 增加 relaxed fallback：≥2 of {min, typ, max} word-boundary 命中 → electrical；带 `(ns|µs|ms|ps|us)` → timing
-- [x] 加 11 个新测试（4 个 markdown cleanup + 7 个 table classifier），覆盖正反用例
-- [x] 全量 146 tests 通过
-- **Status:** complete
-
-**Phase 50 实测成果（ESP32-S3 datasheet）：**
-- `## Cont'd from previous page`: 2 → 0（document.md 彻底干净）
-- `kind=electrical`: 15 → 27（+12，覆盖 ch5/6 所有 RF/电气表）
-- `kind=generic`: 32 → 20（-12）
-- 零回归：page_count=87, table_count=71, chunk_count=309, section_count=141, alert_count=1, toc=151, is_chapter=7, cross_refs=47/43, assets=85/0-missing 全部不变
-- 仍保持 `generic` 的表都是正确分类：Table 1-1 comparison、Table 2-12 voltage regulators、Table 5-3/5-7~10 current consumption、Table 5-13 reliability、Table 6-1 Wi-Fi name/description（无 min/typ/max 信号）
-
-**普遍适用性验证：**
-- `_CONTINUATION_HEADING_RE` 匹配 `#{1,6}` 级别 + `cont'd|continued|from previous page` 变体，所有 vendor 的多页表通用
-- 只匹配独占一行的 heading，inline prose（"Cont'd on next page"）保持不动
-- electrical 分类器用 `\bmin\b|\btyp\b|\bmax\b` word-boundary，不会误伤 "Minimum"/"Maximum"/"Typical"
-- 需要 ≥2 个信号 + fallback 到 generic 是保守策略；单一信号表（如 `Min (µs)` 独一列）继续保持 generic
-
-### Phase 52: Surface Uncaptioned Tables (2026-04-18 final pass — 用户定)
-- [x] 审 12 轮 commit 历史，确认已做足优化
-- [x] 按 开发要求.md 更新版（含规则 4/5：不过度设计、启发式谨慎、坏结果让 agent 看原 PDF）再做一轮最小补丁
-- [x] integrity 审计零破损：所有 csv_path / assets_index / cross_refs.source_chunk_id / chunk_id 引用完整
-- [x] 发现唯一的"明显异常": 2 张非 TOC 表无 caption (p.22 列头相似度差、p.79 OCR 乱码)，bundle 对 agent 是 silent failure
-- [x] TDD 新增 `detect_missing_caption_alerts(table_records)`，只检测 empty caption + 非 TOC，不做任何修复启发式
-- [x] 在 `converter.py` 里和已有 alert pipeline 对齐调用
-- [x] 3 个新测试 (正面 + 过滤 TOC + 过滤有 caption)
-- [x] 全量 153 tests 通过
-- [x] 重跑 datasheet 验证：`alert_count` 1 → 3，其他 counts 零回归
-- **Status:** complete
-
-**Phase 52 实测成果：**
-- Alerts 现在告诉 agent：
-  - `p.27 Table 2-9` 已变图片（既有）
-  - `p.22` Table 0015 无 caption，查原 PDF（新）
-  - `p.79` Table 0066 无 caption，查原 PDF（新）
-- 规则 5 被具体落地：bundle 不再静默信任自己处理不好的表
-- README 的 Alerts 段直接可读，agent 不必翻 alerts.json
-
-**普遍适用性验证：**
-- 检测条件只是 `caption == ""` + 非 TOC，**不涉及任何启发式猜测**；
-  规则 4 "谨慎使用启发式" 满足
-- 完全兼容已有 alerts 管线和 README 渲染层
-- 任何 vendor 的 PDF：Docling 漏 caption 就 alert，Docling 正常就没 alert
-
-### Phase 51: Caption Ordering Bug + Ghost Section Filter (2026-04-18 sixth pass)
-- [x] 第六遍 audit 在用户要求重跑后仔细检查 bundle 产物
-- [x] 发现 bug A：`export_tables()` 在 `backfill` 之前先跑 `propagate_continuation_captions`，导致列头相似的表被错误链接为 continuation，后续 backfill 因 caption 非空而无法纠正
-- [x] 发现 bug B：`build_section_records` 没有对等 `build_toc` 的 `NOISY_TOC_HEADINGS` 过滤，导致 `Note:` 等散落标签聚合成跨 62% 文档的 ghost section
-- [x] TDD：先加端到端测试（export_tables + inject_table_sidecars_into_markdown 配合使用时 caption 正确）
-- [x] TDD：加 section filter 测试（`Note:` / `Notes:` 被过滤；合法 numbered / non-numbered heading 保留）
-- [x] 移除 `export_tables` 末尾的 `propagate_continuation_captions(records)` 调用
-- [x] 在 `build_section_records` 开头加入 `NOISY_TOC_HEADINGS` 过滤
-- [x] 150 tests 全部通过
-- [x] 重跑 `esp32-s3_datasheet_en.pdf` 并验证修复效果
-- **Status:** complete
-
-**Phase 51 实测成果（ESP32-S3 datasheet）：**
-- Table 6-10 / 6-14 caption 链路修复：
-  - Table 0057 p.73：caption 从 `Table 6-9. 2 Mbps (cont'd)`（错）→ `Table 6-10. 125 Kbps`（正）
-  - Table 0058 p.74：caption 从 raw `Table 6-10 - cont'd from previous page` → 规范化 `Table 6-10. 125 Kbps (cont'd)`，`continuation_of=0057`
-  - Table 0063/0064 同类型链路同样修复
-- Raw `cont'd from previous page` caption：2 → 0
-- `Note:` ghost section 移除：`section_count` 141 → 140，`suspicious` section 1 → 0
-- 零回归：`table_count=71`, `chunk_count=309`, `alert_count=1`, `chapter_outline=7`, `cross_refs=47/43 (91%)`, `kind=electrical=27/pinout=13/strap=1/revision=4/generic=20` 全部不变
-- 非 TOC 表 caption 覆盖率 63/65 (97%)，剩 2 张无 caption 的表 (p.22/p.79) 是 Docling 原生 column-header 裂变/OCR 乱码，非本层可修
-
-**普遍适用性验证：**
-- Bug A 根因是两个启发式的操作顺序，不是 ESP32 特有；任何 vendor 的 PDF 只要 Docling 偶尔漏 native caption 就会触发
-- Bug B 的 `NOISY_TOC_HEADINGS = {Note:, Notes:, Note, Notes}` 集合已存在多轮未扩充，不是新增过拟合
-- 两条修复都带反面测试：Fix A 的 "end-to-end 必须优先 markdown 标题" + Fix B 的 "numbered / non-numbered real sections must survive"
-- 所有已知的 continuation 链路在 148 → 150 测试扩充下依然稳定
-
-### Phase 49: CSV Column Header Cleanup (2026-04-18 fourth pass)
-- [x] 第四遍 audit 覆盖之前未检查的区域：document.html / document.json schema / assets 一致性 / chunk contextualization / section text_preview / schema cross-reference integrity / CSV header quality
-- [x] 绝大多数区域 clean（0 orphan refs、0 missing files、0 dup assets、text_preview 完整、section_id 一致）
-- [x] 唯一问题：2 个 CSV column header 是 `X.X` 镜像模式（`Pin No..Pin No.`、`RTC IO Name 1.RTC IO Name 1`），来自 Docling MultiIndex flatten
-- [x] 加 `_clean_column_header` 辅助函数：仅当 `.` 两侧文本相同时才合并，保护 `Pin Settings 6.At Reset` 等真实嵌套表头
-- [x] 加 2 个新测试（正反用例），全量 135 tests 通过
-- **Status:** complete
-
-**Phase 49 实测成果（ESP32-S3 datasheet）：**
-- 镜像 column header: 2 → 0
-- Table 2-6 RTC Functions 的 `Pin No..Pin No.` → `Pin No.`
-- Table 2-6 的 `RTC IO Name 1.RTC IO Name 1` → `RTC IO Name 1`
-- 其余 83 条带 `.` 的合法嵌套列（如 `Pin Settings 6.At Reset`、`IO MUX Function 1, 2, 3.F0`）保持不动
-
-**第四遍 audit 结论：经过四轮迭代，bundle 已达到 agent-ready 质量：**
-- 4/4 重要区域 clean：asset 一致性、schema 交叉引用、section preview、chunk contextualization
-- 剩余 Docling 原生限制（p.78 font 乱码、p.22/p.79 pinout 列头乱码）超出本项目修复范围
-- 所有改动都带跨 PDF 通用性验证，不是针对 ESP32 datasheet 过拟合
-
-## Key Questions
-1. `Docling` 本地方案和 `MinerU API` 这类云端方案相比，实际效果差距会不会大到值得优先走云端？
-2. 对嵌入式 datasheet / app note，什么场景本地方案更优，什么场景云端/远程增强更优？
-3. 这台 `WSL2 + RTX 4060 Laptop GPU` 当前是否已经具备 CUDA 基础能力？
-4. 为后续 `Docling + MinerU/OCR/VLM` 实验，WSL 全局环境最合理的打底范围是什么？
-5. `Docling` 探索目录第一阶段应该只放环境和验证，还是顺带脚本骨架？
-6. 为了后续基于手册做嵌入式开发，批处理程序应该输出什么层级的数据，才最利于查阅和复用？
-
-## Decisions Made
 | Decision | Rationale |
-|----------|-----------|
-| 本阶段不写批处理程序，只配环境 | 用户已明确先做环境准备 |
-| 环境目标覆盖 `Docling + MinerU/OCR/VLM` 基础 | 用户明确要求把后续 CUDA 基础一次打好 |
-| 允许修改 WSL 全局环境 | 用户明确接受系统级改动 |
-| 优先采用系统级 WSL GPU/NVIDIA 支持 | 用户希望后续所有项目都能直接复用这套基础设施 |
-| Python AI 依赖按项目做合理隔离，不直接灌进系统 Python | 用户认可项目级隔离更稳，避免污染 Ubuntu 24.04 的系统 Python |
-| 本次继续完成当前 GPU 项目环境安装 | 用户明确要求这次继续等待当前下载完成 |
-| 后续补一个共享 `AI base` 通用环境方案 | 用户明确要求避免每个项目都重复下载这些超大 GPU 依赖 |
-| 当前任务范围提升为长期工作站架构设计 | 用户明确愿意在初期投入时间，把底层基础设施设计好 |
-| 先做设计评审，再开始实施 | `brainstorming` 规则要求先给方案并获批 |
-| 共享重型 `AI base` 不再沿用 `uv + pypi.nvidia.com` 作为首条重建路径 | 该链路已出现真实 `tls handshake eof`，稳态不足 |
-| `pip` / `uv` 统一使用清华 PyPI 镜像 | 国内可用性高，适合作为 Python 包默认源 |
-| `conda-forge` 使用中科大镜像，`pytorch` / `nvidia` 使用教育网国内镜像 | 单一镜像未覆盖全部 GPU 相关 channel，混合国内镜像更稳 |
-| 重建前必须先停掉未完成安装并清空残留缓存 | 避免“半完成环境 + 旧缓存”污染后续判断与重试 |
-| 批处理程序第一版先做 `Markdown + JSON + manifest + 章节/页码级索引` | 用户已明确优先做适合 AI 查阅和可引用回溯的 A 路线，暂不提前做寄存器等深结构化抽取 |
-| `Docling JSON` 作为批处理程序的 canonical source，`Markdown` 作为阅读副产物，RAG 主索引来自 Docling 原生 chunking | 这是基于 Docling 官方 chunking / serialization / RAG examples 收敛出的最稳妥路线 |
-| 对超大 PDF 优先采用程序内部分页窗口处理，而不是要求用户手工拆 PDF | 这样可以保留统一文档身份、绝对页码和全局引用链，同时降低单次处理风险 |
-| `document.md` 中的表格不再只保留内联 Markdown，本轮开始在每张表后追加 `HTML/CSV sidecar` 链接 | 阅读层现在能直接跳转到更适合核对宽表/矩阵表的 sidecar 文件 |
-| 大 PDF 优化优先做“窗口级缓存/恢复”，而不是先继续激进调 batch size | 对 5000+ 页手册，抗中断和避免整本重跑的收益高于小幅吞吐提升 |
-| 当前主线继续以 `Docling JSON + Markdown + native chunking + table sidecars` 为核心，不切到全量 VLM 管线 | 这是准确性、可复现性、吞吐和工程复杂度之间最稳的主线 |
-| 下一阶段最高价值增强不是更换主解析器，而是补 `visual grounding / page images / figure metadata` 和“疑难页二级补救” | 这更直接解决嵌入式手册中的时序图、框图、宽矩阵表问题 |
-| 缓存机制默认关闭，仅作为显式可选的容错功能 | 这更符合“多数手册只处理一次”的真实工作流，避免普通单次转换承担额外复杂度和时间成本 |
-| 当前产物评价标准改为“是否最利于 Codex 直接调用、查阅、回溯原 PDF” | 这是用户在 2026-04-14 的明确要求，优先级高于区分原生与包装层 |
-| 本阶段只保留两条主线：`docling_bundle` 与 `OpenDataLoader PDF hybrid` | 用户明确要求目前只构建、完善、对比、测试这两种方式 |
-| 两条主线各自放在独立方式目录下，不强行统一成 raw/native 术语 | 用户明确表示不需要刻意区分原生与追加层，只看最终查阅效果 |
-| 每一个工具都必须从零思考其最佳实践，不允许被前一个工具的目录或抽象强行约束 | 用户在 2026-04-14 明确要求避免历史设计污染下一种工具的最佳实践判断 |
-| 最终由 Codex 基于实际文件查阅、定位、引用、验证体验裁决哪种输出更好用 | 用户明确要求以真实使用效果而非架构纯度为最终评价标准 |
-| `OpenDataLoader` 的 Java 11+ 依赖属于 WSL 系统层，不放进项目 venv 或 `docling` overlay 里凑合 | 这是基于 `ai-workstation-architecture` 和仓库分层规则收敛出的当前执行边界 |
-| `OpenDataLoader` overlay 必须独立，但应复用 shared AI base，而不是重新安装 `torch` | 这是在 2026-04-14 的真实安装尝试中验证出的最佳实践 |
-| `OpenDataLoader` 的最终可见输出树不应再分裂成顶层 `opendataloader_hybrid` 与 `opendataloader_hybrid-native` 两棵并列目录 | 用户在执行过程中明确指出这个结构违背了“每种方式一个输出树”的目标 |
-| `OpenDataLoader` 对超大 TRM 的当前最佳实践应启用 `--hybrid-fallback` | 这是在 2026-04-14 对 1531 页 ESP32-S3 TRM 的真实失败与重试中验证出来的 |
+|---|---|
+| 只维护 `docling_bundle` 一条产线 | 用户 2026-04-18 裁剪，资源聚焦 |
+| 评价标准=agent 实际查阅体验，不是架构纯度 | 用户明确（开发要求.md） |
+| 启发式失败必须进 `alerts.json`，不静默降级 | Robustness Principle + 开发要求.md 规则 5 |
+| 处理不好的表 / 图 / 页让 agent 回原 PDF | 开发要求.md 规则 5；原 PDF 是权威 source of truth |
+| 不追 bundle 体积最小，证据完整优先 | 框图 / 时序图 / 表证据对嵌入式开发价值最高 |
+| 不做 RAG / 全文检索 / MCP | 基础设施层，不侵入消费层 |
+| 测试数据只用 `esp32-s3_datasheet_en.pdf` (87 页) | 迭代速度；TRM 耗时大需显式许可 |
+| 不改 assets 文件名 | 避免断 `document.json` / `document.html` 内部引用 |
+| `kind=generic` 是合法分类 | 规则 4：不为填满 kind 分类率而降精度 |
+| 窗口缓存默认关，只做显式容错 | 普通单次转换不承担额外复杂度 |
+| Phase 52 起停止 feature 扩展 | 用户明确"最后一轮"，12 轮迭代后已够 |
 
-## Errors Encountered
-| Error | Attempt | Resolution |
-|-------|---------|------------|
-| `nvidia-smi` 在无权限阶段失败 | 1 | 在 full access 下复测成功，确认为权限问题，不是 WSL GPU 桥接损坏 |
-| `docker pull` 首次超时 | 1 | 已定位为 Docker daemon 未继承代理环境；通过 systemd drop-in 配置代理后恢复 |
-| `uv add` 首次失败 | 1 | 已定位为 `uv` 试图安装当前目录自身包；改用 `--no-install-project` 重试 |
-| CUDA 版 `torch` 安装在断网后失败退出 | 1 | 已定位为从 `pypi.nvidia.com` 拉取 `nvidia-cusolver-cu12` 时 `tls handshake eof`，当前项目环境仍未完成 |
-| 共享 `AI base` 的 `uv pip install` 已结束但未完成环境落盘 | 1 | 原 `/home/qcgg/.venvs/ai-base-cu128-stable` 未形成可用环境，现已清理并转向 `micromamba` 路线 |
-| `uv` 全局镜像配置写成了无效键 `default-index` | 1 | 已修正为当前 `uv` 版本支持的 `index-url`，并用 `uv pip install --dry-run` 验证 |
-| `micromamba create` 持续下载但环境目录几乎未落盘 | 1 | 已停止进程、清空 `~/.mamba` 相关残留，并改为先 dry-run 验证镜像链路 |
-| 规划文件引用的设计文档路径不存在 | 1 | 已补写新的架构审计与执行文档，并改用真实存在的 `docs/architecture/` 路径 |
-| `uv` 在 overlay venv 中未复用共享 base 的 `torch` | 1 | 已确认 `pip` 能正确识别 `--system-site-packages` 继承依赖，并将 overlay 安装脚本切换为 `pip` |
-| `OpenDataLoader` 运行前缺少 `java` | 1 | 已确认 Ubuntu 24.04 系统层未安装 Java，且当前 `sudo` 需要密码，等待用户决定是否手动安装系统级 JRE |
-| OpenDataLoader 首次 bootstrap 试图在 overlay 中重复安装 `torch 2.11.0` | 1 | 已停止安装，保留半成品 `.venv.partial-no-shared-base` 供对照，并将 bootstrap 改为复用 shared AI base |
-| OpenDataLoader hybrid 在 ESP32-S3 TRM 上触发 `Comparison method violates its general contract!` | 1 | 已确认这是 backend transform/sort 阶段的真实工具 bug；默认关闭 fallback 会导致整本失败，现已改为默认开启 `--hybrid-fallback` |
-| `opendataloader_hybrid` bundler 未把 `run.log` 复制进最终 bundle 的 `runtime/native/` | 1 | 已补测试并修复复制逻辑，保证 `runtime/report.json` 与原始运行日志可互相追溯 |
-| 并行重跑 `OpenDataLoader` datasheet/TRM 时共用了默认 `5002` 端口 | 1 | datasheet 干净成功，但 TRM 后续 backend chunk 因连接中断大面积回退到 Java；该次 TRM 结果作废，改为独占端口顺序重跑 |
-| `OpenDataLoader` 最终 bundle 把调试/原生副本层混进了成品目录 | 1 | 已确认这违背“agent-first 最终产物”原则；必须改成自洽成品目录，只保留最小运行证据 |
-| `docling_bundle` 也把运行/缓存层混进了最终 bundle | 1 | 已确认 `run_batch()` 无条件把窗口缓存写进 `runtime/cache/`，且 `manifest.json` 混入大量运行态字段；后续与 ODL 一起收缩 |
-| 之前“按最高原则已无明显优化空间”的判断不成立 | 1 | 直接查看最终 bundle 后已确认该判断是误判；后续一律以 concrete outputs 的 agent 使用效果为准，不再以主观“差不多够好”作结论 |
-| 默认 `pages/`、双入口文件、双份 table sidecar 仍然过重 | 1 | 已确认这是当前继续偏离最佳实践的主要冗余来源；后续以“单入口、单导航、单默认 table format”为收敛目标 |
-| 默认视觉资产保留策略仍然过重，尤其 `docling_bundle` TRM | 1 | 新一轮 clean rerun 后已确认 `assets/` 已成为主要体积来源；后续应按“高价值图保留、低价值图降级”为下一轮主优化方向 |
+## Errors Encountered（代表性）
 
-## Notes
-- 当前系统为 `Ubuntu 24.04.4 LTS / WSL2`
-- 当前 GPU 已可见：`RTX 4060 Laptop GPU`，`nvidia-smi` 返回正常，驱动 `595.79`，CUDA `13.2`
-- 当前存在 `/usr/lib/wsl/lib/libcuda.so*`，说明 WSL CUDA 桥接库存在
-- 当前 `nvcc` 仍未安装；这是有意保留，当前阶段不需要完整 CUDA toolkit
-- 当前已完成：`docker`、`nvidia-container-toolkit`、`ninja-build`、`tesseract` 基础包
-- 当前已完成：Docker daemon NVIDIA runtime 配置与代理配置
-- 当前已完成：`docling/` 目录与基础 README / requirements
-- 当前共享重型 `AI base` 已创建完成：`/home/qcgg/.mamba/envs/ai-base-cu124-stable`
-- 当前 `docling/.venv` 已创建完成，并成功复用共享 base 中的 `torch`
-- 当前镜像配置文件已落盘：
-  - `pip`: `/home/qcgg/.config/pip/pip.conf`
-  - `uv`: `/home/qcgg/.config/uv/uv.toml`
-  - `conda/micromamba`: `/home/qcgg/.condarc`
-- 当前全局工作站规则已补入：
-  - `/home/qcgg/.codex/AGENTS.md`
-- 当前已验证：
-  - `pip` 可通过国内镜像解析包版本
-  - `uv` 修正后可通过国内镜像完成 dry-run 解析
-  - `micromamba` 可在国内镜像配置下 dry-run 解析 `pytorch-cuda=12.4`
-  - 共享 `AI base` 中 `torch 2.5.1` 可见 GPU
-  - `docling 2.86.0` 可在 `docling/.venv` 中正常导入
-  - `docling/.venv` 中的 `torch` 实际来自共享 base，而不是项目层重复安装
-- 当前文档已收敛到：
-  - `docs/README.md`
-  - `docs/architecture/global-workstation-reference.md`
-  - `docs/architecture/2026-04-12-docling-embedded-manual-processing.md`
-  - `docs/architecture/2026-04-15-parser-status-and-next-steps.md`
-  - `docs/superpowers/plans/2026-04-15-parser-optimization-roadmap.md`
-- 当前已补齐可执行脚本：
-  - `scripts/bootstrap_ai_base.sh`
-  - `scripts/bootstrap_docling_env.sh`
-  - `scripts/verify_ai_stack.sh`
-- 当前已新增：
-  - `document.md` 表格后置 `Table sidecars` 引用
-  - `manifest.json` 的表格 `label/caption`
-  - 每份文档 `_windows/` 窗口缓存，可复跑恢复
+| Error | 分析 | 解决 |
+|---|---|---|
+| "currently usable" ≠ "near best practice" | 2026-04-14 后才看具体 bundle 文件，误判多次 | 改为以 concrete outputs 的 agent 使用效果为准 |
+| 并行跑 OpenDataLoader datasheet + TRM 共用 5002 端口 | backend chunk 回退、TRM 结果污染 | 改为独占端口顺序跑；该分支后续归档 |
+| `caption` 被继承启发式抢先填错 | `propagate_continuation_captions` 在 backfill 之前跑（Phase 48 fix 后才暴露） | P51 移除早期调用，改为 backfill-then-propagate 单路径 |
+| `Note:` section 跨 62% 文档 | `build_toc` 过滤 `NOISY_TOC_HEADINGS` 但 `build_section_records` 没同步 | P51 在 section 构建里加同一 filter |
+| 2 张表 silent 无 caption | Docling 列头裂变 / OCR 乱码，heuristic 无法救 | P52 暴露为 `table_without_caption` alert，让 agent 回原 PDF |
+
+完整历史见 git log 和 `findings.md`。

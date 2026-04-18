@@ -17,7 +17,7 @@
 
 ## 当前产线
 
-**只保留 `docling_bundle` 这一条主线**（2026-04-18 起）。`opendataloader_hybrid` 已从活跃路线移除。
+**只保留 `docling_bundle` 这一条主线**（2026-04-18 起）。`opendataloader_hybrid` 已从活跃路线移除（见 `opendataloader/README.md`）。
 
 ```
 manuals/
@@ -33,18 +33,20 @@ tmp/
 
 | 文件 | 用途 |
 |------|------|
-| `README.md` | 单入口；摘要、告警、阅读顺序 |
-| `manifest.json` | 机器入口；紧凑元数据 |
-| `alerts.json` | 质量告警（不可信页/表格） |
-| `toc.json` | 层级目录树 |
+| `README.md` | 单入口；摘要、章节大纲、表格分布、告警 |
+| `manifest.json` | 机器入口；紧凑元数据与计数 |
+| `alerts.json` | 质量告警（不可信页/表格，含 `table_without_caption`） |
+| `toc.json` | 层级目录树（`is_chapter=true` 过滤真章节） |
 | `pages.index.jsonl` | 页码→内容反向索引 |
 | `sections.jsonl` | 章节索引（带 `heading_level` / `suspicious`） |
 | `chunks.jsonl` | 段级分块（Docling `HybridChunker` 输出） |
-| `tables.index.jsonl` | 表格索引（caption / label / csv 路径） |
+| `tables.index.jsonl` | 表格索引（caption / kind / columns / continuation_of） |
 | `tables/*.csv` | 每张表的 CSV sidecar |
+| `cross_refs.jsonl` | 交叉引用（section / table / figure 带页码 resolve） |
+| `assets.index.jsonl` | 图片清单（page / md_line / size_bytes） |
 | `document.md` | 主阅读层 Markdown |
 | `document.json` | Docling 原生 JSON 全量 |
-| `document.html` | 宽表/视觉验证备用视图 |
+| `document.html` | 宽表 / 视觉验证备用视图 |
 | `assets/` | 提取到的所有图片证据 |
 
 ## 运行
@@ -61,19 +63,20 @@ docling/.venv/bin/python -m docling_bundle convert \
 
 ## 消费流程（agent）
 
-1. 打开 `README.md`，看摘要和 `alert_count`
-2. `alert_count > 0` 时先读 `alerts.json`
-3. 要章节导航用 `toc.json`
+1. 打开 `README.md`，看摘要、章节大纲、`alert_count`
+2. `alert_count > 0` 时先读 `alerts.json`——`table_without_caption` 类告警表示该表建议回原 PDF 核验
+3. 要章节导航用 `toc.json`（`jq 'select(.is_chapter)'` 一键取真章节）
 4. 要按页查内容用 `pages.index.jsonl`
-5. 查表用 `tables.index.jsonl` 定位，读对应 `tables/*.csv` 核值
+5. 查表用 `tables.index.jsonl` 定位（`filter .kind` 按 pinout/electrical/...），读对应 `tables/*.csv` 核值
 6. 读 `document.md` 做上下文阅读
-7. 任何结论以回 `manuals/raw/<...>.pdf` 对应页为最终权威
+7. **任何结论以回 `manuals/raw/<...>.pdf` 对应页为最终权威**——尤其当 bundle 有 alert 时
 
-## 已知缺口与路线
+## 文档入口
 
-详见：
-- `docs/architecture.md` — 设计原则、产出契约、质量维度
-- `task_plan.md` — 分阶段改进计划（当前 Phase 39：TOC 去噪）
-- `findings.md` — 每次重跑的观察记录
+- `docs/architecture.md` — 设计原则、产出契约、代码模块边界
+- `task_plan.md` — 当前阶段与决策记录
+- `findings.md` — Docling 能力边界与 bundle 质量评估
+- `progress.md` — 最近 session 变更日志
+- `开发要求.md` — 用户维护的评价标准（最高优先级）
 
 评价标准：**Claude Code / Codex 直接调用这个 bundle 做嵌入式开发时的真实体验**。一切优化以降低"从问题到可信答案"的步数为准。
