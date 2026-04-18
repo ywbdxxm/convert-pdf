@@ -18,7 +18,11 @@ from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTok
 import pypdfium2 as pdfium
 from docling.pipeline.threaded_standard_pdf_pipeline import ThreadedStandardPdfPipeline
 
-from docling_bundle.alerts import detect_markdown_alerts, detect_table_sidecar_alerts
+from docling_bundle.alerts import (
+    detect_markdown_alerts,
+    detect_missing_caption_alerts,
+    detect_table_sidecar_alerts,
+)
 from docling_bundle.assets_index import build_assets_index
 from docling_bundle.config import build_pdf_pipeline_options
 from docling_bundle.cross_refs import extract_cross_refs
@@ -502,6 +506,7 @@ def export_document_bundle(
     paths.document_markdown.write_text(markdown_text, encoding="utf-8")
     alerts = detect_markdown_alerts(markdown_text)
     alerts.extend(detect_table_sidecar_alerts(paths.doc_dir, table_records))
+    alerts.extend(detect_missing_caption_alerts(table_records))
     manifest["alert_count"] = len(alerts)
     write_json(paths.alerts, alerts)
 

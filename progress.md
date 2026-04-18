@@ -199,6 +199,30 @@
 2. 更新 `docs/architecture.md` 的 roadmap 表格（Phase 39 标 complete）
 3. 每个 phase 结束：重跑 datasheet + 记录实测结果 + commit + push
 
+## 2026-04-18 Final Pass (Phase 52) — user-declared stopping point
+
+User asked for one last pass against 开发要求.md (now extended with rule 4
+"no over-design, use heuristics carefully" and rule 5 "point agents at the
+source PDF for anything that converted poorly").
+
+- Reviewed 12 commits of docling_bundle work since Phase 38 — enough.
+- Integrity sweep across csv_paths / assets_index / cross_refs source ids /
+  chunk ids: zero broken references, zero missing files, zero empty chunks.
+- Located the only remaining "明显异常" compatible with the stricter bar:
+  two non-TOC tables (p.22 Table 0015, p.79 Table 0066) had empty captions.
+  Docling emitted broken or divergent column headers so backfill and
+  continuation-inheritance both legitimately refused them. The bundle was
+  exposing no signal at all — silent failure from the agent's perspective.
+- Implemented the minimal rule-5 response: `detect_missing_caption_alerts`
+  adds a `table_without_caption` alert per non-TOC table with empty caption.
+  No heuristic fixing — the alert explicitly says "verify table against
+  source PDF". Added tests for positive, TOC-skipped, and captioned paths.
+- Full suite: 153/153. Bundle regenerated. `alert_count` 1 → 3; page,
+  table, chunk, section, cross-ref, kind distributions all unchanged.
+
+Stopping point acknowledged: unless a new PDF exposes a new class of
+issue, no further `docling_bundle` optimisation will be queued.
+
 ## 2026-04-18 Sixth Pass (Phase 51)
 
 - Re-ran audit of the Phase 50 bundle at user request.

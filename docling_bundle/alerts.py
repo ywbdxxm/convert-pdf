@@ -85,6 +85,38 @@ def _is_missing_or_empty(path: Path) -> bool:
     return not path.read_text(encoding="utf-8").strip()
 
 
+def detect_missing_caption_alerts(table_records: list[dict]) -> list[dict]:
+    """Surface engineering tables that Docling could not caption.
+
+    Docling occasionally fails to attach a caption when a page's layout
+    differs between continuation pages, or when OCR corrupts the heading
+    row. The bundle still exports the CSV (so the data is not lost) but
+    without a caption the agent has no way to know what the table is
+    about. Per project rule 5, the correct response is to point the
+    agent back to the source PDF rather than invent a caption.
+
+    Filters ``is_toc`` / ``document_index`` tables because those have
+    empty captions by design (their rows are the TOC entries).
+    """
+    alerts: list[dict] = []
+    for table in table_records:
+        if table.get("is_toc") or table.get("kind") == "document_index":
+            continue
+        if (table.get("caption") or "").strip():
+            continue
+        alerts.append(
+            {
+                "kind": "table_without_caption",
+                "table_id": table["table_id"],
+                "page_start": table.get("page_start"),
+                "page_end": table.get("page_end"),
+                "csv_path": table.get("csv_path", ""),
+                "detail": "caption unavailable; verify table against source PDF",
+            }
+        )
+    return alerts
+
+
 def detect_table_sidecar_alerts(doc_dir: Path, table_records: list[dict]) -> list[dict]:
     alerts: list[dict] = []
     for table in table_records:

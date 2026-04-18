@@ -4,7 +4,7 @@
 为这台机器设计并逐步落地一套长期可复用的 PDF / AI 工作站架构，覆盖 `WSL 系统层 -> Docker / 容器层 -> CUDA / GPU 层 -> 共享 AI base 层 -> 项目级环境层`，并在当前仓库中收敛“面向嵌入式开发的手册转换输出架构”，重点回答 `Docling` 当前 bundle 是否已接近最佳实践，以及 `OpenDataLoader PDF` 尤其 hybrid mode 的更优输出应当长什么样。
 
 ## Current Phase
-Phase 51 complete (caption ordering bug + noisy ghost section filter). Next: Phase 44（测试安全网）或用户决定。
+Phase 52 complete (table_without_caption alert — 用户指示最后一轮). 本轮优化告一段落。后续除非遇到新 PDF 暴露新类问题,不再继续扩展 docling_bundle。
 
 ## Robustness Principle (2026-04-18)
 
@@ -491,6 +491,32 @@ Phase 51 complete (caption ordering bug + noisy ghost section filter). Next: Pha
 - 只匹配独占一行的 heading，inline prose（"Cont'd on next page"）保持不动
 - electrical 分类器用 `\bmin\b|\btyp\b|\bmax\b` word-boundary，不会误伤 "Minimum"/"Maximum"/"Typical"
 - 需要 ≥2 个信号 + fallback 到 generic 是保守策略；单一信号表（如 `Min (µs)` 独一列）继续保持 generic
+
+### Phase 52: Surface Uncaptioned Tables (2026-04-18 final pass — 用户定)
+- [x] 审 12 轮 commit 历史，确认已做足优化
+- [x] 按 开发要求.md 更新版（含规则 4/5：不过度设计、启发式谨慎、坏结果让 agent 看原 PDF）再做一轮最小补丁
+- [x] integrity 审计零破损：所有 csv_path / assets_index / cross_refs.source_chunk_id / chunk_id 引用完整
+- [x] 发现唯一的"明显异常": 2 张非 TOC 表无 caption (p.22 列头相似度差、p.79 OCR 乱码)，bundle 对 agent 是 silent failure
+- [x] TDD 新增 `detect_missing_caption_alerts(table_records)`，只检测 empty caption + 非 TOC，不做任何修复启发式
+- [x] 在 `converter.py` 里和已有 alert pipeline 对齐调用
+- [x] 3 个新测试 (正面 + 过滤 TOC + 过滤有 caption)
+- [x] 全量 153 tests 通过
+- [x] 重跑 datasheet 验证：`alert_count` 1 → 3，其他 counts 零回归
+- **Status:** complete
+
+**Phase 52 实测成果：**
+- Alerts 现在告诉 agent：
+  - `p.27 Table 2-9` 已变图片（既有）
+  - `p.22` Table 0015 无 caption，查原 PDF（新）
+  - `p.79` Table 0066 无 caption，查原 PDF（新）
+- 规则 5 被具体落地：bundle 不再静默信任自己处理不好的表
+- README 的 Alerts 段直接可读，agent 不必翻 alerts.json
+
+**普遍适用性验证：**
+- 检测条件只是 `caption == ""` + 非 TOC，**不涉及任何启发式猜测**；
+  规则 4 "谨慎使用启发式" 满足
+- 完全兼容已有 alerts 管线和 README 渲染层
+- 任何 vendor 的 PDF：Docling 漏 caption 就 alert，Docling 正常就没 alert
 
 ### Phase 51: Caption Ordering Bug + Ghost Section Filter (2026-04-18 sixth pass)
 - [x] 第六遍 audit 在用户要求重跑后仔细检查 bundle 产物

@@ -2,7 +2,11 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from docling_bundle.alerts import detect_markdown_alerts, detect_table_sidecar_alerts
+from docling_bundle.alerts import (
+    detect_markdown_alerts,
+    detect_missing_caption_alerts,
+    detect_table_sidecar_alerts,
+)
 
 
 class MarkdownAlertTests(unittest.TestCase):
@@ -44,6 +48,80 @@ class MarkdownAlertTests(unittest.TestCase):
         )
 
         alerts = detect_markdown_alerts(markdown)
+
+        self.assertEqual(alerts, [])
+
+    def test_detect_missing_caption_alerts_flags_non_toc_table_without_caption(self):
+        """Per 开发要求 rule 5: tables Docling could not caption should
+        be surfaced so the agent knows to verify against the source PDF
+        instead of trusting a silently-incomplete bundle."""
+        table_records = [
+            {
+                "table_id": "doc:table:0015",
+                "page_start": 22,
+                "page_end": 22,
+                "csv_path": "tables/table_0015.csv",
+                "label": "table",
+                "caption": "",
+                "kind": "pinout",
+                "is_toc": False,
+            },
+            {
+                "table_id": "doc:table:0014",
+                "page_start": 21,
+                "page_end": 21,
+                "csv_path": "tables/table_0014.csv",
+                "label": "table",
+                "caption": "Table 2-4. IO MUX Functions",
+                "kind": "pinout",
+                "is_toc": False,
+            },
+        ]
+
+        alerts = detect_missing_caption_alerts(table_records)
+
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0]["kind"], "table_without_caption")
+        self.assertEqual(alerts[0]["table_id"], "doc:table:0015")
+        self.assertEqual(alerts[0]["page_start"], 22)
+        self.assertEqual(alerts[0]["csv_path"], "tables/table_0015.csv")
+
+    def test_detect_missing_caption_alerts_ignores_document_index_tables(self):
+        """TOC / document_index tables routinely have no caption by design
+        (their columns are the TOC entries). They must not trigger the
+        quality alert or the alerts list would be dominated by TOC noise."""
+        table_records = [
+            {
+                "table_id": "doc:table:0001",
+                "page_start": 7,
+                "page_end": 7,
+                "csv_path": "tables/table_0001.csv",
+                "label": "document_index",
+                "caption": "",
+                "kind": "document_index",
+                "is_toc": True,
+            },
+        ]
+
+        alerts = detect_missing_caption_alerts(table_records)
+
+        self.assertEqual(alerts, [])
+
+    def test_detect_missing_caption_alerts_ignores_captioned_tables(self):
+        table_records = [
+            {
+                "table_id": "doc:table:0008",
+                "page_start": 16,
+                "page_end": 16,
+                "csv_path": "tables/table_0008.csv",
+                "label": "table",
+                "caption": "Table 2-1. Pin Overview",
+                "kind": "pinout",
+                "is_toc": False,
+            },
+        ]
+
+        alerts = detect_missing_caption_alerts(table_records)
 
         self.assertEqual(alerts, [])
 
